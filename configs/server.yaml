@@ -1,0 +1,44 @@
+server:
+  port: 8085
+  log_level: "debug"
+  max_body_size: 64   # Allocates in KB
+  config_source: "sqlite"  # It is either yaml  or sqlite
+  db_path: "./data/diffractllm.db"
+  mock_enabled: true
+  aes_pass_key: "12345678901234567890123456789012"
+
+dataplane:
+  max_idle_conns: 1000
+  enforce_global_timeouts: true
+  global_request_timeout: 60   # Timeout in seconds
+  global_health_timeout: 5
+  global_health_interval: 10
+  global_health_path: "/healthz"
+  global_health_fail_count: 3
+  global_health_success_count: 2
+
+  health:
+    timeout: 5
+    interval: 10
+    path: "/healthz"
+    fail_count: 3
+    success_count: 2
+
+  transport:
+    max_idle_conns: 1000
+    max_conns_per_host: 100
+    max_idle_conns_per_host: 500
+    idle_conn_timeout: 90
+    response_header_timeout: 30
+    dial_timeout: 5
+    keep_alive: 30
+    tls_handshake_timeout: 10
+    disable_compression: true
+    defaultScheme: "https"
+    write_buffer_size: 65536        # 64KB write buffer
+    read_buffer_size: 65536         # 64KB read buffer
+  
+
+observability:
+  log_level: "debug"
+
