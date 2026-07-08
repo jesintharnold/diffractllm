@@ -60,7 +60,7 @@ func (g *Governance) InitGovernance() error {
 
 	vkeymap := make(VirtualKeyMap, len(vkeyDetail))
 	for _, key := range vkeyDetail {
-		vkeymap[key.APIKey] = &VirtualKey{
+		vkeymap[key.KeyHash] = &VirtualKey{
 			Key:           key.APIKey,
 			ClientID:      key.ClientID,
 			BudgetID:      key.BudgetID,
@@ -68,7 +68,7 @@ func (g *Governance) InitGovernance() error {
 			AllowedModels: key.ToModelKeySet(),
 			ModelPools:    key.ToPoolNameSet(),
 			IsActive:      key.IsActive,
-			ExpiresAt:     &key.ExpiresAt,
+			ExpiresAt:     key.ExpiresAt,
 		}
 	}
 	g.KeyCache.Swap(vkeymap)

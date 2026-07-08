@@ -60,8 +60,6 @@ type AllowedModel struct {
 	Weight   int    `json:"weight,omitempty"`
 }
 
-
-
 type VirtualKey struct {
 	ClientID      string         `json:"client_id"      binding:"required"`
 	BudgetID      string         `json:"budget_id"      binding:"required"`
@@ -138,8 +136,36 @@ type ModelPricing struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-type OverridePricing struct {
+type CustomPricing struct {
 	ID        string `json:"id,omitempty"`
+	Name      string `json:"name"`
+	ModelName string `json:"model_name"`
+	ModelType string `json:"model_type"`
+
+	Pricing
+
+	ScopeType         ScopeType `json:"scope_type"`
+	ScopeVirtualkeyID *string   `json:"scope_virtual_key_id,omitempty"`
+	ScopeProvider     *Provider `json:"scope_provider,omitempty"`
+
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type CustomPricingRequest struct {
+	Name      string `json:"name"       binding:"required"`
+	ModelName string `json:"model_name" binding:"required"`
+	ModelType string `json:"model_type" binding:"required"`
+
+	Pricing
+
+	ScopeType         ScopeType `json:"scope_type"             binding:"required,oneof=global provider virtualkey"`
+	ScopeVirtualkeyID *string   `json:"scope_virtual_key_id,omitempty"`
+	ScopeProvider     *Provider `json:"scope_provider,omitempty"`
+}
+
+type CustomPricingResponse struct {
+	ID        string `json:"id"`
 	Name      string `json:"name"`
 	ModelName string `json:"model_name"`
 	ModelType string `json:"model_type"`

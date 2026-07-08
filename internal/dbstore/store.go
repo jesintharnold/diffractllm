@@ -1,4 +1,4 @@
-﻿package dbstore
+package dbstore
 
 import (
 	"context"
@@ -80,62 +80,31 @@ func NewStore(dbPath string, aespasskey string, logger *zap.Logger) (*Store, err
 }
 
 func (s *Store) Migrate() error {
-	if err := s.DB.AutoMigrate(); err != nil {
-		return err
+
+	tables := []any{
+		&StoreBudget{},
+		&StoreModelAPIRegistry{},
+		&StoreModelCatalog{},
+		&StoreModelPool{},
+		&StoreModelPricing{},
+		&StoreOverrideModelPricing{},
+		&StoreProvider{},
+		&StoreUsageRecord{},
+		&StoreVirtualKey{},
 	}
 
-	return s.ensureRuntimeIDTriggers()
+	return s.DB.AutoMigrate(tables...)
 }
 
 func (s *Store) Seed(mockEnabled bool) error {
 	if err := s.seedProviders(); err != nil {
 		return err
 	}
-	if mockEnabled {
-		// if err := s.seedMockData(); err != nil {
-		// 	return err
-		// }
-	}
-	return nil
-}
-
-func (s *Store) ensureRuntimeIDTriggers() error {
-	triggers := []string{
-		`CREATE TRIGGER IF NOT EXISTS model_registry_runtime_id_trigger
-AFTER INSERT ON model_registry
-FOR EACH ROW
-WHEN NEW.runtime_id = 0
-BEGIN
-	UPDATE model_registry
-	SET runtime_id = COALESCE((SELECT MAX(runtime_id) FROM model_registry WHERE id <> NEW.id), 0) + 1
-	WHERE id = NEW.id;
-END;`,
-		`CREATE TRIGGER IF NOT EXISTS backends_runtime_id_trigger
-AFTER INSERT ON backends
-FOR EACH ROW
-WHEN NEW.runtime_id = 0
-BEGIN
-	UPDATE backends
-	SET runtime_id = COALESCE((SELECT MAX(runtime_id) FROM backends WHERE id <> NEW.id), 0) + 1
-	WHERE id = NEW.id;
-END;`,
-		`CREATE TRIGGER IF NOT EXISTS policies_runtime_id_trigger
-AFTER INSERT ON policies
-FOR EACH ROW
-WHEN NEW.runtime_id = 0
-BEGIN
-	UPDATE policies
-	SET runtime_id = COALESCE((SELECT MAX(runtime_id) FROM policies WHERE id <> NEW.id), 0) + 1
-	WHERE id = NEW.id;
-END;`,
-	}
-
-	for _, trigger := range triggers {
-		if err := s.DB.Exec(trigger).Error; err != nil {
-			return err
-		}
-	}
-
+	// if mockEnabled {
+	// 	if err := s.seedMockData(); err != nil {
+	// 		return err
+	// 	}
+	// }
 	return nil
 }
 

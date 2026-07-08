@@ -101,27 +101,31 @@ func (k *StoreVirtualKey) ToCore() core.VirtualKeyResponse {
 	return resp
 }
 
-func (s *StoreVirtualKey) BeforeCreate(tx *gorm.DB) error {
+func (s *StoreVirtualKey) BeforeSave(tx *gorm.DB) error {
 	encKey := tx.Statement.Context.Value(aesKeyPass{}).([]byte)
 	var err error
-	if s.APIKey, err = encryptKey(s.APIKey, encKey); err != nil {
+	APIKey, err := encryptKey(&s.APIKey, encKey)
+	if err != nil {
 		return fmt.Errorf("error while encrypting APIKey: %w", err)
 	}
+	s.APIKey = *APIKey
 	return nil
 }
 
 func (s *StoreVirtualKey) AfterFind(tx *gorm.DB) error {
 	decKey := tx.Statement.Context.Value(aesKeyPass{}).([]byte)
 	var err error
-	if s.APIKey, err = decryptKey(s.APIKey, decKey); err != nil {
+	APIKey, err := decryptKey(&s.APIKey, decKey)
+	if err != nil {
 		return fmt.Errorf("error while decrypting APIKey: %w", err)
 	}
+	s.APIKey = *APIKey
 	return nil
 }
 
 func (s *Store) ListActiveVirtualKeys() ([]StoreVirtualKey, error) {
 	var keys []StoreVirtualKey
-	if err := s.DB.Preload("AllowedModels").Preload("AllowedModels.Provider").Preload("Pools").Where("is_active = ?", true).Find(&keys).Error; err != nil {
+	if err := s.DB.Where("is_active = ?", true).Find(&keys).Error; err != nil {
 		return nil, fmt.Errorf("failed to list active virtual keys: %w", err)
 	}
 	return keys, nil
@@ -129,7 +133,7 @@ func (s *Store) ListActiveVirtualKeys() ([]StoreVirtualKey, error) {
 
 func (s *Store) GetVirtualKey(VID string) (*StoreVirtualKey, error) {
 	var key StoreVirtualKey
-	if err := s.DB.Preload("AllowedModels").Preload("AllowedModels.Provider").Preload("Pools").Where("id = ?", VID).First(&key).Error; err != nil {
+	if err := s.DB.Where("id = ?", VID).First(&key).Error; err != nil {
 		return nil, fmt.Errorf("virtual key %q not found: %w", VID, err)
 	}
 	return &key, nil
@@ -137,7 +141,7 @@ func (s *Store) GetVirtualKey(VID string) (*StoreVirtualKey, error) {
 
 func (s *Store) ListVirtualKeys() ([]StoreVirtualKey, error) {
 	var keys []StoreVirtualKey
-	if err := s.DB.Preload("AllowedModels").Preload("AllowedModels.Provider").Preload("Pools").Find(&keys).Error; err != nil {
+	if err := s.DB.Find(&keys).Error; err != nil {
 		return nil, fmt.Errorf("failed to list virtual keys: %w", err)
 	}
 	return keys, nil

@@ -86,6 +86,12 @@ func (m *StateManager) Acquire(id string, alive int32) *DeploymentState {
 	return s
 }
 
+func (m *StateManager) Release(id string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.States, id)
+}
+
 // func (m *StateManager) Sweep(grace time.Duration) {
 // 	cutoff := time.Now().Add(-grace).UnixNano()
 // 	m.mu.Lock()

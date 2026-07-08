@@ -28,63 +28,91 @@ func NewDBSource(logger *zap.Logger) (*DBSource, error) {
 	}, nil
 }
 
-func (s *DBSource) Load() ([]*core.Deployment, error) {
+func (s *DBSource) Init() error {
 	if s.store == nil {
-		return nil, fmt.Errorf("db source store is not initialized")
+		return fmt.Errorf("db source store is not initialized")
 	}
 
 	if err := s.store.Migrate(); err != nil {
-		return nil, fmt.Errorf("db source migrate: %w", err)
+		return fmt.Errorf("db source migrate: %w", err)
 	}
 
 	mockEnabled := config.GlobalConfig().ServerConfig.MockEnabled
 	if err := s.store.Seed(mockEnabled); err != nil {
-		return nil, fmt.Errorf("db source seed: %w", err)
+		return fmt.Errorf("db source seed: %w", err)
 	}
 
-	return s.HydrateRoutingTableConfig()
+	return nil
 }
 
-func (s *DBSource) HydrateRoutingTableConfig() (*core.RoutingTableConfig, error) {
+func (s *DBSource) Load() (*core.ModelPlaneSnapshot, error) {
 	if s.store == nil {
 		return nil, fmt.Errorf("db source store is not initialized")
 	}
 
-	models, err := s.store.ListModels(true)
+	registries, err := s.store.ListModelAPIRegistries()
 	if err != nil {
-		return nil, fmt.Errorf("db source list models: %w", err)
+		return nil, fmt.Errorf("db source list api registries: %w", err)
 	}
-
-	backends, err := s.store.ListBackends(true)
+	// catalog, err := s.store.ListCatalogModels(true)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("db source list catalog models: %w", err)
+	// }
+	pools, err := s.store.ListModelPools()
 	if err != nil {
-		return nil, fmt.Errorf("db source list backends: %w", err)
+		return nil, fmt.Errorf("db source list model pools: %w", err)
 	}
 
-	policies, err := s.store.ListPolicies(true)
-	if err != nil {
-		return nil, fmt.Errorf("db source list policies: %w", err)
+	snap := &core.ModelPlaneSnapshot{
+		APIRegistries: make([]core.ModelAPIRegistry, 0, len(registries)),
+		// Catalog:       make([]core.ModelCatalog, 0, len(catalog)),
+		Pools: make([]core.ModelPool, 0, len(pools)),
 	}
 
-	config := &core.RoutingTableConfig{
-		ModelRegistry: make([]*core.Model, 0, len(models)),
-		Backends:      make([]core.BackendConfig, 0, len(backends)),
-		Policies:      make([]core.RoutePolicy, 0, len(policies)),
+	for i := range registries {
+		k := &registries[i]
+		snap.APIRegistries = append(snap.APIRegistries, core.ModelAPIRegistry{
+			ID:                 k.ID,
+			Provider:           core.Provider(k.Provider.Name),
+			BaseURL:            k.BaseURL,
+			APIkey:             deref(k.APIKey),
+			EnableCustomHeader: k.EnableCustomHeader,
+			CustomHeader:       k.CustomHeader,
+			ExpiryAt:           k.ExpiryAt,
+			AllowedModels:      k.AllowedModels,
+		})
 	}
 
-	for i := range models {
-		config.ModelRegistry = append(config.ModelRegistry, models[i].ToCore())
+	// for i := range catalog {
+	// 	c := &catalog[i]
+	// 	snap.Catalog = append(snap.Catalog, core.ModelCatalog{
+	// 		ID:         c.ID,
+	// 		ModelName:  c.ModelName,
+	// 		Kind:       c.Kind,
+	// 		IsActive:   c.IsActive,
+	// 		CreatedAt:  c.CreatedAt,
+	// 		UpdatedAt:  c.UpdatedAt,
+	// 		ProviderID: c.ProviderID,
+	// 		Provider:   core.Provider(c.Provider.Name),
+	// 	})
+	// }
+
+	for i := range pools {
+		p := &pools[i]
+		snap.Pools = append(snap.Pools, core.ModelPool{
+			ID:           p.ID,
+			Name:         p.Name,
+			LBType:       p.LBType,
+			AllowedModel: p.AllowedModels,
+			IsActive:     p.IsActive,
+			CreatedAt:    p.CreatedAt,
+			UpdatedAt:    p.UpdatedAt,
+		})
 	}
 
-	for i := range backends {
-		config.Backends = append(config.Backends, *backends[i].ToCore())
-	}
-
-	for i := range policies {
-		config.Policies = append(config.Policies, *policies[i].ToCore())
-	}
-
-	return config, nil
+	return snap, nil
 }
+
 func (s *DBSource) GetStore() *Store { return s.store }
 func (s *DBSource) Name() string     { return "sqlite" }
 func (s *DBSource) Path() string     { return s.path }

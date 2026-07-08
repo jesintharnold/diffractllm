@@ -145,8 +145,8 @@ type StoreOverrideModelPricing struct {
 
 func (StoreOverrideModelPricing) TableName() string { return "model_pricing_override" }
 
-func (o *StoreOverrideModelPricing) ToCore() *core.OverridePricing {
-	out := core.OverridePricing{
+func (o *StoreOverrideModelPricing) ToCore() *core.CustomPricing {
+	out := core.CustomPricing{
 		ID:                o.ID,
 		Name:              o.Name,
 		ModelName:         o.ModelName,
@@ -167,7 +167,7 @@ func (o *StoreOverrideModelPricing) ToCore() *core.OverridePricing {
 	return &out
 }
 
-func (s *Store) CreatePricingOverride(b core.OverridePricing) (*StoreOverrideModelPricing, error) {
+func (s *Store) CreatePricingOverride(b core.CustomPricingRequest) (*StoreOverrideModelPricing, error) {
 	payload := StoreOverrideModelPricing{
 		ID:        uuid.Must(uuid.NewV7()).String(),
 		Name:      b.Name,
