@@ -4,85 +4,6 @@ import (
 	"time"
 )
 
-type VKMode uint8
-
-const (
-	VKAllowedModel VKMode = iota
-	VKModelPool
-)
-
-const (
-	VK_ALLOWED_MODEL = "allowed_model"
-	VK_MODEL_POOL    = "model_pool"
-)
-
-func (mode VKMode) String() string {
-	switch mode {
-	case VKAllowedModel:
-		return VK_ALLOWED_MODEL
-	default:
-		return VK_MODEL_POOL
-	}
-}
-
-func ParseVKMode(Mode string) VKMode {
-	switch Mode {
-	case VK_ALLOWED_MODEL:
-		return VKAllowedModel
-	default:
-		return VKModelPool
-	}
-}
-
-type Budget struct {
-	Name           string `json:"name"            binding:"required"`
-	BudgetLimit    int64  `json:"budget_limit"    binding:"required,gt=0"`
-	BudgetUnit     string `json:"budget_unit"`
-	BudgetDuration int64  `json:"budget_duration"`
-	Enforce        bool   `json:"enforce"`
-}
-
-type BudgetResponse struct {
-	ID             string `json:"id"`
-	Name           string `json:"name"`
-	BudgetLimit    int64  `json:"budget_limit"`
-	BudgetUnit     string `json:"budget_unit"`
-	BudgetDuration int64  `json:"budget_duration"`
-	Enforce        bool   `json:"enforce"`
-	TotalSpend     int64  `json:"total_spend"`
-	RequestCount   int64  `json:"request_count"`
-	Status         string `json:"status"`
-}
-
-type AllowedModel struct {
-	Provider string `json:"provider"`
-	Model    string `json:"model"`
-	Weight   int    `json:"weight,omitempty"`
-}
-
-type VirtualKey struct {
-	ClientID      string         `json:"client_id"      binding:"required"`
-	BudgetID      string         `json:"budget_id"      binding:"required"`
-	ExpiresAt     *time.Time     `json:"expires_at"`
-	Mode          VKMode         `json:"mode"           binding:"required"`
-	AllowedModels []AllowedModel `json:"allowed_models"`
-	AllowedPools  []string       `json:"allowed_pools"`
-}
-
-type VirtualKeyResponse struct {
-	ID            string         `json:"id"`
-	DisplayPrefix string         `json:"display_prefix"`
-	ClientID      string         `json:"client_id"`
-	BudgetID      string         `json:"budget_id"`
-	Mode          VKMode         `json:"mode"`
-	AllowedModels []AllowedModel `json:"allowed_models,omitempty"`
-	AllowedPools  []string       `json:"allowed_pools,omitempty"`
-	IsActive      bool           `json:"is_active"`
-	ExpiresAt     time.Time      `json:"expires_at"`
-	CreatedAt     time.Time      `json:"created_at"`
-	UpdatedAt     time.Time      `json:"updated_at"`
-}
-
 // ------------- Pricing ----------------------
 
 type Pricing struct {
@@ -116,15 +37,7 @@ type Pricing struct {
 	OutputCostPerAudioToken *float64 `json:"output_cost_per_audio_token,omitempty"`
 }
 
-type ScopeType string
-
-const (
-	ScopeGlobal     ScopeType = "global"
-	ScopeProvider   ScopeType = "provider"
-	ScopeVirtualKey ScopeType = "virtualkey"
-)
-
-type ModelPricing struct {
+type BasePricing struct {
 	ID        string   `json:"id,omitempty"`
 	ModelName string   `json:"model_name"`
 	Provider  Provider `json:"provider"`
@@ -150,6 +63,12 @@ type CustomPricing struct {
 
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type CustomScopePricing struct {
+	Global     *CustomPricing
+	Provider   map[Provider]*CustomPricing
+	VirtualKey map[string]*CustomPricing
 }
 
 type CustomPricingRequest struct {

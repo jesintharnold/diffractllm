@@ -50,7 +50,7 @@ func (ub *UsageBuffer) Append(r UsageRecord) {
 	if len(ub.records) >= ub.maxCapacity {
 		ub.lock.Unlock()
 		dropped := ub.dropped.Add(1)
-		ub.logger.Error("usage buffer at capacity â€” record dropped", zap.String("client_id", r.ClientID), zap.Int64("total_dropped", dropped), zap.Int("capacity", ub.maxCapacity))
+		ub.logger.Error("usage buffer at capacity record dropped", zap.String("client_id", r.ClientID), zap.Int64("total_dropped", dropped), zap.Int("capacity", ub.maxCapacity))
 		return
 	}
 	ub.records = append(ub.records, r)
@@ -68,4 +68,3 @@ func (ub *UsageBuffer) Drain() []UsageRecord {
 func (ub *UsageBuffer) DroppedCount() int64 {
 	return ub.dropped.Load()
 }
-

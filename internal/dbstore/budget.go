@@ -10,34 +10,50 @@ import (
 )
 
 type StoreBudget struct {
-	ID              string `gorm:"primaryKey;type:text"`
-	Name            string `gorm:"uniqueIndex;not null;type:text"`
-	BudgetLimit     int64  `gorm:"not null"`
-	BudgetUnit      string `gorm:"not null;default:'microdollars'"`
-	BudgetDuration  int64  `gorm:"not null;default:0"`
-	Enforce         bool   `gorm:"not null;default:true"`
-	TotalSpend      int64  `gorm:"not null;default:0"`
-	RequestCount    int64  `gorm:"not null;default:0"`
-	Status          string `gorm:"not null;default:'unbound';type:text"`
-	LastFlushedAt   time.Time
-	BudgetRefreshAt time.Time
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	ID                  string        `gorm:"primaryKey;type:text"`
+	Name                string        `gorm:"uniqueIndex;not null;type:text"`
+	BudgetLimit         int64         `gorm:"not null"`
+	BudgetUnit          string        `gorm:"not null;default:'microdollars'"`
+	BudgetDuration      string        `gorm:"not null;type:varchar(10)"`
+	Enforce             bool          `gorm:"not null;default:true"`
+	TotalCost           int64         `gorm:"not null;default:0"`
+	RequestCount        int64         `gorm:"not null;default:0"`
+	Status              string        `gorm:"not null;default:'unbound';type:text"`
+	LastBudgetRefreshAt time.Time     `gorm:"not null"`
+	BudgetParseDuration time.Duration `gorm:"-"`
+	LastFlushedAt       time.Time
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
 }
 
 func (StoreBudget) TableName() string { return "budgets" }
 
-func (b *StoreBudget) ToCore() core.BudgetResponse {
-	return core.BudgetResponse{
-		ID:             b.ID,
-		Name:           b.Name,
-		BudgetLimit:    b.BudgetLimit,
-		BudgetUnit:     b.BudgetUnit,
-		BudgetDuration: b.BudgetDuration,
-		Enforce:        b.Enforce,
-		TotalSpend:     b.TotalSpend,
-		RequestCount:   b.RequestCount,
-		Status:         b.Status,
+func (b *StoreBudget) AfterFind(tx *gorm.DB) error {
+	if b.BudgetDuration == "" {
+		b.BudgetParseDuration = 0
+		return nil
+	}
+	d, err := core.ParseDuration(b.BudgetDuration)
+	if err != nil {
+		return fmt.Errorf("budget %q: invalid duration %q: %w", b.ID, b.BudgetDuration, err)
+	}
+	b.BudgetParseDuration = d
+	return nil
+}
+
+func (b *StoreBudget) ToCore() *core.Budget {
+	return &core.Budget{
+		ID:                  b.ID,
+		Name:                b.Name,
+		BudgetLimit:         b.BudgetLimit,
+		BudgetUnit:          b.BudgetUnit,
+		BudgetDuration:      b.BudgetDuration,
+		Enforce:             b.Enforce,
+		TotalSpend:          b.TotalCost,
+		RequestCount:        b.RequestCount,
+		Status:              b.Status,
+		LastBudgetRefreshAt: b.LastBudgetRefreshAt,
+		BudgetParseDuration: b.BudgetParseDuration,
 	}
 }
 
@@ -47,13 +63,14 @@ func (s *Store) CreateBudget(b core.Budget) (*StoreBudget, error) {
 		unit = "microdollars"
 	}
 	budget := StoreBudget{
-		ID:             uuid.Must(uuid.NewV7()).String(),
-		Name:           b.Name,
-		BudgetLimit:    b.BudgetLimit,
-		BudgetUnit:     unit,
-		BudgetDuration: b.BudgetDuration,
-		Enforce:        b.Enforce,
-		Status:         "unbound",
+		ID:                  uuid.Must(uuid.NewV7()).String(),
+		Name:                b.Name,
+		BudgetLimit:         b.BudgetLimit,
+		BudgetUnit:          unit,
+		BudgetDuration:      b.BudgetDuration,
+		Enforce:             b.Enforce,
+		Status:              "unbound",
+		LastBudgetRefreshAt: b.LastBudgetRefreshAt,
 	}
 
 	if err := s.DB.Create(&budget).Error; err != nil {
@@ -87,12 +104,11 @@ func (s *Store) UpdateBudget(budget_id string, b core.Budget) (*StoreBudget, err
 	}
 
 	updates := map[string]any{}
-
 	if b.BudgetLimit != 0 && existingBudget.BudgetLimit != b.BudgetLimit {
 		updates["budget_limit"] = b.BudgetLimit
 	}
 
-	if b.BudgetDuration != 0 && existingBudget.BudgetDuration != b.BudgetDuration {
+	if b.BudgetDuration != "" && existingBudget.BudgetDuration != b.BudgetDuration {
 		updates["budget_duration"] = b.BudgetDuration
 	}
 
@@ -129,14 +145,19 @@ func (s *Store) DeleteBudget(budgetID string) error {
 	return s.DB.Where("id = ?", budgetID).Delete(&StoreBudget{}).Error
 }
 
-func (s *Store) FlushBudgetUsage(budgetID string, spend, requests int64, nextResetAt time.Time) error {
+func (s *Store) FlushBudgetUsage(budgetID string, spend, requests int64) error {
 	updates := map[string]any{
-		"total_spend":     gorm.Expr("total_spend + ?", spend),
+		"total_cost":      gorm.Expr("total_cost + ?", spend),
 		"request_count":   gorm.Expr("request_count + ?", requests),
 		"last_flushed_at": time.Now(),
 	}
-	if !nextResetAt.IsZero() {
-		updates["budget_refresh_at"] = nextResetAt
-	}
-	return s.DB.Model(&StoreBudget{}).Where("id = ?", budgetID).Updates(updates).Error
+	return s.DB.Model(&StoreBudget{}).Where("id = ?", budgetID).UpdateColumns(updates).Error
+}
+
+func (s *Store) ResetBudgetWindow(budgetID string, resetTime time.Time) error {
+	return s.DB.Model(&StoreBudget{}).Where("id = ?", budgetID).UpdateColumns(map[string]any{
+		"total_cost":             0,
+		"request_count":          0,
+		"last_budget_refresh_at": resetTime,
+	}).Error
 }

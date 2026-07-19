@@ -80,7 +80,24 @@ func (k *StoreVirtualKey) ToPoolNameSet() map[string]struct{} {
 	return s
 }
 
-func (k *StoreVirtualKey) ToCore() core.VirtualKeyResponse {
+// ToCore maps the row to the runtime shape (maps for O(1) checks) — used by the
+// governance cache sync.
+func (k *StoreVirtualKey) ToCore() *core.VirtualKey {
+	return &core.VirtualKey{
+		ID:            k.ID,
+		Key:           k.APIKey,
+		ClientID:      k.ClientID,
+		BudgetID:      k.BudgetID,
+		IsActive:      k.IsActive,
+		ExpiresAt:     k.ExpiresAt,
+		Mode:          core.ParseVKMode(k.Mode),
+		AllowedModels: k.ToModelKeySet(),
+		ModelPools:    k.ToPoolNameSet(),
+	}
+}
+
+// ToResponse maps the row to the admin API response (slices, no raw key).
+func (k *StoreVirtualKey) ToResponse() core.VirtualKeyResponse {
 	resp := core.VirtualKeyResponse{
 		ID:            k.ID,
 		DisplayPrefix: k.DisplayPrefix,
@@ -204,7 +221,7 @@ type CreateVirtualKeyResult struct {
 	Budget     *StoreBudget
 }
 
-func (s *Store) CreateVirtualKeyTx(payload *core.VirtualKey, apikey, hash, prefix string) (*CreateVirtualKeyResult, error) {
+func (s *Store) CreateVirtualKeyTx(payload *core.VirtualKeyRequest, apikey, hash, prefix string) (*CreateVirtualKeyResult, error) {
 	var result CreateVirtualKeyResult
 	err := s.DB.Transaction(func(tx *gorm.DB) error {
 		var budget StoreBudget

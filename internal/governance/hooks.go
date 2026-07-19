@@ -29,7 +29,7 @@ func (a *AuthHook) Execute(rctx *core.DiffractLLMContext) *core.DiffractLLMError
 		return core.NewAuthFailed("Invalid RUTE API key format")
 	}
 
-	vk, found := a.keyCache.Lookup(key)
+	vk, found := a.keyCache.LookupVkey(key)
 	if !found {
 		return core.NewAuthFailed("RUTE API key not recognised")
 	}
@@ -39,7 +39,8 @@ func (a *AuthHook) Execute(rctx *core.DiffractLLMContext) *core.DiffractLLMError
 	}
 
 	rctx.ClientID = vk.ClientID
-	rctx.VirtualKeyID = vk.Key
+	rctx.VirtualKeyID = vk.ID
+	rctx.VirtualKey = key
 	rctx.BudgetRef = vk.BudgetID
 
 	rctx.Mode = vk.Mode
@@ -48,16 +49,15 @@ func (a *AuthHook) Execute(rctx *core.DiffractLLMContext) *core.DiffractLLMError
 
 	rctx.AuthFrozen = true
 
-	if vk.Mode == core.VKAllowedModel && len(vk.AllowedModels) > 0 && rctx.Model != "" {
-		k := core.ModelKey{Provider: rctx.Provider, ModelName: rctx.Model}
-		if _, ok := vk.AllowedModels[k]; !ok {
-			return core.NewForbidden("model " + rctx.Model + " is not permitted for this RUTE API key")
+	if vk.Mode == core.VKAllowedModel && len(vk.AllowedModels) > 0 && rctx.Modelkey.ModelName != "" {
+		if _, ok := vk.AllowedModels[rctx.Modelkey]; !ok {
+			return core.NewForbidden("model " + rctx.Modelkey.ModelName + " is not permitted for this RUTE API key")
 		}
 	}
 
-	if vk.Mode == core.VKModelPool && len(vk.ModelPools) > 0 && rctx.Model != "" {
-		if _, ok := vk.ModelPools[rctx.Model]; !ok {
-			return core.NewForbidden("model pool " + rctx.Model + " is not permitted for this RUTE API key")
+	if vk.Mode == core.VKModelPool && len(vk.ModelPools) > 0 && rctx.Modelkey.ModelName != "" {
+		if _, ok := vk.ModelPools[rctx.Modelkey.ModelName]; !ok {
+			return core.NewForbidden("model pool " + rctx.Modelkey.ModelName + " is not permitted for this RUTE API key")
 		}
 	}
 
@@ -97,12 +97,12 @@ func (b *BudgetHook) Execute(rctx *core.DiffractLLMContext) *core.DiffractLLMErr
 		return core.NewInvalidBudget("budget reference not set on virtual key")
 	}
 
-	budget, ok := b.BudgetCache.Get(rctx.BudgetRef)
+	budget, ok := b.BudgetCache.LookupBudget(rctx.BudgetRef)
 	if !ok {
 		return core.NewInvalidBudget(rctx.BudgetRef)
 	}
 
-	if budget.IsOverBudget() {
+	if !budget.CheckBudgetUsage() {
 		b.logger.Warn("budget exceeded", zap.String("client", rctx.ClientID), zap.String("budget_ref", rctx.BudgetRef))
 		return core.NewBudgetExceeded("Budget exceeded for the RUTE API key used")
 	}

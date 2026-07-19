@@ -16,8 +16,7 @@ type DiffractLLMContext struct {
 	Request     *http.Request
 	BodyBytes   []byte
 	SDKProvider Provider
-	Provider    Provider
-	Model       string
+	Modelkey    ModelKey
 	RequestKind RequestKind
 	Writer      http.ResponseWriter
 	metadata    map[DiffractLLMContextKey]any
@@ -31,6 +30,7 @@ type DiffractLLMContext struct {
 	ModelPools    map[string]struct{}
 	BudgetRef     string
 	VirtualKeyID  string
+	VirtualKey    string
 	AuthFrozen    bool
 
 	// === LOAD BALANCER ====
@@ -94,8 +94,7 @@ func (rc *DiffractLLMContext) reset() {
 	rc.Request = nil
 	rc.BodyBytes = nil
 	rc.SDKProvider = ""
-	rc.Provider = ""
-	rc.Model = ""
+	rc.Modelkey = ModelKey{}
 	rc.RequestKind = ""
 	rc.Writer = nil
 	rc.aborted.Store(false)
@@ -107,6 +106,7 @@ func (rc *DiffractLLMContext) reset() {
 	rc.ModelPools = nil
 	rc.BudgetRef = ""
 	rc.VirtualKeyID = ""
+	rc.VirtualKey = ""
 
 	rc.AuthFrozen = false
 	rc.UpstreamStatus = 0

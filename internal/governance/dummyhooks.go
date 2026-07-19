@@ -24,7 +24,7 @@ func (h *dummyAuthHook) Execute(rctx *core.DiffractLLMContext) *core.DiffractLLM
 	authHeader := rctx.Request.Header.Get("Authorization")
 
 	h.logger.Info("[PRE-CALL] dummy-auth hook executing",
-		zap.String("provider", string(rctx.Provider)),
+		zap.String("provider", string(rctx.Modelkey.Provider)),
 		zap.String("authorization_header", authHeader),
 		zap.String("route_model", routeModel(rctx)),
 	)
@@ -107,7 +107,7 @@ func (h *dummyAuditHook) Name() string { return "dummy-audit" }
 
 func (h *dummyAuditHook) Execute(rctx *core.DiffractLLMContext) *core.DiffractLLMError {
 	h.logger.Info("[POST-CALL] dummy-audit hook executing",
-		zap.String("provider", string(rctx.Provider)),
+		zap.String("provider", string(rctx.Modelkey.Provider)),
 		zap.String("client_id", rctx.ClientID),
 		zap.String("virtual_key_id", rctx.VirtualKeyID),
 		zap.Bool("request_completed", rctx.RequestCompleted),
@@ -122,8 +122,8 @@ func (h *dummyAuditHook) Execute(rctx *core.DiffractLLMContext) *core.DiffractLL
 }
 
 func routeModel(rctx *core.DiffractLLMContext) string {
-	if rctx.Model == "" {
+	if rctx.Modelkey.ModelName == "" {
 		return "<none>"
 	}
-	return rctx.Model
+	return rctx.Modelkey.ModelName
 }
