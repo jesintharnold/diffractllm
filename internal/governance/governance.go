@@ -36,13 +36,20 @@ func NewGovernance(store *dbstore.Store, logger *zap.Logger) (*Governance, error
 }
 
 func (g *Governance) InitGovernance() error {
-
-	// budgets, err := g.Store.ListBudgets()
-	// if err != nil {
-	// 	return fmt.Errorf("load budgets: %w", err)
-	// }
-
-	return g.SyncVirtualKey()
+	if err := g.SyncVirtualKey(); err != nil {
+		return fmt.Errorf("init governance: %w", err)
+	}
+	if err := g.SyncBudget(); err != nil {
+		return fmt.Errorf("init governance: %w", err)
+	}
+	if err := g.SyncBasePrice(); err != nil {
+		return fmt.Errorf("init governance: %w", err)
+	}
+	if err := g.SyncCustomPrice(); err != nil {
+		return fmt.Errorf("init governance: %w", err)
+	}
+	g.logger.Info("governance caches initialized")
+	return nil
 }
 
 func (g *Governance) SyncCustomPrice() error {
@@ -121,7 +128,7 @@ func (g *Governance) SyncBudget() error {
 }
 
 // Responsible for hisory drain to the DB
-func (g *Governance) flushUsageHistory() {
+func (g *Governance) FlushUsageHistory() {
 	records := g.UsageBuffer.Drain()
 	if len(records) == 0 {
 		return
@@ -156,7 +163,7 @@ func (g *Governance) flushUsageHistory() {
 }
 
 // Responsible for Budget windows for all
-func (g *Governance) flushBudgetUsage() {
+func (g *Governance) FlushBudgetUsage() {
 	g.BudgetCache.BudgetMap.Range(func(key, value any) bool {
 		b := value.(*Budget)
 		pendingCost := b.PendingCost.Swap(0)
@@ -179,7 +186,7 @@ func (g *Governance) flushBudgetUsage() {
 	})
 }
 
-func (g *Governance) trackBudgetWindow() {
+func (g *Governance) TrackBudgetWindow() {
 	now := time.Now()
 	g.BudgetCache.BudgetMap.Range(func(key, value any) bool {
 		b := value.(*Budget)
@@ -191,6 +198,12 @@ func (g *Governance) trackBudgetWindow() {
 		if now.Sub(cfg.LastBudgetRefreshAt) < cfg.BudgetParseDuration {
 			return true
 		}
+		if err := g.Store.ResetBudgetWindow(cfg.ID, now); err != nil {
+			g.logger.Error("budget window reset DB write failed, will retry next tick",
+				zap.String("budget_id", cfg.ID), zap.Error(err))
+			return true
+		}
+
 		newCfg := *cfg
 		newCfg.LastBudgetRefreshAt = now
 		newCfg.TotalSpend = 0
@@ -198,11 +211,6 @@ func (g *Governance) trackBudgetWindow() {
 		b.Config.Store(&newCfg)
 		b.TotalCost.Store(0)
 		b.RequestCount.Store(0)
-
-		if err := g.Store.ResetBudgetWindow(cfg.ID, now); err != nil {
-			g.logger.Error("budget window reset DB write failed, restoring counters",
-				zap.String("budget_id", cfg.ID), zap.Error(err))
-		}
 		return true
 	})
 
