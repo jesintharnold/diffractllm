@@ -1,40 +1,61 @@
 package core
 
-type LBkind uint8
+import (
+	"encoding/json"
+	"fmt"
+)
+
+type LBKind uint8
+
+func (m LBKind) MarshalJSON() ([]byte, error) { return json.Marshal(m.String()) }
+
+func (m *LBKind) UnmarshalJSON(b []byte) error {
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+	v, err := ParseLBKind(s)
+	if err != nil {
+		return err
+	}
+	*m = v
+	return nil
+}
 
 const (
-	LBDirect LBkind = iota
-	LBRoundRobin
+	LBRoundRobin LBKind = iota
 	LBLeastConnection
-	LBWeight
+	LBLatencyBased
 )
 
 const (
-	LB_DIRECT      = "direct"
-	LB_ROUND_ROBIN = "round_robin"
-	LB_LEAST_CONN  = "least_connection"
+	LBRoundRobinName      = "round_robin"
+	LBLeastConnectionName = "least_connection"
+	LBLatencyBasedName    = "latency_based"
 )
 
-func (LB LBkind) String() string {
+func (LB LBKind) String() string {
 	switch LB {
-	case LBDirect:
-		return LB_DIRECT
 	case LBRoundRobin:
-		return LB_ROUND_ROBIN
+		return LBRoundRobinName
 	case LBLeastConnection:
-		return LB_LEAST_CONN
+		return LBLeastConnectionName
+	case LBLatencyBased:
+		return LBLatencyBasedName
 	default:
 		return ""
 	}
 }
 
-func ParseLBKind(LB string) LBkind {
-	switch LB {
-	case LB_ROUND_ROBIN:
-		return LBRoundRobin
-	case LB_LEAST_CONN:
-		return LBLeastConnection
+func ParseLBKind(value string) (LBKind, error) {
+	switch value {
+	case LBRoundRobinName:
+		return LBRoundRobin, nil
+	case LBLeastConnectionName:
+		return LBLeastConnection, nil
+	case LBLatencyBasedName:
+		return LBLatencyBased, nil
 	default:
-		return LBDirect
+		return 0, fmt.Errorf("unknown load balancer algorithm %q", value)
 	}
 }

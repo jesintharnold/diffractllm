@@ -85,7 +85,6 @@ func (s *Store) Migrate() error {
 		&StoreBudget{},
 		&StoreModelAPIRegistry{},
 		&StoreModelCatalog{},
-		&StoreModelPool{},
 		&StoreBaseModelPricing{},
 		&StoreCustomModelPricing{},
 		&StoreProvider{},

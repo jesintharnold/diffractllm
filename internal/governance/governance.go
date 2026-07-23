@@ -98,7 +98,11 @@ func (g *Governance) SyncVirtualKey() error {
 
 	tempVkey := make([]*core.VirtualKey, 0, len(vkeydetail))
 	for i := range vkeydetail {
-		tempVkey = append(tempVkey, vkeydetail[i].ToCore())
+		virtualKey, err := vkeydetail[i].ToCore()
+		if err != nil {
+			return fmt.Errorf("sync virtual key %q: %w", vkeydetail[i].ID, err)
+		}
+		tempVkey = append(tempVkey, virtualKey)
 	}
 	g.KeyCache.LoadVirtualKeys(tempVkey)
 

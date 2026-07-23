@@ -24,17 +24,18 @@ type DiffractLLMContext struct {
 	HookLog     HookLog
 
 	// === GOVERNANCE FIELDS ===
-	ClientID      string
-	Mode          VKMode
-	AllowedModels map[ModelKey]struct{}
-	ModelPools    map[string]struct{}
-	BudgetRef     string
-	VirtualKeyID  string
-	VirtualKey    string
-	AuthFrozen    bool
+	ClientID         string
+	BudgetRef        string
+	VirtualKeyID     string
+	VirtualKeyPolicy *VirtualKey
+	AuthFrozen       bool
 
 	// === LOAD BALANCER ====
-	// TargetModel      *Model
+	RequestedProvider  Provider
+	RequestedModel     string
+	SelectedProvider   Provider
+	SelectedModel      string
+	SelectedDeployment *Deployment
 
 	// === PROXY OUTCOME FIELDS ===
 	UpstreamStatus int
@@ -101,12 +102,14 @@ func (rc *DiffractLLMContext) reset() {
 
 	// === GOVERNANCE ===
 	rc.ClientID = ""
-	rc.Mode = VKAllowedModel
-	rc.AllowedModels = nil
-	rc.ModelPools = nil
 	rc.BudgetRef = ""
 	rc.VirtualKeyID = ""
-	rc.VirtualKey = ""
+	rc.VirtualKeyPolicy = nil
+	rc.RequestedProvider = ""
+	rc.RequestedModel = ""
+	rc.SelectedProvider = ""
+	rc.SelectedModel = ""
+	rc.SelectedDeployment = nil
 
 	rc.AuthFrozen = false
 	rc.UpstreamStatus = 0

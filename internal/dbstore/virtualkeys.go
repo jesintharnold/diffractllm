@@ -11,132 +11,97 @@ import (
 )
 
 type StoreVirtualKey struct {
-	ID                string              `gorm:"primaryKey;type:text"`
-	KeyHash           string              `gorm:"uniqueIndex;not null;type:text"`
-	APIKey            string              `gorm:"not null;type:text"`
-	DisplayPrefix     string              `gorm:"not null;type:text"`
-	ClientID          string              `gorm:"not null;type:text"`
-	BudgetID          string              `gorm:"not null;type:text"`
-	Mode              string              `gorm:"not null;type:text;default:'allowed_model'"`
-	AllowedModels     []core.AllowedModel `gorm:"type:json;serializer:json" json:"allowed_models"`
-	AllowedModelPools []string            `gorm:"type:json;serializer:json" json:"allowed_pools"`
-	IsActive          bool                `gorm:"not null;default:true"`
-	CreatedAt         time.Time
-	UpdatedAt         time.Time  `json:"created_at"`
-	ExpiresAt         *time.Time `json:"expires_at"`
+	ID              string                `gorm:"primaryKey;type:text"`
+	KeyHash         string                `gorm:"uniqueIndex;not null;type:text"`
+	APIKey          string                `gorm:"not null;type:text"`
+	DisplayPrefix   string                `gorm:"not null;type:text"`
+	ClientID        string                `gorm:"not null;type:text"`
+	BudgetID        string                `gorm:"not null;type:text"`
+	Mode            string                `gorm:"not null;type:text;default:'direct'"`
+	ProviderConfigs []core.ProviderConfig `gorm:"type:json;serializer:json" json:"provider_configs"`
+	CustomPoolName  string                `gorm:"not null;type:text;default:''" json:"custom_pool_name"`
+	LoadBalancer    string                `gorm:"not null;type:text;default:'round_robin'" json:"load_balancer"`
+	IsActive        bool                  `gorm:"not null;default:true"`
+	CreatedAt       time.Time
+	UpdatedAt       time.Time  `json:"created_at"`
+	ExpiresAt       *time.Time `json:"expires_at"`
 }
 
 func (StoreVirtualKey) TableName() string { return "virtual_keys" }
 
-func (s *Store) resolveModels(models []string) ([]core.AllowedModel, error) {
-	if len(models) == 0 {
-		return nil, nil
+func (key *StoreVirtualKey) ToCore() (*core.VirtualKey, error) {
+	mode, err := core.ParseVKMode(key.Mode)
+	if err != nil {
+		return nil, err
 	}
-	out := make([]core.AllowedModel, 0, len(models))
-	for _, entry := range models {
-		if entry == "" {
-			continue
-		}
+	loadBalancer, err := core.ParseLBKind(key.LoadBalancer)
+	if err != nil {
+		return nil, err
+	}
+	providerConfigs, err := core.CompileProviderConfigs(mode, key.ProviderConfigs)
+	if err != nil {
+		return nil, err
+	}
 
-		parts := strings.SplitN(entry, "/", 2)
-		if len(parts) == 1 {
-			out = append(out, core.AllowedModel{
-				Provider: "",
-				Model:    parts[0],
-			})
-		} else {
-			if parts[0] == "" || parts[1] == "" {
-				return nil, fmt.Errorf("invalid model format %q: cannot have empty provider or model", entry)
-			}
-
-			out = append(out, core.AllowedModel{
-				Provider: parts[0],
-				Model:    parts[1],
-			})
-		}
-	}
-	return out, nil
-}
-
-func (k *StoreVirtualKey) ToModelKeySet() map[core.ModelKey]struct{} {
-	if len(k.AllowedModels) == 0 {
-		return nil
-	}
-	s := make(map[core.ModelKey]struct{}, len(k.AllowedModels))
-	for _, m := range k.AllowedModels {
-		s[core.ModelKey{Provider: core.Provider(m.Provider), ModelName: m.Model}] = struct{}{}
-	}
-	return s
-}
-
-func (k *StoreVirtualKey) ToPoolNameSet() map[string]struct{} {
-	if len(k.AllowedModelPools) == 0 {
-		return nil
-	}
-	s := make(map[string]struct{}, len(k.AllowedModelPools))
-	for _, p := range k.AllowedModelPools {
-		s[p] = struct{}{}
-	}
-	return s
-}
-
-// ToCore maps the row to the runtime shape (maps for O(1) checks) — used by the
-// governance cache sync.
-func (k *StoreVirtualKey) ToCore() *core.VirtualKey {
 	return &core.VirtualKey{
-		ID:            k.ID,
-		Key:           k.APIKey,
-		ClientID:      k.ClientID,
-		BudgetID:      k.BudgetID,
-		IsActive:      k.IsActive,
-		ExpiresAt:     k.ExpiresAt,
-		Mode:          core.ParseVKMode(k.Mode),
-		AllowedModels: k.ToModelKeySet(),
-		ModelPools:    k.ToPoolNameSet(),
-	}
+		ID:              key.ID,
+		Key:             key.APIKey,
+		ClientID:        key.ClientID,
+		BudgetID:        key.BudgetID,
+		IsActive:        key.IsActive,
+		ExpiresAt:       key.ExpiresAt,
+		Mode:            mode,
+		CustomPoolName:  key.CustomPoolName,
+		LoadBalancer:    loadBalancer,
+		ProviderConfigs: providerConfigs,
+	}, nil
 }
 
-// ToResponse maps the row to the admin API response (slices, no raw key).
-func (k *StoreVirtualKey) ToResponse() core.VirtualKeyResponse {
-	resp := core.VirtualKeyResponse{
-		ID:            k.ID,
-		DisplayPrefix: k.DisplayPrefix,
-		ClientID:      k.ClientID,
-		BudgetID:      k.BudgetID,
-		IsActive:      k.IsActive,
-		CreatedAt:     k.CreatedAt,
-		UpdatedAt:     k.UpdatedAt,
-		Mode:          core.ParseVKMode(k.Mode),
-		AllowedModels: k.AllowedModels,
-		AllowedPools:  k.AllowedModelPools,
+func (key *StoreVirtualKey) ToResponse() (core.VirtualKeyResponse, error) {
+	mode, err := core.ParseVKMode(key.Mode)
+	if err != nil {
+		return core.VirtualKeyResponse{}, err
 	}
-
-	if k.ExpiresAt != nil {
-		resp.ExpiresAt = *k.ExpiresAt
+	loadBalancer, err := core.ParseLBKind(key.LoadBalancer)
+	if err != nil {
+		return core.VirtualKeyResponse{}, err
 	}
-
-	return resp
+	response := core.VirtualKeyResponse{
+		ID:              key.ID,
+		DisplayPrefix:   key.DisplayPrefix,
+		ClientID:        key.ClientID,
+		BudgetID:        key.BudgetID,
+		Mode:            mode,
+		CustomPoolName:  key.CustomPoolName,
+		LoadBalancer:    loadBalancer,
+		ProviderConfigs: key.ProviderConfigs,
+		IsActive:        key.IsActive,
+		CreatedAt:       key.CreatedAt,
+		UpdatedAt:       key.UpdatedAt,
+	}
+	if key.ExpiresAt != nil {
+		response.ExpiresAt = *key.ExpiresAt
+	}
+	return response, nil
 }
 
-func (s *StoreVirtualKey) BeforeSave(tx *gorm.DB) error {
+func (key *StoreVirtualKey) BeforeSave(tx *gorm.DB) error {
 	encKey := tx.Statement.Context.Value(aesKeyPass{}).([]byte)
-	var err error
-	APIKey, err := encryptKey(&s.APIKey, encKey)
+	apiKey, err := encryptKey(&key.APIKey, encKey)
 	if err != nil {
 		return fmt.Errorf("error while encrypting APIKey: %w", err)
 	}
-	s.APIKey = *APIKey
+	key.APIKey = *apiKey
 	return nil
 }
 
-func (s *StoreVirtualKey) AfterFind(tx *gorm.DB) error {
+func (key *StoreVirtualKey) AfterFind(tx *gorm.DB) error {
 	decKey := tx.Statement.Context.Value(aesKeyPass{}).([]byte)
-	var err error
-	APIKey, err := decryptKey(&s.APIKey, decKey)
+	apiKey, err := decryptKey(&key.APIKey, decKey)
 	if err != nil {
 		return fmt.Errorf("error while decrypting APIKey: %w", err)
 	}
-	s.APIKey = *APIKey
+	key.APIKey = *apiKey
 	return nil
 }
 
@@ -148,10 +113,10 @@ func (s *Store) ListActiveVirtualKeys() ([]StoreVirtualKey, error) {
 	return keys, nil
 }
 
-func (s *Store) GetVirtualKey(VID string) (*StoreVirtualKey, error) {
+func (s *Store) GetVirtualKey(id string) (*StoreVirtualKey, error) {
 	var key StoreVirtualKey
-	if err := s.DB.Where("id = ?", VID).First(&key).Error; err != nil {
-		return nil, fmt.Errorf("virtual key %q not found: %w", VID, err)
+	if err := s.DB.Where("id = ?", id).First(&key).Error; err != nil {
+		return nil, fmt.Errorf("virtual key %q not found: %w", id, err)
 	}
 	return &key, nil
 }
@@ -164,11 +129,11 @@ func (s *Store) ListVirtualKeys() ([]StoreVirtualKey, error) {
 	return keys, nil
 }
 
-func (s *Store) RevokeVirtualKey(VID string) error {
+func (s *Store) RevokeVirtualKey(id string) error {
 	return s.DB.Transaction(func(tx *gorm.DB) error {
 		var key StoreVirtualKey
-		if err := tx.Where("id = ?", VID).First(&key).Error; err != nil {
-			return fmt.Errorf("virtual key %q not found: %w", VID, err)
+		if err := tx.Where("id = ?", id).First(&key).Error; err != nil {
+			return fmt.Errorf("virtual key %q not found: %w", id, err)
 		}
 		if err := tx.Model(&key).Update("is_active", false).Error; err != nil {
 			return fmt.Errorf("failed to revoke key: %w", err)
@@ -177,39 +142,46 @@ func (s *Store) RevokeVirtualKey(VID string) error {
 	})
 }
 
-func (s *Store) UpdateVirtualKeyModels(keyID string, mode *core.VKMode, models []string) (*StoreVirtualKey, error) {
+type UpdateVirtualKeyRoutingRequest struct {
+	Mode            *core.VKMode
+	ProviderConfigs []core.ProviderConfig
+	CustomPoolName  *string
+	LoadBalancer    *core.LBKind
+}
+
+func (s *Store) UpdateVirtualKeyRouting(keyID string, request UpdateVirtualKeyRoutingRequest) (*StoreVirtualKey, error) {
 	err := s.DB.Transaction(func(tx *gorm.DB) error {
 		var key StoreVirtualKey
 		if err := tx.Where("id = ?", keyID).First(&key).Error; err != nil {
 			return err
 		}
-
-		effectiveMode := key.Mode
-		if mode != nil {
-			effectiveMode = mode.String()
-			key.Mode = effectiveMode
+		if request.Mode != nil {
+			key.Mode = request.Mode.String()
 		}
-
-		if models != nil {
-			if effectiveMode == core.VKModelPool.String() {
-				key.AllowedModelPools = models
-				key.AllowedModels = nil
-			} else {
-				allowed_models, err := s.resolveModels(models)
-				if err != nil {
-					return err
-				}
-				key.AllowedModels = allowed_models
-				key.AllowedModelPools = nil
-			}
+		if request.ProviderConfigs != nil {
+			key.ProviderConfigs = request.ProviderConfigs
 		}
-
-		if err := tx.Save(&key).Error; err != nil {
-			return fmt.Errorf("failed to update key routing: %w", err)
+		if request.CustomPoolName != nil {
+			key.CustomPoolName = strings.TrimSpace(*request.CustomPoolName)
 		}
-		return nil
+		if request.LoadBalancer != nil {
+			key.LoadBalancer = request.LoadBalancer.String()
+		}
+		mode, err := core.ParseVKMode(key.Mode)
+		if err != nil {
+			return err
+		}
+		if _, err := core.CompileProviderConfigs(mode, key.ProviderConfigs); err != nil {
+			return err
+		}
+		if _, err := core.ParseLBKind(key.LoadBalancer); err != nil {
+			return err
+		}
+		if strings.Contains(key.CustomPoolName, "/") {
+			return fmt.Errorf("custom pool name cannot contain '/'")
+		}
+		return tx.Save(&key).Error
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -221,46 +193,53 @@ type CreateVirtualKeyResult struct {
 	Budget     *StoreBudget
 }
 
-func (s *Store) CreateVirtualKeyTx(payload *core.VirtualKeyRequest, apikey, hash, prefix string) (*CreateVirtualKeyResult, error) {
+func (s *Store) CreateVirtualKeyTx(payload *core.VirtualKeyRequest, apiKey, hash, prefix string) (*CreateVirtualKeyResult, error) {
+	if payload.Mode == nil {
+		return nil, fmt.Errorf("mode is required")
+	}
+	if payload.LoadBalancer == nil {
+		return nil, fmt.Errorf("load balancer is required")
+	}
+	if _, err := core.CompileProviderConfigs(*payload.Mode, payload.ProviderConfigs); err != nil {
+		return nil, err
+	}
+	customPoolName := strings.TrimSpace(payload.CustomPoolName)
+	if strings.Contains(customPoolName, "/") {
+		return nil, fmt.Errorf("custom pool name cannot contain '/'")
+	}
+
 	var result CreateVirtualKeyResult
 	err := s.DB.Transaction(func(tx *gorm.DB) error {
 		var budget StoreBudget
 		if err := tx.Where("id = ?", payload.BudgetID).First(&budget).Error; err != nil {
 			return fmt.Errorf("budget %q not found: %w", payload.BudgetID, err)
 		}
-
 		if budget.Status == "bound" {
 			return fmt.Errorf("budget %q is already bound to an active key", payload.BudgetID)
 		}
-
 		if err := tx.Model(&budget).Update("status", "bound").Error; err != nil {
 			return fmt.Errorf("failed to bind budget: %w", err)
 		}
 		result.Budget = &budget
 
-		vkey := StoreVirtualKey{
-			ID:            uuid.Must(uuid.NewV7()).String(),
-			KeyHash:       hash,
-			APIKey:        apikey,
-			DisplayPrefix: prefix,
-			ClientID:      payload.ClientID,
-			BudgetID:      budget.ID,
-			Mode:          payload.Mode.String(),
-			IsActive:      true,
-			ExpiresAt:     payload.ExpiresAt,
+		virtualKey := StoreVirtualKey{
+			ID:              uuid.Must(uuid.NewV7()).String(),
+			KeyHash:         hash,
+			APIKey:          apiKey,
+			DisplayPrefix:   prefix,
+			ClientID:        payload.ClientID,
+			BudgetID:        budget.ID,
+			Mode:            payload.Mode.String(),
+			ProviderConfigs: payload.ProviderConfigs,
+			CustomPoolName:  customPoolName,
+			LoadBalancer:    payload.LoadBalancer.String(),
+			IsActive:        true,
+			ExpiresAt:       payload.ExpiresAt,
 		}
-
-		if payload.Mode == core.VKAllowedModel {
-			vkey.AllowedModels = payload.AllowedModels
-		} else {
-			vkey.AllowedModelPools = payload.AllowedPools
-		}
-
-		if err := tx.Create(&vkey).Error; err != nil {
+		if err := tx.Create(&virtualKey).Error; err != nil {
 			return fmt.Errorf("insert virtual key: %w", err)
 		}
-
-		result.VirtualKey = &vkey
+		result.VirtualKey = &virtualKey
 		return nil
 	})
 	if err != nil {
@@ -269,17 +248,15 @@ func (s *Store) CreateVirtualKeyTx(payload *core.VirtualKeyRequest, apikey, hash
 	return &result, nil
 }
 
-func (s *Store) DeleteVirtualKey(VID string) error {
+func (s *Store) DeleteVirtualKey(id string) error {
 	return s.DB.Transaction(func(tx *gorm.DB) error {
 		var key StoreVirtualKey
-		if err := tx.Where("id = ?", VID).First(&key).Error; err != nil {
-			return fmt.Errorf("virtual key %q not found: %w", VID, err)
+		if err := tx.Where("id = ?", id).First(&key).Error; err != nil {
+			return fmt.Errorf("virtual key %q not found: %w", id, err)
 		}
-
 		if err := tx.Delete(&key).Error; err != nil {
-			return fmt.Errorf("failed to delete virtual key: %w", err)
+			return fmt.Errorf("failed to delete key: %w", err)
 		}
-
 		return tx.Model(&StoreBudget{}).Where("id = ?", key.BudgetID).Update("status", "released").Error
 	})
 }

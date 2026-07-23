@@ -7,7 +7,6 @@ import (
 // Model Plane Snapshot
 type ModelPlaneSnapshot struct {
 	APIRegistries []ModelAPIRegistry
-	Pools         []ModelPool
 }
 
 type ModelCatalog struct {
@@ -51,14 +50,4 @@ type ModelAPIRegistryResponse struct {
 	CustomHeader       string     `json:"custom_header,omitempty"`
 	ExpiryAt           *time.Time `json:"expiry_at,omitempty"`
 	CreatedAt          time.Time  `json:"created_at"`
-}
-
-type ModelPool struct {
-	ID           string         `json:"id"`
-	Name         string         `json:"name" binding:"required"`
-	LBType       LBkind         `json:"lb_type" binding:"required"`
-	AllowedModel []AllowedModel `json:"allowed_models" binding:"required"`
-	IsActive     bool           `json:"is_active"`
-	CreatedAt    time.Time      `json:"created_at"`
-	UpdatedAt    time.Time      `json:"updated_at"`
 }

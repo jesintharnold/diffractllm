@@ -54,19 +54,9 @@ func (s *DBSource) Load() (*core.ModelPlaneSnapshot, error) {
 	if err != nil {
 		return nil, fmt.Errorf("db source list api registries: %w", err)
 	}
-	// catalog, err := s.store.ListCatalogModels(true)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("db source list catalog models: %w", err)
-	// }
-	pools, err := s.store.ListModelPools()
-	if err != nil {
-		return nil, fmt.Errorf("db source list model pools: %w", err)
-	}
 
 	snap := &core.ModelPlaneSnapshot{
 		APIRegistries: make([]core.ModelAPIRegistry, 0, len(registries)),
-		// Catalog:       make([]core.ModelCatalog, 0, len(catalog)),
-		Pools: make([]core.ModelPool, 0, len(pools)),
 	}
 
 	for i := range registries {
@@ -80,33 +70,6 @@ func (s *DBSource) Load() (*core.ModelPlaneSnapshot, error) {
 			CustomHeader:       k.CustomHeader,
 			ExpiryAt:           k.ExpiryAt,
 			AllowedModels:      k.AllowedModels,
-		})
-	}
-
-	// for i := range catalog {
-	// 	c := &catalog[i]
-	// 	snap.Catalog = append(snap.Catalog, core.ModelCatalog{
-	// 		ID:         c.ID,
-	// 		ModelName:  c.ModelName,
-	// 		Kind:       c.Kind,
-	// 		IsActive:   c.IsActive,
-	// 		CreatedAt:  c.CreatedAt,
-	// 		UpdatedAt:  c.UpdatedAt,
-	// 		ProviderID: c.ProviderID,
-	// 		Provider:   core.Provider(c.Provider.Name),
-	// 	})
-	// }
-
-	for i := range pools {
-		p := &pools[i]
-		snap.Pools = append(snap.Pools, core.ModelPool{
-			ID:           p.ID,
-			Name:         p.Name,
-			LBType:       p.LBType,
-			AllowedModel: p.AllowedModels,
-			IsActive:     p.IsActive,
-			CreatedAt:    p.CreatedAt,
-			UpdatedAt:    p.UpdatedAt,
 		})
 	}
 

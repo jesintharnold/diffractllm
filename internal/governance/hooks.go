@@ -40,26 +40,9 @@ func (a *AuthHook) Execute(rctx *core.DiffractLLMContext) *core.DiffractLLMError
 
 	rctx.ClientID = vk.ClientID
 	rctx.VirtualKeyID = vk.ID
-	rctx.VirtualKey = key
+	rctx.VirtualKeyPolicy = vk // Do we need to have it here the entire object ? It might be a simple pointer but technically for lot of requests we are sucked here
 	rctx.BudgetRef = vk.BudgetID
-
-	rctx.Mode = vk.Mode
-	rctx.AllowedModels = vk.AllowedModels
-	rctx.ModelPools = vk.ModelPools
-
 	rctx.AuthFrozen = true
-
-	if vk.Mode == core.VKAllowedModel && len(vk.AllowedModels) > 0 && rctx.Modelkey.ModelName != "" {
-		if _, ok := vk.AllowedModels[rctx.Modelkey]; !ok {
-			return core.NewForbidden("model " + rctx.Modelkey.ModelName + " is not permitted for this RUTE API key")
-		}
-	}
-
-	if vk.Mode == core.VKModelPool && len(vk.ModelPools) > 0 && rctx.Modelkey.ModelName != "" {
-		if _, ok := vk.ModelPools[rctx.Modelkey.ModelName]; !ok {
-			return core.NewForbidden("model pool " + rctx.Modelkey.ModelName + " is not permitted for this RUTE API key")
-		}
-	}
 
 	a.logger.Info("auth ok", zap.String("client", vk.ClientID), zap.String("RUTE API key prefix", vk.Key[:11]))
 	return nil
