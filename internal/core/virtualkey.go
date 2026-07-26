@@ -85,6 +85,7 @@ func CompileProviderConfigs(mode VKMode, configs []ProviderConfig) ([]*ProviderC
 	}
 	runtimeConfigs := make([]*ProviderConfig, 0, len(configs))
 	providers := make(map[Provider]struct{}, len(configs))
+	var totalWeight float64
 	for _, stored := range configs {
 		provider := Provider(strings.TrimSpace(string(stored.Provider)))
 		if provider == "" {
@@ -94,8 +95,11 @@ func CompileProviderConfigs(mode VKMode, configs []ProviderConfig) ([]*ProviderC
 			return nil, fmt.Errorf("duplicate provider %q", provider)
 		}
 		providers[provider] = struct{}{}
-		if mode == VKWeighted && (stored.Weight <= 0 || stored.Weight > 1 || math.IsNaN(float64(stored.Weight)) || math.IsInf(float64(stored.Weight), 0)) {
-			return nil, fmt.Errorf("provider %q weight must be finite and in (0, 1]", provider)
+		if mode == VKWeighted {
+			if stored.Weight < 0 || stored.Weight > 1 || math.IsNaN(float64(stored.Weight)) || math.IsInf(float64(stored.Weight), 0) {
+				return nil, fmt.Errorf("provider %q weight must be finite and in [0, 1]", provider)
+			}
+			totalWeight += float64(stored.Weight)
 		}
 		config := &ProviderConfig{
 			Provider:             provider,
@@ -123,6 +127,10 @@ func CompileProviderConfigs(mode VKMode, configs []ProviderConfig) ([]*ProviderC
 			return nil, fmt.Errorf("provider %q requires at least one allowed model", provider)
 		}
 		runtimeConfigs = append(runtimeConfigs, config)
+	}
+
+	if mode == VKWeighted && math.Abs(totalWeight-1.0) > 1e-6 {
+		return nil, fmt.Errorf("weighted provider weights must sum to 1.0, got %.6f", totalWeight)
 	}
 	return runtimeConfigs, nil
 }
