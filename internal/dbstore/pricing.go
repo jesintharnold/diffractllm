@@ -6,7 +6,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type Storepricing struct {
@@ -42,15 +44,25 @@ type Storepricing struct {
 
 // ------------------ Pricing -------------------
 
+// ModelType is an attribute, NOT part of the key. The feeds publish one entry
+// per (provider, model) - audio and chat rates ride on the same row - so a type
+// dimension in the key would only ever be redundant, and it would break the
+// upsert target that BulkSyncBasePricing needs.
 type StoreBaseModelPricing struct {
-	ID        string `gorm:"primaryKey;type:text"                                           json:"id"`
-	ModelName string `gorm:"not null;type:text;uniqueIndex:idx_model_pricing"               json:"model_name"`
+	ID        string `gorm:"primaryKey;type:text"                             json:"id"`
+	ModelName string `gorm:"not null;type:text;uniqueIndex:idx_model_pricing" json:"model_name"`
 
 	ProviderID string        `gorm:"not null;type:text;uniqueIndex:idx_model_pricing" json:"provider_id"`
 	Provider   StoreProvider `gorm:"foreignKey:ProviderID;references:ID"              json:"provider"`
 
-	ModelType string        `gorm:"not null;type:text;uniqueIndex:idx_model_pricing"               json:"model_type"`
-	Rates     *Storepricing `gorm:"serializer:json;type:jsonb"                                     json:"rates"`
+	ModelType string `gorm:"not null;type:text" json:"model_type"`
+
+	// Which feed produced this row: "litellm" | "bifrost" | "manual".
+	// The reconcile delete is scoped by it, so a sync can never reach a
+	// hand-entered price.
+	Source string `gorm:"not null;type:text;index;default:manual" json:"source"`
+
+	Rates     *Storepricing `gorm:"serializer:json;type:jsonb" json:"rates"`
 	CreatedAt time.Time     `json:"created_at"`
 	UpdatedAt time.Time     `json:"updated_at"`
 }
@@ -61,7 +73,7 @@ func (s *StoreBaseModelPricing) ToCore() *core.BasePricing {
 	out := core.BasePricing{
 		ID:        s.ID,
 		ModelName: s.ModelName,
-		ModelType: s.ModelType,
+		ModelType: core.ParseModelType(s.ModelType),
 		CreatedAt: s.CreatedAt,
 		UpdatedAt: s.UpdatedAt,
 	}
@@ -84,7 +96,7 @@ func (s *Store) CreateBasePricing(modelprice core.BasePricing) (*StoreBaseModelP
 	payload := StoreBaseModelPricing{
 		ID:         uuid.Must(uuid.NewV7()).String(),
 		ModelName:  modelprice.ModelName,
-		ModelType:  modelprice.ModelType,
+		ModelType:  modelprice.ModelType.String(),
 		ProviderID: provider.ID,
 		Rates:      &rates,
 	}
@@ -133,6 +145,74 @@ func (s *Store) ListBasePricing() ([]StoreBaseModelPricing, error) {
 	return result, nil
 }
 
+// BulkSyncBasePricing upserts everything a feed published, then drops the rows
+// that feed no longer carries. Scoped by source, so one feed never touches
+// another's rows or anything with source='manual'.
+//
+// Models whose provider has no row in `providers` are skipped.
+func (s *Store) BulkSyncBasePricing(source string, prices []core.BasePricing) error {
+	if source == "" {
+		return fmt.Errorf("source is required for a base pricing sync")
+	}
+	if len(prices) == 0 {
+		return nil
+	}
+
+	var providers []StoreProvider
+	if err := s.DB.Find(&providers).Error; err != nil {
+		return fmt.Errorf("failed to load providers for base pricing sync: %w", err)
+	}
+	providerIDs := make(map[core.Provider]string, len(providers))
+	for _, p := range providers {
+		providerIDs[core.Provider(p.Name)] = p.ID
+	}
+
+	now := time.Now()
+	rows := make([]StoreBaseModelPricing, 0, len(prices))
+	skipped := 0
+	for i := range prices {
+		bp := &prices[i]
+		providerID, ok := providerIDs[bp.Provider]
+		if !ok {
+			skipped++
+			continue
+		}
+		rates := Storepricing(bp.Pricing)
+		rows = append(rows, StoreBaseModelPricing{
+			ID:         uuid.Must(uuid.NewV7()).String(),
+			ModelName:  bp.ModelName,
+			ProviderID: providerID,
+			ModelType:  bp.ModelType.String(),
+			Source:     source,
+			Rates:      &rates,
+			CreatedAt:  now,
+			UpdatedAt:  now,
+		})
+	}
+	if skipped > 0 {
+		s.logger.Warn("base pricing sync skipped models with unknown providers",
+			zap.Int("skipped", skipped), zap.String("source", source))
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+
+	return s.DB.Transaction(func(tx *gorm.DB) error {
+		err := tx.Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "model_name"}, {Name: "provider_id"}},
+			DoUpdates: clause.AssignmentColumns([]string{"model_type", "rates", "source", "updated_at"}),
+		}).CreateInBatches(rows, 500).Error
+		if err != nil {
+			return fmt.Errorf("base pricing upsert (%s): %w", source, err)
+		}
+
+		// now is captured before the upsert, so every row just written has
+		// updated_at >= now and survives this delete.
+		return tx.Where("source = ? AND updated_at < ?", source, now).
+			Delete(&StoreBaseModelPricing{}).Error
+	})
+}
+
 // --------------- Custom pricing ----------------
 
 type StoreCustomModelPricing struct {
@@ -158,7 +238,7 @@ func (o *StoreCustomModelPricing) ToCore() *core.CustomPricing {
 		ID:                o.ID,
 		Name:              o.Name,
 		ModelName:         o.ModelName,
-		ModelType:         o.ModelType,
+		ModelType:         core.ParseModelType(o.ModelType),
 		ScopeType:         core.ScopeType(o.ScopeType),
 		ScopeVirtualkeyID: o.ScopeVirtualkeyID,
 	}

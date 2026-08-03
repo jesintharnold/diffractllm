@@ -42,3 +42,7 @@ dataplane:
 observability:
   log_level: "debug"
 
+modelcatalog:
+  source_name: "litellm"
+  source_url: "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json"
+  sync_interval: 5m

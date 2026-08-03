@@ -84,12 +84,26 @@ func (s *Store) Migrate() error {
 	tables := []any{
 		&StoreBudget{},
 		&StoreModelAPIRegistry{},
-		&StoreModelCatalog{},
+		&StoreModelMetadata{},
 		&StoreBaseModelPricing{},
 		&StoreCustomModelPricing{},
 		&StoreProvider{},
 		&StoreUsageRecord{},
 		&StoreVirtualKey{},
+	}
+
+	// idx_model_pricing lost model_type. AutoMigrate matches indexes by NAME,
+	// so it sees the old one and skips - drop it and let AutoMigrate rebuild it
+	// over the new columns.
+	//
+	// TODO: replace with a versioned migration before this runs anywhere real.
+	// Dropping on every boot is idempotent but wasteful, and it silently
+	// rebuilds an index someone may have altered by hand.
+	if s.DB.Migrator().HasTable(&StoreBaseModelPricing{}) &&
+		s.DB.Migrator().HasIndex(&StoreBaseModelPricing{}, "idx_model_pricing") {
+		if err := s.DB.Migrator().DropIndex(&StoreBaseModelPricing{}, "idx_model_pricing"); err != nil {
+			return fmt.Errorf("drop stale idx_model_pricing: %w", err)
+		}
 	}
 
 	return s.DB.AutoMigrate(tables...)

@@ -4,26 +4,8 @@ import (
 	"time"
 )
 
-// Model Plane Snapshot
 type ModelPlaneSnapshot struct {
 	APIRegistries []ModelAPIRegistry
-}
-
-type ModelCatalog struct {
-	ID         string    `json:"id,omitempty"`
-	ModelName  string    `json:"model_name"`
-	Kind       string    `json:"kind"`
-	IsActive   bool      `json:"is_active"`
-	CreatedAt  time.Time `json:"created_at,omitempty"`
-	UpdatedAt  time.Time `json:"updated_at,omitempty"`
-	ProviderID string    `json:"provider_id"`
-	Provider   Provider  `json:"provider"`
-}
-
-type ModelCatalogRequest struct {
-	ModelName string `json:"model_name"`
-	Kind      string `json:"kind"`
-	Provider  string `json:"provider"`
 }
 
 type Deployment struct {

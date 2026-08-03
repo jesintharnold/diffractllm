@@ -15,9 +15,13 @@ type DBSource struct {
 }
 
 func NewDBSource(logger *zap.Logger) (*DBSource, error) {
-	dbpath := config.GlobalConfig().ServerConfig.DBPath
-	AesPassKey := config.GlobalConfig().ServerConfig.AesPasskey
-	store, err := NewStore(dbpath, AesPassKey, logger)
+	cfg, err := config.Load()
+	if err != nil {
+		return nil, fmt.Errorf("db source config: %w", err)
+	}
+
+	dbpath := cfg.ServerConfig.DBPath
+	store, err := NewStore(dbpath, cfg.ServerConfig.AesPasskey, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new db store : %w", err)
 	}
@@ -37,8 +41,11 @@ func (s *DBSource) Init() error {
 		return fmt.Errorf("db source migrate: %w", err)
 	}
 
-	mockEnabled := config.GlobalConfig().ServerConfig.MockEnabled
-	if err := s.store.Seed(mockEnabled); err != nil {
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("db source config: %w", err)
+	}
+	if err := s.store.Seed(cfg.ServerConfig.MockEnabled); err != nil {
 		return fmt.Errorf("db source seed: %w", err)
 	}
 
