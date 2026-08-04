@@ -34,33 +34,20 @@ func (hook *ModelAccessHook) Execute(rctx *core.DiffractLLMContext) *core.Diffra
 		return core.NewMissingParameter("model")
 	}
 
-	// check for format provider/model
-	providerName, modelName, explicit := strings.Cut(requested, "/")
-	if explicit {
-		if providerName == "" || modelName == "" {
-			hook.logger.Warn("model access rejected", zap.String("virtual_key_id", rctx.VirtualKeyID), zap.String("requested_model", requested), zap.String("reason", "invalid provider/model format"))
-			return core.NewInvalidParameter("model", "must use provider/model format")
-		}
-
-		requestedKey := core.ModelKey{
-			Provider:  core.Provider(providerName),
-			ModelName: modelName,
-		}
-
-		for _, config := range virtualKey.ProviderConfigs {
+	if providerName, modelName, found := strings.Cut(requested, "/"); found && providerName != "" && modelName != "" {
+		if config := virtualKey.ProviderConfig(core.Provider(providerName)); config != nil {
+			requestedKey := core.ModelKey{Provider: config.Provider, ModelName: modelName}
 			if config.IsModelAllowed(requestedKey) {
 				rctx.Modelkey = requestedKey
 				hook.logger.Debug("model access allowed", zap.String("virtual_key_id", rctx.VirtualKeyID), zap.String("provider", providerName), zap.String("model", modelName))
 				return nil
 			}
+
+			hook.logger.Warn("model access rejected", zap.String("virtual_key_id", rctx.VirtualKeyID), zap.String("provider", providerName), zap.String("model", modelName),
+				zap.String("reason", "model not permitted on requested provider"))
+			return core.NewForbidden("requested provider/model is not permitted")
 		}
-
-		hook.logger.Warn("model access rejected", zap.String("virtual_key_id", rctx.VirtualKeyID), zap.String("provider", providerName), zap.String("model", modelName),
-			zap.String("reason", "provider/model not permitted"))
-		return core.NewForbidden("requested provider/model is not permitted")
 	}
-
-	// check for the custom pool name if used
 
 	if virtualKey.CustomPoolName != "" &&
 		requested == virtualKey.CustomPoolName {
@@ -68,7 +55,6 @@ func (hook *ModelAccessHook) Execute(rctx *core.DiffractLLMContext) *core.Diffra
 		return nil
 	}
 
-	// Incase simply like model-name is used here
 	for _, config := range virtualKey.ProviderConfigs {
 		requestedKey := core.ModelKey{
 			Provider:  config.Provider,

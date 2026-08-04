@@ -5,6 +5,7 @@ import (
 	"diffractllm/internal/core"
 	"diffractllm/internal/dbstore"
 	"fmt"
+	"net/http"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -39,6 +40,8 @@ type ModelCatalog struct {
 
 	customMu sync.Mutex
 
+	client *http.Client
+
 	done chan struct{}
 	wg   sync.WaitGroup
 }
@@ -48,6 +51,7 @@ func NewModelCatalog(store *dbstore.Store, cfg config.ModelCatalogConfig, logger
 		store:  store,
 		cfg:    cfg,
 		logger: logger,
+		client: &http.Client{Timeout: 10 * time.Second},
 	}
 }
 

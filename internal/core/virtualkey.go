@@ -156,6 +156,15 @@ type VirtualKey struct {
 	ProviderConfigs []*ProviderConfig
 }
 
+func (vkconfig *VirtualKey) ProviderConfig(provider Provider) *ProviderConfig {
+	for _, cfg := range vkconfig.ProviderConfigs {
+		if cfg.Provider == provider {
+			return cfg
+		}
+	}
+	return nil
+}
+
 func (vkconfig *VirtualKey) IsModelKeyAllowed(key ModelKey) bool {
 	for _, vkproviderconfig := range vkconfig.ProviderConfigs {
 		if vkproviderconfig.IsModelAllowed(key) {
