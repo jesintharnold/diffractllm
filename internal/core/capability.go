@@ -69,8 +69,10 @@ var capabilityStrings = [...]string{
 	"embedding_image_input",
 }
 
-func (c Capability) Has(f Capability) bool { return c&f != 0 }
-func (c Capability) Empty() bool           { return c == 0 }
+func (c Capability) Has(f Capability) bool                { return c&f != 0 }
+func (c Capability) SupportsAll(required Capability) bool { return c&required == required }
+
+func (c Capability) Empty() bool { return c == 0 }
 
 func (c Capability) String() []string {
 	out := make([]string, 0, bits.OnesCount32(uint32(c)))

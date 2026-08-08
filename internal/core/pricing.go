@@ -1,10 +1,44 @@
 package core
 
 import (
+	"errors"
 	"time"
 )
 
-// ------------- Pricing ----------------------
+type Tier uint8
+
+const (
+	TierStandard Tier = iota
+	TierPriority
+	TierFlex
+	TierBatch
+)
+
+func (t Tier) String() string {
+	switch t {
+	case TierPriority:
+		return "priority"
+	case TierFlex:
+		return "flex"
+	case TierBatch:
+		return "batch"
+	default:
+		return "standard"
+	}
+}
+
+func ParseTier(value string) Tier {
+	switch value {
+	case "priority":
+		return TierPriority
+	case "flex":
+		return TierFlex
+	case "batch", "batches":
+		return TierBatch
+	default:
+		return TierStandard
+	}
+}
 
 type Pricing struct {
 	InputCostPerToken              *float64 `json:"input_cost_per_token,omitempty"`
@@ -31,23 +65,167 @@ type Pricing struct {
 	CacheReadInputTokenCostAboveTier     *float64 `json:"cache_read_input_token_cost_above_tier,omitempty"`
 	CacheCreationInputTokenCostAboveTier *float64 `json:"cache_creation_input_token_cost_above_tier,omitempty"`
 
+	OutputCostPerReasoningToken *float64 `json:"output_cost_per_reasoning_token,omitempty"`
+
 	InputCostPerCharacter   *float64 `json:"input_cost_per_character,omitempty"`
 	InputCostPerAudioSecond *float64 `json:"input_cost_per_audio_second,omitempty"`
 	InputCostPerAudioToken  *float64 `json:"input_cost_per_audio_token,omitempty"`
 	OutputCostPerAudioToken *float64 `json:"output_cost_per_audio_token,omitempty"`
+
+	InputCostPerImage  *float64 `json:"input_cost_per_image,omitempty"`
+	OutputCostPerImage *float64 `json:"output_cost_per_image,omitempty"`
+	CostPerPixel       *float64 `json:"input_cost_per_pixel,omitempty"`
+
+	OCRCostPerPage *float64 `json:"ocr_cost_per_page,omitempty"`
+	CostPerQuery   *float64 `json:"input_cost_per_query,omitempty"`
 }
 
-type BasePricing struct {
-	ID        string    `json:"id,omitempty"`
-	ModelName string    `json:"model_name"`
-	Provider  Provider  `json:"provider"`
-	ModelType ModelType `json:"model_type"`
+func firstRate(rates ...*float64) float64 {
+	for _, rate := range rates {
+		if rate != nil {
+			return *rate
+		}
+	}
+	return 0
+}
+
+func (p Pricing) isLongContext(inputTokens int64) bool {
+	return p.LongContextThreshold != nil && inputTokens >= int64(*p.LongContextThreshold)
+}
+
+func (p Pricing) inputRate(tier Tier, longContext bool) float64 {
+	if longContext {
+		return firstRate(p.InputCostPerTokenAboveTier, p.InputCostPerToken)
+	}
+	switch tier {
+	case TierPriority:
+		return firstRate(p.InputCostPerTokenPriority, p.InputCostPerToken)
+	case TierFlex:
+		return firstRate(p.InputCostPerTokenFlex, p.InputCostPerToken)
+	case TierBatch:
+		return firstRate(p.InputCostPerTokenBatch, p.InputCostPerToken)
+	}
+	return firstRate(p.InputCostPerToken)
+}
+
+func (p Pricing) outputRate(tier Tier, longContext bool) float64 {
+	if longContext {
+		return firstRate(p.OutputCostPerTokenAboveTier, p.OutputCostPerToken)
+	}
+	switch tier {
+	case TierPriority:
+		return firstRate(p.OutputCostPerTokenPriority, p.OutputCostPerToken)
+	case TierFlex:
+		return firstRate(p.OutputCostPerTokenFlex, p.OutputCostPerToken)
+	case TierBatch:
+		return firstRate(p.OutputCostPerTokenBatch, p.OutputCostPerToken)
+	}
+	return firstRate(p.OutputCostPerToken)
+}
+
+func (p Pricing) cacheReadRate(tier Tier, longContext bool) float64 {
+	if longContext {
+		return firstRate(p.CacheReadInputTokenCostAboveTier, p.CacheReadInputTokenCost)
+	}
+	switch tier {
+	case TierPriority:
+		return firstRate(p.CacheReadInputTokenCostPriority, p.CacheReadInputTokenCost)
+	case TierFlex:
+		return firstRate(p.CacheReadInputTokenCostFlex, p.CacheReadInputTokenCost)
+	case TierBatch:
+		return firstRate(p.CacheReadInputTokenCostBatch, p.CacheReadInputTokenCost)
+	}
+	return firstRate(p.CacheReadInputTokenCost)
+}
+
+type PricingVariant struct {
+	ID        string      `json:"id,omitempty"`
+	Source    string      `json:"source"`
+	RawKey    string      `json:"raw_key"`
+	Key       PriceKey    `json:"key"`
+	ModelType ModelType   `json:"model_type"`
+	Selectors SelectorSet `json:"selectors"`
 
 	Pricing
 
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	Billable bool `json:"billable"`
 }
+
+type Usage struct {
+	InputTokens       int64 `json:"input_tokens,omitempty"`
+	OutputTokens      int64 `json:"output_tokens,omitempty"`
+	ReasoningTokens   int64 `json:"reasoning_tokens,omitempty"`
+	CachedInputTokens int64 `json:"cached_input_tokens,omitempty"`
+	CacheWriteTokens  int64 `json:"cache_write_tokens,omitempty"`
+
+	InputAudioTokens  int64   `json:"input_audio_tokens,omitempty"`
+	OutputAudioTokens int64   `json:"output_audio_tokens,omitempty"`
+	InputAudioSeconds float64 `json:"input_audio_seconds,omitempty"`
+	InputCharacters   int64   `json:"input_characters,omitempty"`
+
+	InputImages     int64 `json:"input_images,omitempty"`
+	OutputImages    int64 `json:"output_images,omitempty"`
+	GeneratedPixels int64 `json:"generated_pixels,omitempty"`
+
+	Pages   int64 `json:"pages,omitempty"`
+	Queries int64 `json:"queries,omitempty"`
+}
+
+func CalculateCost(pricing Pricing, usage Usage, tier Tier) float64 {
+	longContext := pricing.isLongContext(usage.InputTokens)
+
+	// Cached tokens bill at the cache-read rate, so the input term must charge
+	// only the uncached remainder or they are counted twice. A provider
+	// reporting more cached than total is a bug on their side; clamp rather
+	// than emit a negative charge.
+	uncachedInput := usage.InputTokens
+	if pricing.CacheReadInputTokenCost != nil {
+		uncachedInput -= usage.CachedInputTokens
+		if uncachedInput < 0 {
+			uncachedInput = 0
+		}
+	}
+
+	total := float64(uncachedInput) * pricing.inputRate(tier, longContext)
+	total += float64(usage.OutputTokens) * pricing.outputRate(tier, longContext)
+	total += float64(usage.CachedInputTokens) * pricing.cacheReadRate(tier, longContext)
+
+	if longContext {
+		total += float64(usage.CacheWriteTokens) *
+			firstRate(pricing.CacheCreationInputTokenCostAboveTier, pricing.CacheCreationInputTokenCost)
+	} else {
+		total += float64(usage.CacheWriteTokens) * firstRate(pricing.CacheCreationInputTokenCost)
+	}
+
+	total += float64(usage.ReasoningTokens) * firstRate(pricing.OutputCostPerReasoningToken)
+	total += float64(usage.InputCharacters) * firstRate(pricing.InputCostPerCharacter)
+	total += usage.InputAudioSeconds * firstRate(pricing.InputCostPerAudioSecond)
+	total += float64(usage.InputAudioTokens) * firstRate(pricing.InputCostPerAudioToken)
+	total += float64(usage.OutputAudioTokens) * firstRate(pricing.OutputCostPerAudioToken)
+
+	total += float64(usage.InputImages) * firstRate(pricing.InputCostPerImage)
+	total += float64(usage.OutputImages) * firstRate(pricing.OutputCostPerImage)
+	total += float64(usage.GeneratedPixels) * firstRate(pricing.CostPerPixel)
+
+	total += float64(usage.Pages) * firstRate(pricing.OCRCostPerPage)
+	total += float64(usage.Queries) * firstRate(pricing.CostPerQuery)
+
+	return total
+}
+
+var (
+	// ErrVariantRequired - priced only per variant, request sent no selectors.
+	ErrVariantRequired = errors.New("model requires variant parameters")
+
+	// ErrUnsupportedVariant - request sent selectors we do not price. Kept
+	// distinct from ErrVariantRequired: the client fixes them differently.
+	ErrUnsupportedVariant = errors.New("no price for the requested variant")
+
+	// ErrUnpricedVariant - a row exists but its rate semantics are unconfirmed.
+	ErrUnpricedVariant = errors.New("variant has no billable rate")
+)
+
+// ------------- Operator overrides ----------------------
 
 type CustomPricing struct {
 	ID        string    `json:"id,omitempty"`
@@ -73,75 +251,52 @@ type CustomScopePricing struct {
 
 func MergePricing(base *Pricing, custom *Pricing) *Pricing {
 	merged := *base
-	if custom.InputCostPerToken != nil {
-		merged.InputCostPerToken = custom.InputCostPerToken
+	override := func(dst **float64, src *float64) {
+		if src != nil {
+			*dst = src
+		}
 	}
-	if custom.OutputCostPerToken != nil {
-		merged.OutputCostPerToken = custom.OutputCostPerToken
-	}
-	if custom.CacheReadInputTokenCost != nil {
-		merged.CacheReadInputTokenCost = custom.CacheReadInputTokenCost
-	}
-	if custom.CacheCreationInputTokenCost != nil {
-		merged.CacheCreationInputTokenCost = custom.CacheCreationInputTokenCost
-	}
-	if custom.CacheCreationInputTokenCost1Hr != nil {
-		merged.CacheCreationInputTokenCost1Hr = custom.CacheCreationInputTokenCost1Hr
-	}
-	if custom.InputCostPerTokenPriority != nil {
-		merged.InputCostPerTokenPriority = custom.InputCostPerTokenPriority
-	}
-	if custom.OutputCostPerTokenPriority != nil {
-		merged.OutputCostPerTokenPriority = custom.OutputCostPerTokenPriority
-	}
-	if custom.CacheReadInputTokenCostPriority != nil {
-		merged.CacheReadInputTokenCostPriority = custom.CacheReadInputTokenCostPriority
-	}
-	if custom.InputCostPerTokenFlex != nil {
-		merged.InputCostPerTokenFlex = custom.InputCostPerTokenFlex
-	}
-	if custom.OutputCostPerTokenFlex != nil {
-		merged.OutputCostPerTokenFlex = custom.OutputCostPerTokenFlex
-	}
-	if custom.CacheReadInputTokenCostFlex != nil {
-		merged.CacheReadInputTokenCostFlex = custom.CacheReadInputTokenCostFlex
-	}
-	if custom.InputCostPerTokenBatch != nil {
-		merged.InputCostPerTokenBatch = custom.InputCostPerTokenBatch
-	}
-	if custom.OutputCostPerTokenBatch != nil {
-		merged.OutputCostPerTokenBatch = custom.OutputCostPerTokenBatch
-	}
-	if custom.CacheReadInputTokenCostBatch != nil {
-		merged.CacheReadInputTokenCostBatch = custom.CacheReadInputTokenCostBatch
-	}
+
+	override(&merged.InputCostPerToken, custom.InputCostPerToken)
+	override(&merged.OutputCostPerToken, custom.OutputCostPerToken)
+	override(&merged.CacheReadInputTokenCost, custom.CacheReadInputTokenCost)
+	override(&merged.CacheCreationInputTokenCost, custom.CacheCreationInputTokenCost)
+	override(&merged.CacheCreationInputTokenCost1Hr, custom.CacheCreationInputTokenCost1Hr)
+
+	override(&merged.InputCostPerTokenPriority, custom.InputCostPerTokenPriority)
+	override(&merged.OutputCostPerTokenPriority, custom.OutputCostPerTokenPriority)
+	override(&merged.CacheReadInputTokenCostPriority, custom.CacheReadInputTokenCostPriority)
+
+	override(&merged.InputCostPerTokenFlex, custom.InputCostPerTokenFlex)
+	override(&merged.OutputCostPerTokenFlex, custom.OutputCostPerTokenFlex)
+	override(&merged.CacheReadInputTokenCostFlex, custom.CacheReadInputTokenCostFlex)
+
+	override(&merged.InputCostPerTokenBatch, custom.InputCostPerTokenBatch)
+	override(&merged.OutputCostPerTokenBatch, custom.OutputCostPerTokenBatch)
+	override(&merged.CacheReadInputTokenCostBatch, custom.CacheReadInputTokenCostBatch)
+
 	if custom.LongContextThreshold != nil {
 		merged.LongContextThreshold = custom.LongContextThreshold
 	}
-	if custom.InputCostPerTokenAboveTier != nil {
-		merged.InputCostPerTokenAboveTier = custom.InputCostPerTokenAboveTier
-	}
-	if custom.OutputCostPerTokenAboveTier != nil {
-		merged.OutputCostPerTokenAboveTier = custom.OutputCostPerTokenAboveTier
-	}
-	if custom.CacheReadInputTokenCostAboveTier != nil {
-		merged.CacheReadInputTokenCostAboveTier = custom.CacheReadInputTokenCostAboveTier
-	}
-	if custom.CacheCreationInputTokenCostAboveTier != nil {
-		merged.CacheCreationInputTokenCostAboveTier = custom.CacheCreationInputTokenCostAboveTier
-	}
-	if custom.InputCostPerCharacter != nil {
-		merged.InputCostPerCharacter = custom.InputCostPerCharacter
-	}
-	if custom.InputCostPerAudioSecond != nil {
-		merged.InputCostPerAudioSecond = custom.InputCostPerAudioSecond
-	}
-	if custom.InputCostPerAudioToken != nil {
-		merged.InputCostPerAudioToken = custom.InputCostPerAudioToken
-	}
-	if custom.OutputCostPerAudioToken != nil {
-		merged.OutputCostPerAudioToken = custom.OutputCostPerAudioToken
-	}
+	override(&merged.InputCostPerTokenAboveTier, custom.InputCostPerTokenAboveTier)
+	override(&merged.OutputCostPerTokenAboveTier, custom.OutputCostPerTokenAboveTier)
+	override(&merged.CacheReadInputTokenCostAboveTier, custom.CacheReadInputTokenCostAboveTier)
+	override(&merged.CacheCreationInputTokenCostAboveTier, custom.CacheCreationInputTokenCostAboveTier)
+
+	override(&merged.OutputCostPerReasoningToken, custom.OutputCostPerReasoningToken)
+
+	override(&merged.InputCostPerCharacter, custom.InputCostPerCharacter)
+	override(&merged.InputCostPerAudioSecond, custom.InputCostPerAudioSecond)
+	override(&merged.InputCostPerAudioToken, custom.InputCostPerAudioToken)
+	override(&merged.OutputCostPerAudioToken, custom.OutputCostPerAudioToken)
+
+	override(&merged.InputCostPerImage, custom.InputCostPerImage)
+	override(&merged.OutputCostPerImage, custom.OutputCostPerImage)
+	override(&merged.CostPerPixel, custom.CostPerPixel)
+
+	override(&merged.OCRCostPerPage, custom.OCRCostPerPage)
+	override(&merged.CostPerQuery, custom.CostPerQuery)
+
 	return &merged
 }
 
