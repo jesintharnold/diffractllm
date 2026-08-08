@@ -65,6 +65,18 @@ type Pricing struct {
 	CacheReadInputTokenCostAboveTier     *float64 `json:"cache_read_input_token_cost_above_tier,omitempty"`
 	CacheCreationInputTokenCostAboveTier *float64 `json:"cache_creation_input_token_cost_above_tier,omitempty"`
 
+	InputCostPerTokenAboveTierPriority       *float64 `json:"input_cost_per_token_above_tier_priority,omitempty"`
+	OutputCostPerTokenAboveTierPriority      *float64 `json:"output_cost_per_token_above_tier_priority,omitempty"`
+	CacheReadInputTokenCostAboveTierPriority *float64 `json:"cache_read_input_token_cost_above_tier_priority,omitempty"`
+
+	InputCostPerTokenAboveTierFlex       *float64 `json:"input_cost_per_token_above_tier_flex,omitempty"`
+	OutputCostPerTokenAboveTierFlex      *float64 `json:"output_cost_per_token_above_tier_flex,omitempty"`
+	CacheReadInputTokenCostAboveTierFlex *float64 `json:"cache_read_input_token_cost_above_tier_flex,omitempty"`
+
+	InputCostPerTokenAboveTierBatch       *float64 `json:"input_cost_per_token_above_tier_batch,omitempty"`
+	OutputCostPerTokenAboveTierBatch      *float64 `json:"output_cost_per_token_above_tier_batch,omitempty"`
+	CacheReadInputTokenCostAboveTierBatch *float64 `json:"cache_read_input_token_cost_above_tier_batch,omitempty"`
+
 	OutputCostPerReasoningToken *float64 `json:"output_cost_per_reasoning_token,omitempty"`
 
 	InputCostPerCharacter   *float64 `json:"input_cost_per_character,omitempty"`
@@ -95,6 +107,14 @@ func (p Pricing) isLongContext(inputTokens int64) bool {
 
 func (p Pricing) inputRate(tier Tier, longContext bool) float64 {
 	if longContext {
+		switch tier {
+		case TierPriority:
+			return firstRate(p.InputCostPerTokenAboveTierPriority, p.InputCostPerTokenAboveTier, p.InputCostPerTokenPriority, p.InputCostPerToken)
+		case TierFlex:
+			return firstRate(p.InputCostPerTokenAboveTierFlex, p.InputCostPerTokenAboveTier, p.InputCostPerTokenFlex, p.InputCostPerToken)
+		case TierBatch:
+			return firstRate(p.InputCostPerTokenAboveTierBatch, p.InputCostPerTokenAboveTier, p.InputCostPerTokenBatch, p.InputCostPerToken)
+		}
 		return firstRate(p.InputCostPerTokenAboveTier, p.InputCostPerToken)
 	}
 	switch tier {
@@ -110,6 +130,14 @@ func (p Pricing) inputRate(tier Tier, longContext bool) float64 {
 
 func (p Pricing) outputRate(tier Tier, longContext bool) float64 {
 	if longContext {
+		switch tier {
+		case TierPriority:
+			return firstRate(p.OutputCostPerTokenAboveTierPriority, p.OutputCostPerTokenAboveTier, p.OutputCostPerTokenPriority, p.OutputCostPerToken)
+		case TierFlex:
+			return firstRate(p.OutputCostPerTokenAboveTierFlex, p.OutputCostPerTokenAboveTier, p.OutputCostPerTokenFlex, p.OutputCostPerToken)
+		case TierBatch:
+			return firstRate(p.OutputCostPerTokenAboveTierBatch, p.OutputCostPerTokenAboveTier, p.OutputCostPerTokenBatch, p.OutputCostPerToken)
+		}
 		return firstRate(p.OutputCostPerTokenAboveTier, p.OutputCostPerToken)
 	}
 	switch tier {
@@ -125,6 +153,14 @@ func (p Pricing) outputRate(tier Tier, longContext bool) float64 {
 
 func (p Pricing) cacheReadRate(tier Tier, longContext bool) float64 {
 	if longContext {
+		switch tier {
+		case TierPriority:
+			return firstRate(p.CacheReadInputTokenCostAboveTierPriority, p.CacheReadInputTokenCostAboveTier, p.CacheReadInputTokenCostPriority, p.CacheReadInputTokenCost)
+		case TierFlex:
+			return firstRate(p.CacheReadInputTokenCostAboveTierFlex, p.CacheReadInputTokenCostAboveTier, p.CacheReadInputTokenCostFlex, p.CacheReadInputTokenCost)
+		case TierBatch:
+			return firstRate(p.CacheReadInputTokenCostAboveTierBatch, p.CacheReadInputTokenCostAboveTier, p.CacheReadInputTokenCostBatch, p.CacheReadInputTokenCost)
+		}
 		return firstRate(p.CacheReadInputTokenCostAboveTier, p.CacheReadInputTokenCost)
 	}
 	switch tier {
@@ -274,6 +310,18 @@ func MergePricing(base *Pricing, custom *Pricing) *Pricing {
 	override(&merged.OutputCostPerTokenAboveTier, custom.OutputCostPerTokenAboveTier)
 	override(&merged.CacheReadInputTokenCostAboveTier, custom.CacheReadInputTokenCostAboveTier)
 	override(&merged.CacheCreationInputTokenCostAboveTier, custom.CacheCreationInputTokenCostAboveTier)
+
+	override(&merged.InputCostPerTokenAboveTierPriority, custom.InputCostPerTokenAboveTierPriority)
+	override(&merged.OutputCostPerTokenAboveTierPriority, custom.OutputCostPerTokenAboveTierPriority)
+	override(&merged.CacheReadInputTokenCostAboveTierPriority, custom.CacheReadInputTokenCostAboveTierPriority)
+
+	override(&merged.InputCostPerTokenAboveTierFlex, custom.InputCostPerTokenAboveTierFlex)
+	override(&merged.OutputCostPerTokenAboveTierFlex, custom.OutputCostPerTokenAboveTierFlex)
+	override(&merged.CacheReadInputTokenCostAboveTierFlex, custom.CacheReadInputTokenCostAboveTierFlex)
+
+	override(&merged.InputCostPerTokenAboveTierBatch, custom.InputCostPerTokenAboveTierBatch)
+	override(&merged.OutputCostPerTokenAboveTierBatch, custom.OutputCostPerTokenAboveTierBatch)
+	override(&merged.CacheReadInputTokenCostAboveTierBatch, custom.CacheReadInputTokenCostAboveTierBatch)
 
 	override(&merged.OutputCostPerReasoningToken, custom.OutputCostPerReasoningToken)
 
