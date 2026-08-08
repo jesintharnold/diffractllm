@@ -5,174 +5,13 @@ import (
 	"time"
 )
 
-type Tier uint8
+type RateStatus string
 
 const (
-	TierStandard Tier = iota
-	TierPriority
-	TierFlex
-	TierBatch
+	RatePriced       RateStatus = "priced"
+	RateExplicitFree RateStatus = "explicit_free"
+	RateUnpriced     RateStatus = "unpriced"
 )
-
-func (t Tier) String() string {
-	switch t {
-	case TierPriority:
-		return "priority"
-	case TierFlex:
-		return "flex"
-	case TierBatch:
-		return "batch"
-	default:
-		return "standard"
-	}
-}
-
-func ParseTier(value string) Tier {
-	switch value {
-	case "priority":
-		return TierPriority
-	case "flex":
-		return TierFlex
-	case "batch", "batches":
-		return TierBatch
-	default:
-		return TierStandard
-	}
-}
-
-type Pricing struct {
-	InputCostPerToken              *float64 `json:"input_cost_per_token,omitempty"`
-	OutputCostPerToken             *float64 `json:"output_cost_per_token,omitempty"`
-	CacheReadInputTokenCost        *float64 `json:"cache_read_input_token_cost,omitempty"`
-	CacheCreationInputTokenCost    *float64 `json:"cache_creation_input_token_cost,omitempty"`
-	CacheCreationInputTokenCost1Hr *float64 `json:"cache_creation_input_token_cost_1hr,omitempty"`
-
-	InputCostPerTokenPriority       *float64 `json:"input_cost_per_token_priority,omitempty"`
-	OutputCostPerTokenPriority      *float64 `json:"output_cost_per_token_priority,omitempty"`
-	CacheReadInputTokenCostPriority *float64 `json:"cache_read_input_token_cost_priority,omitempty"`
-
-	InputCostPerTokenFlex       *float64 `json:"input_cost_per_token_flex,omitempty"`
-	OutputCostPerTokenFlex      *float64 `json:"output_cost_per_token_flex,omitempty"`
-	CacheReadInputTokenCostFlex *float64 `json:"cache_read_input_token_cost_flex,omitempty"`
-
-	InputCostPerTokenBatch       *float64 `json:"input_cost_per_token_batch,omitempty"`
-	OutputCostPerTokenBatch      *float64 `json:"output_cost_per_token_batch,omitempty"`
-	CacheReadInputTokenCostBatch *float64 `json:"cache_read_input_token_cost_batch,omitempty"`
-
-	LongContextThreshold                 *int     `json:"long_context_threshold,omitempty"`
-	InputCostPerTokenAboveTier           *float64 `json:"input_cost_per_token_above_tier,omitempty"`
-	OutputCostPerTokenAboveTier          *float64 `json:"output_cost_per_token_above_tier,omitempty"`
-	CacheReadInputTokenCostAboveTier     *float64 `json:"cache_read_input_token_cost_above_tier,omitempty"`
-	CacheCreationInputTokenCostAboveTier *float64 `json:"cache_creation_input_token_cost_above_tier,omitempty"`
-
-	InputCostPerTokenAboveTierPriority       *float64 `json:"input_cost_per_token_above_tier_priority,omitempty"`
-	OutputCostPerTokenAboveTierPriority      *float64 `json:"output_cost_per_token_above_tier_priority,omitempty"`
-	CacheReadInputTokenCostAboveTierPriority *float64 `json:"cache_read_input_token_cost_above_tier_priority,omitempty"`
-
-	InputCostPerTokenAboveTierFlex       *float64 `json:"input_cost_per_token_above_tier_flex,omitempty"`
-	OutputCostPerTokenAboveTierFlex      *float64 `json:"output_cost_per_token_above_tier_flex,omitempty"`
-	CacheReadInputTokenCostAboveTierFlex *float64 `json:"cache_read_input_token_cost_above_tier_flex,omitempty"`
-
-	InputCostPerTokenAboveTierBatch       *float64 `json:"input_cost_per_token_above_tier_batch,omitempty"`
-	OutputCostPerTokenAboveTierBatch      *float64 `json:"output_cost_per_token_above_tier_batch,omitempty"`
-	CacheReadInputTokenCostAboveTierBatch *float64 `json:"cache_read_input_token_cost_above_tier_batch,omitempty"`
-
-	OutputCostPerReasoningToken *float64 `json:"output_cost_per_reasoning_token,omitempty"`
-
-	InputCostPerCharacter   *float64 `json:"input_cost_per_character,omitempty"`
-	InputCostPerAudioSecond *float64 `json:"input_cost_per_audio_second,omitempty"`
-	InputCostPerAudioToken  *float64 `json:"input_cost_per_audio_token,omitempty"`
-	OutputCostPerAudioToken *float64 `json:"output_cost_per_audio_token,omitempty"`
-
-	InputCostPerImage  *float64 `json:"input_cost_per_image,omitempty"`
-	OutputCostPerImage *float64 `json:"output_cost_per_image,omitempty"`
-	CostPerPixel       *float64 `json:"input_cost_per_pixel,omitempty"`
-
-	OCRCostPerPage *float64 `json:"ocr_cost_per_page,omitempty"`
-	CostPerQuery   *float64 `json:"input_cost_per_query,omitempty"`
-}
-
-func firstRate(rates ...*float64) float64 {
-	for _, rate := range rates {
-		if rate != nil {
-			return *rate
-		}
-	}
-	return 0
-}
-
-func (p Pricing) isLongContext(inputTokens int64) bool {
-	return p.LongContextThreshold != nil && inputTokens >= int64(*p.LongContextThreshold)
-}
-
-func (p Pricing) inputRate(tier Tier, longContext bool) float64 {
-	if longContext {
-		switch tier {
-		case TierPriority:
-			return firstRate(p.InputCostPerTokenAboveTierPriority, p.InputCostPerTokenAboveTier, p.InputCostPerTokenPriority, p.InputCostPerToken)
-		case TierFlex:
-			return firstRate(p.InputCostPerTokenAboveTierFlex, p.InputCostPerTokenAboveTier, p.InputCostPerTokenFlex, p.InputCostPerToken)
-		case TierBatch:
-			return firstRate(p.InputCostPerTokenAboveTierBatch, p.InputCostPerTokenAboveTier, p.InputCostPerTokenBatch, p.InputCostPerToken)
-		}
-		return firstRate(p.InputCostPerTokenAboveTier, p.InputCostPerToken)
-	}
-	switch tier {
-	case TierPriority:
-		return firstRate(p.InputCostPerTokenPriority, p.InputCostPerToken)
-	case TierFlex:
-		return firstRate(p.InputCostPerTokenFlex, p.InputCostPerToken)
-	case TierBatch:
-		return firstRate(p.InputCostPerTokenBatch, p.InputCostPerToken)
-	}
-	return firstRate(p.InputCostPerToken)
-}
-
-func (p Pricing) outputRate(tier Tier, longContext bool) float64 {
-	if longContext {
-		switch tier {
-		case TierPriority:
-			return firstRate(p.OutputCostPerTokenAboveTierPriority, p.OutputCostPerTokenAboveTier, p.OutputCostPerTokenPriority, p.OutputCostPerToken)
-		case TierFlex:
-			return firstRate(p.OutputCostPerTokenAboveTierFlex, p.OutputCostPerTokenAboveTier, p.OutputCostPerTokenFlex, p.OutputCostPerToken)
-		case TierBatch:
-			return firstRate(p.OutputCostPerTokenAboveTierBatch, p.OutputCostPerTokenAboveTier, p.OutputCostPerTokenBatch, p.OutputCostPerToken)
-		}
-		return firstRate(p.OutputCostPerTokenAboveTier, p.OutputCostPerToken)
-	}
-	switch tier {
-	case TierPriority:
-		return firstRate(p.OutputCostPerTokenPriority, p.OutputCostPerToken)
-	case TierFlex:
-		return firstRate(p.OutputCostPerTokenFlex, p.OutputCostPerToken)
-	case TierBatch:
-		return firstRate(p.OutputCostPerTokenBatch, p.OutputCostPerToken)
-	}
-	return firstRate(p.OutputCostPerToken)
-}
-
-func (p Pricing) cacheReadRate(tier Tier, longContext bool) float64 {
-	if longContext {
-		switch tier {
-		case TierPriority:
-			return firstRate(p.CacheReadInputTokenCostAboveTierPriority, p.CacheReadInputTokenCostAboveTier, p.CacheReadInputTokenCostPriority, p.CacheReadInputTokenCost)
-		case TierFlex:
-			return firstRate(p.CacheReadInputTokenCostAboveTierFlex, p.CacheReadInputTokenCostAboveTier, p.CacheReadInputTokenCostFlex, p.CacheReadInputTokenCost)
-		case TierBatch:
-			return firstRate(p.CacheReadInputTokenCostAboveTierBatch, p.CacheReadInputTokenCostAboveTier, p.CacheReadInputTokenCostBatch, p.CacheReadInputTokenCost)
-		}
-		return firstRate(p.CacheReadInputTokenCostAboveTier, p.CacheReadInputTokenCost)
-	}
-	switch tier {
-	case TierPriority:
-		return firstRate(p.CacheReadInputTokenCostPriority, p.CacheReadInputTokenCost)
-	case TierFlex:
-		return firstRate(p.CacheReadInputTokenCostFlex, p.CacheReadInputTokenCost)
-	case TierBatch:
-		return firstRate(p.CacheReadInputTokenCostBatch, p.CacheReadInputTokenCost)
-	}
-	return firstRate(p.CacheReadInputTokenCost)
-}
 
 type PricingVariant struct {
 	ID        string      `json:"id,omitempty"`
@@ -182,68 +21,164 @@ type PricingVariant struct {
 	ModelType ModelType   `json:"model_type"`
 	Selectors SelectorSet `json:"selectors"`
 
-	Pricing
+	RateCard RateCard   `json:"rate_card"`
+	Status   RateStatus `json:"status"`
 
-	Billable bool `json:"billable"`
+	SourceRates           map[string]float64 `json:"source_rates,omitempty"`
+	UnsupportedRateFields []string           `json:"unsupported_rate_fields,omitempty"`
+}
+
+func (v PricingVariant) Billable() bool {
+	return v.Status == RatePriced || v.Status == RateExplicitFree
 }
 
 type Usage struct {
-	Tier Tier `json:"tier,omitempty"`
+	Condition RateCondition `json:"condition,omitempty"`
+	Qualifier string        `json:"qualifier,omitempty"`
 
-	InputTokens       int64 `json:"input_tokens,omitempty"`
-	OutputTokens      int64 `json:"output_tokens,omitempty"`
-	ReasoningTokens   int64 `json:"reasoning_tokens,omitempty"`
-	CachedInputTokens int64 `json:"cached_input_tokens,omitempty"`
-	CacheWriteTokens  int64 `json:"cache_write_tokens,omitempty"`
+	InputTokens         int64 `json:"input_tokens,omitempty"`
+	OutputTokens        int64 `json:"output_tokens,omitempty"`
+	ReasoningTokens     int64 `json:"reasoning_tokens,omitempty"`
+	CachedInputTokens   int64 `json:"cached_input_tokens,omitempty"`
+	CacheCreationTokens int64 `json:"cache_creation_tokens,omitempty"`
+	CitationTokens      int64 `json:"citation_tokens,omitempty"`
 
-	InputAudioTokens  int64   `json:"input_audio_tokens,omitempty"`
-	OutputAudioTokens int64   `json:"output_audio_tokens,omitempty"`
-	InputAudioSeconds float64 `json:"input_audio_seconds,omitempty"`
-	InputCharacters   int64   `json:"input_characters,omitempty"`
+	InputAudioTokens         int64   `json:"input_audio_tokens,omitempty"`
+	OutputAudioTokens        int64   `json:"output_audio_tokens,omitempty"`
+	CachedAudioTokens        int64   `json:"cached_audio_tokens,omitempty"`
+	CacheCreationAudioTokens int64   `json:"cache_creation_audio_tokens,omitempty"`
+	InputAudioSeconds        float64 `json:"input_audio_seconds,omitempty"`
 
-	InputImages     int64 `json:"input_images,omitempty"`
-	OutputImages    int64 `json:"output_images,omitempty"`
-	GeneratedPixels int64 `json:"generated_pixels,omitempty"`
+	InputCharacters  int64 `json:"input_characters,omitempty"`
+	OutputCharacters int64 `json:"output_characters,omitempty"`
 
-	Pages   int64 `json:"pages,omitempty"`
-	Queries int64 `json:"queries,omitempty"`
+	InputImages       int64 `json:"input_images,omitempty"`
+	OutputImages      int64 `json:"output_images,omitempty"`
+	InputImageTokens  int64 `json:"input_image_tokens,omitempty"`
+	OutputImageTokens int64 `json:"output_image_tokens,omitempty"`
+	GeneratedPixels   int64 `json:"generated_pixels,omitempty"`
+	OutputPixels      int64 `json:"output_pixels,omitempty"`
+
+	InputSeconds      float64 `json:"input_seconds,omitempty"`
+	OutputSeconds     float64 `json:"output_seconds,omitempty"`
+	InputVideoSeconds float64 `json:"input_video_seconds,omitempty"`
+	VideoSeconds      float64 `json:"video_seconds,omitempty"`
+	VideoTokens       int64   `json:"video_tokens,omitempty"`
+
+	Videos int64 `json:"videos,omitempty"`
+
+	Queries         int64 `json:"queries,omitempty"`
+	SearchQueries   int64 `json:"search_queries,omitempty"`
+	Requests        int64 `json:"requests,omitempty"`
+	Pages           int64 `json:"pages,omitempty"`
+	AnnotationPages int64 `json:"annotation_pages,omitempty"`
+	OCRCredits      int64 `json:"ocr_credits,omitempty"`
+	CodeSessions    int64 `json:"code_sessions,omitempty"`
+	InputDBUs       int64 `json:"input_dbus,omitempty"`
+	OutputDBUs      int64 `json:"output_dbus,omitempty"`
+	Units           int64 `json:"units,omitempty"`
 }
 
-func CalculateCost(pricing Pricing, usage Usage) float64 {
-	tier := usage.Tier
-	longContext := pricing.isLongContext(usage.InputTokens)
-	uncachedInput := usage.InputTokens
-	if pricing.CacheReadInputTokenCost != nil {
-		uncachedInput -= usage.CachedInputTokens
-		if uncachedInput < 0 {
-			uncachedInput = 0
+func (u Usage) Quantity(meter Meter, splitCache bool) float64 {
+	switch meter {
+	case MeterInputToken:
+		billable := u.InputTokens
+		if splitCache {
+			billable -= u.CachedInputTokens
 		}
+		if billable < 0 {
+			billable = 0
+		}
+		return float64(billable)
+	case MeterOutputToken:
+		return float64(u.OutputTokens)
+	case MeterReasoningToken:
+		return float64(u.ReasoningTokens)
+	case MeterCachedInputToken:
+		return float64(u.CachedInputTokens)
+	case MeterCacheCreationInputToken:
+		return float64(u.CacheCreationTokens)
+	case MeterCitationToken:
+		return float64(u.CitationTokens)
+
+	case MeterInputAudioToken:
+		return float64(u.InputAudioTokens)
+	case MeterOutputAudioToken:
+		return float64(u.OutputAudioTokens)
+	case MeterCachedAudioToken:
+		return float64(u.CachedAudioTokens)
+	case MeterCacheCreationAudioToken:
+		return float64(u.CacheCreationAudioTokens)
+	case MeterInputAudioSecond:
+		return u.InputAudioSeconds
+
+	case MeterInputCharacter:
+		return float64(u.InputCharacters)
+	case MeterOutputCharacter:
+		return float64(u.OutputCharacters)
+
+	case MeterInputImage:
+		return float64(u.InputImages)
+	case MeterOutputImage:
+		return float64(u.OutputImages)
+	case MeterInputImageToken:
+		return float64(u.InputImageTokens)
+	case MeterOutputImageToken:
+		return float64(u.OutputImageTokens)
+	case MeterGeneratedPixel:
+		return float64(u.GeneratedPixels)
+	case MeterOutputPixel:
+		return float64(u.OutputPixels)
+
+	case MeterInputSecond:
+		return u.InputSeconds
+	case MeterOutputSecond:
+		return u.OutputSeconds
+	case MeterInputVideoSecond:
+		return u.InputVideoSeconds
+	case MeterVideoSecond:
+		return u.VideoSeconds
+	case MeterVideoToken:
+		return float64(u.VideoTokens)
+	case MeterVideo:
+		return float64(u.Videos)
+
+	case MeterQuery:
+		return float64(u.Queries)
+	case MeterSearchQuery:
+		return float64(u.SearchQueries)
+	case MeterRequest:
+		return float64(u.Requests)
+	case MeterPage:
+		return float64(u.Pages)
+	case MeterAnnotationPage:
+		return float64(u.AnnotationPages)
+	case MeterOCRCredit:
+		return float64(u.OCRCredits)
+	case MeterCodeSession:
+		return float64(u.CodeSessions)
+	case MeterInputDBU:
+		return float64(u.InputDBUs)
+	case MeterOutputDBU:
+		return float64(u.OutputDBUs)
+	case MeterUnit:
+		return float64(u.Units)
+	default:
+		return 0
 	}
+}
 
-	total := float64(uncachedInput) * pricing.inputRate(tier, longContext)
-	total += float64(usage.OutputTokens) * pricing.outputRate(tier, longContext)
-	total += float64(usage.CachedInputTokens) * pricing.cacheReadRate(tier, longContext)
+func CalculateCost(card RateCard, usage Usage) float64 {
+	splitCache := card.HasMeter(MeterCachedInputToken)
 
-	if longContext {
-		total += float64(usage.CacheWriteTokens) *
-			firstRate(pricing.CacheCreationInputTokenCostAboveTier, pricing.CacheCreationInputTokenCost)
-	} else {
-		total += float64(usage.CacheWriteTokens) * firstRate(pricing.CacheCreationInputTokenCost)
+	var total float64
+	for _, meter := range card.Meters() {
+		term, ok := card.Select(meter, usage.Condition, usage.InputTokens, usage.Qualifier)
+		if !ok {
+			continue
+		}
+		total += term.PriceUSD * usage.Quantity(meter, splitCache)
 	}
-
-	total += float64(usage.ReasoningTokens) * firstRate(pricing.OutputCostPerReasoningToken)
-	total += float64(usage.InputCharacters) * firstRate(pricing.InputCostPerCharacter)
-	total += usage.InputAudioSeconds * firstRate(pricing.InputCostPerAudioSecond)
-	total += float64(usage.InputAudioTokens) * firstRate(pricing.InputCostPerAudioToken)
-	total += float64(usage.OutputAudioTokens) * firstRate(pricing.OutputCostPerAudioToken)
-
-	total += float64(usage.InputImages) * firstRate(pricing.InputCostPerImage)
-	total += float64(usage.OutputImages) * firstRate(pricing.OutputCostPerImage)
-	total += float64(usage.GeneratedPixels) * firstRate(pricing.CostPerPixel)
-
-	total += float64(usage.Pages) * firstRate(pricing.OCRCostPerPage)
-	total += float64(usage.Queries) * firstRate(pricing.CostPerQuery)
-
 	return total
 }
 
@@ -253,15 +188,13 @@ var (
 	ErrUnpricedVariant    = errors.New("variant has no billable rate")
 )
 
-// ------------- Operator overrides ----------------------
-
 type CustomPricing struct {
 	ID        string    `json:"id,omitempty"`
 	Name      string    `json:"name"`
 	ModelName string    `json:"model_name"`
 	ModelType ModelType `json:"model_type"`
 
-	Pricing
+	RateCard RateCard `json:"rate_card"`
 
 	ScopeType         ScopeType `json:"scope_type"`
 	ScopeVirtualkeyID *string   `json:"scope_virtual_key_id,omitempty"`
@@ -277,75 +210,12 @@ type CustomScopePricing struct {
 	VirtualKey map[string]*CustomPricing
 }
 
-func MergePricing(base *Pricing, custom *Pricing) *Pricing {
-	merged := *base
-	override := func(dst **float64, src *float64) {
-		if src != nil {
-			*dst = src
-		}
-	}
-
-	override(&merged.InputCostPerToken, custom.InputCostPerToken)
-	override(&merged.OutputCostPerToken, custom.OutputCostPerToken)
-	override(&merged.CacheReadInputTokenCost, custom.CacheReadInputTokenCost)
-	override(&merged.CacheCreationInputTokenCost, custom.CacheCreationInputTokenCost)
-	override(&merged.CacheCreationInputTokenCost1Hr, custom.CacheCreationInputTokenCost1Hr)
-
-	override(&merged.InputCostPerTokenPriority, custom.InputCostPerTokenPriority)
-	override(&merged.OutputCostPerTokenPriority, custom.OutputCostPerTokenPriority)
-	override(&merged.CacheReadInputTokenCostPriority, custom.CacheReadInputTokenCostPriority)
-
-	override(&merged.InputCostPerTokenFlex, custom.InputCostPerTokenFlex)
-	override(&merged.OutputCostPerTokenFlex, custom.OutputCostPerTokenFlex)
-	override(&merged.CacheReadInputTokenCostFlex, custom.CacheReadInputTokenCostFlex)
-
-	override(&merged.InputCostPerTokenBatch, custom.InputCostPerTokenBatch)
-	override(&merged.OutputCostPerTokenBatch, custom.OutputCostPerTokenBatch)
-	override(&merged.CacheReadInputTokenCostBatch, custom.CacheReadInputTokenCostBatch)
-
-	if custom.LongContextThreshold != nil {
-		merged.LongContextThreshold = custom.LongContextThreshold
-	}
-	override(&merged.InputCostPerTokenAboveTier, custom.InputCostPerTokenAboveTier)
-	override(&merged.OutputCostPerTokenAboveTier, custom.OutputCostPerTokenAboveTier)
-	override(&merged.CacheReadInputTokenCostAboveTier, custom.CacheReadInputTokenCostAboveTier)
-	override(&merged.CacheCreationInputTokenCostAboveTier, custom.CacheCreationInputTokenCostAboveTier)
-
-	override(&merged.InputCostPerTokenAboveTierPriority, custom.InputCostPerTokenAboveTierPriority)
-	override(&merged.OutputCostPerTokenAboveTierPriority, custom.OutputCostPerTokenAboveTierPriority)
-	override(&merged.CacheReadInputTokenCostAboveTierPriority, custom.CacheReadInputTokenCostAboveTierPriority)
-
-	override(&merged.InputCostPerTokenAboveTierFlex, custom.InputCostPerTokenAboveTierFlex)
-	override(&merged.OutputCostPerTokenAboveTierFlex, custom.OutputCostPerTokenAboveTierFlex)
-	override(&merged.CacheReadInputTokenCostAboveTierFlex, custom.CacheReadInputTokenCostAboveTierFlex)
-
-	override(&merged.InputCostPerTokenAboveTierBatch, custom.InputCostPerTokenAboveTierBatch)
-	override(&merged.OutputCostPerTokenAboveTierBatch, custom.OutputCostPerTokenAboveTierBatch)
-	override(&merged.CacheReadInputTokenCostAboveTierBatch, custom.CacheReadInputTokenCostAboveTierBatch)
-
-	override(&merged.OutputCostPerReasoningToken, custom.OutputCostPerReasoningToken)
-
-	override(&merged.InputCostPerCharacter, custom.InputCostPerCharacter)
-	override(&merged.InputCostPerAudioSecond, custom.InputCostPerAudioSecond)
-	override(&merged.InputCostPerAudioToken, custom.InputCostPerAudioToken)
-	override(&merged.OutputCostPerAudioToken, custom.OutputCostPerAudioToken)
-
-	override(&merged.InputCostPerImage, custom.InputCostPerImage)
-	override(&merged.OutputCostPerImage, custom.OutputCostPerImage)
-	override(&merged.CostPerPixel, custom.CostPerPixel)
-
-	override(&merged.OCRCostPerPage, custom.OCRCostPerPage)
-	override(&merged.CostPerQuery, custom.CostPerQuery)
-
-	return &merged
-}
-
 type CustomPricingRequest struct {
 	Name      string `json:"name"       binding:"required"`
 	ModelName string `json:"model_name" binding:"required"`
 	ModelType string `json:"model_type" binding:"required"`
 
-	Pricing
+	RateCard RateCard `json:"rate_card"`
 
 	ScopeType         ScopeType `json:"scope_type"             binding:"required,oneof=global provider virtualkey"`
 	ScopeVirtualkeyID *string   `json:"scope_virtual_key_id,omitempty"`
@@ -358,7 +228,7 @@ type CustomPricingResponse struct {
 	ModelName string `json:"model_name"`
 	ModelType string `json:"model_type"`
 
-	Pricing
+	RateCard RateCard `json:"rate_card"`
 
 	ScopeType         ScopeType `json:"scope_type"`
 	ScopeVirtualkeyID *string   `json:"scope_virtual_key_id,omitempty"`

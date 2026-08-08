@@ -11,187 +11,175 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-type Storepricing struct {
-	InputCostPerToken              *float64 `json:"input_cost_per_token,omitempty"`
-	OutputCostPerToken             *float64 `json:"output_cost_per_token,omitempty"`
-	CacheReadInputTokenCost        *float64 `json:"cache_read_input_token_cost,omitempty"`
-	CacheCreationInputTokenCost    *float64 `json:"cache_creation_input_token_cost,omitempty"`
-	CacheCreationInputTokenCost1Hr *float64 `json:"cache_creation_input_token_cost_1hr,omitempty"`
-
-	InputCostPerTokenPriority       *float64 `json:"input_cost_per_token_priority,omitempty"`
-	OutputCostPerTokenPriority      *float64 `json:"output_cost_per_token_priority,omitempty"`
-	CacheReadInputTokenCostPriority *float64 `json:"cache_read_input_token_cost_priority,omitempty"`
-
-	InputCostPerTokenFlex       *float64 `json:"input_cost_per_token_flex,omitempty"`
-	OutputCostPerTokenFlex      *float64 `json:"output_cost_per_token_flex,omitempty"`
-	CacheReadInputTokenCostFlex *float64 `json:"cache_read_input_token_cost_flex,omitempty"`
-
-	InputCostPerTokenBatch       *float64 `json:"input_cost_per_token_batch,omitempty"`
-	OutputCostPerTokenBatch      *float64 `json:"output_cost_per_token_batch,omitempty"`
-	CacheReadInputTokenCostBatch *float64 `json:"cache_read_input_token_cost_batch,omitempty"`
-
-	LongContextThreshold                 *int     `json:"long_context_threshold,omitempty"`
-	InputCostPerTokenAboveTier           *float64 `json:"input_cost_per_token_above_tier,omitempty"`
-	OutputCostPerTokenAboveTier          *float64 `json:"output_cost_per_token_above_tier,omitempty"`
-	CacheReadInputTokenCostAboveTier     *float64 `json:"cache_read_input_token_cost_above_tier,omitempty"`
-	CacheCreationInputTokenCostAboveTier *float64 `json:"cache_creation_input_token_cost_above_tier,omitempty"`
-
-	InputCostPerCharacter   *float64 `json:"input_cost_per_character,omitempty"`
-	InputCostPerAudioSecond *float64 `json:"input_cost_per_audio_second,omitempty"`
-	InputCostPerAudioToken  *float64 `json:"input_cost_per_audio_token,omitempty"`
-	OutputCostPerAudioToken *float64 `json:"output_cost_per_audio_token,omitempty"`
+type StoreModelPricing struct {
+	ID                    string             `gorm:"primaryKey;type:text" json:"id"`
+	Source                string             `gorm:"not null;type:text;uniqueIndex:uq_model_pricing_source_row,priority:1;default:manual" json:"source"`
+	RawKey                string             `gorm:"not null;type:text;uniqueIndex:uq_model_pricing_source_row,priority:2"                json:"raw_key"`
+	ProviderID            string             `gorm:"not null;type:text;index:ix_model_pricing_lookup,priority:1" json:"provider_id"`
+	Provider              StoreProvider      `gorm:"foreignKey:ProviderID;references:ID"                          json:"provider"`
+	ModelName             string             `gorm:"not null;type:text;index:ix_model_pricing_lookup,priority:2" json:"model_name"`
+	SelectorKey           string             `gorm:"not null;type:text;default:'{}';index:ix_model_pricing_lookup,priority:3" json:"selector_key"`
+	Selectors             core.SelectorSet   `gorm:"serializer:json;type:text"                                                json:"selectors"`
+	ModelType             string             `gorm:"not null;type:text"        json:"model_type"`
+	RateCard              core.RateCard      `gorm:"serializer:json;type:text" json:"rate_card"`
+	Status                core.RateStatus    `gorm:"not null;type:text;default:unpriced" json:"status"`
+	SourceRates           map[string]float64 `gorm:"serializer:json;type:text" json:"source_rates"`
+	UnsupportedRateFields []string           `gorm:"serializer:json;type:text" json:"unsupported_rate_fields"`
+	CreatedAt             time.Time          `json:"created_at"`
+	UpdatedAt             time.Time          `json:"updated_at"`
 }
 
-// ------------------ Pricing -------------------
+func (StoreModelPricing) TableName() string { return "model_pricing" }
 
-// ModelType is an attribute, NOT part of the key. The feeds publish one entry
-// per (provider, model) - audio and chat rates ride on the same row - so a type
-// dimension in the key would only ever be redundant, and it would break the
-// upsert target that BulkSyncBasePricing needs.
-type StoreBaseModelPricing struct {
-	ID        string `gorm:"primaryKey;type:text"                             json:"id"`
-	ModelName string `gorm:"not null;type:text;uniqueIndex:idx_model_pricing" json:"model_name"`
+func (s *StoreModelPricing) ToCore() core.PricingVariant {
+	selectors := s.Selectors
+	selectors.Key = s.SelectorKey
 
-	ProviderID string        `gorm:"not null;type:text;uniqueIndex:idx_model_pricing" json:"provider_id"`
-	Provider   StoreProvider `gorm:"foreignKey:ProviderID;references:ID"              json:"provider"`
-
-	ModelType string `gorm:"not null;type:text" json:"model_type"`
-
-	// Which feed produced this row: "litellm" | "bifrost" | "manual".
-	// The reconcile delete is scoped by it, so a sync can never reach a
-	// hand-entered price.
-	Source string `gorm:"not null;type:text;index;default:manual" json:"source"`
-
-	Rates     *Storepricing `gorm:"serializer:json;type:jsonb" json:"rates"`
-	CreatedAt time.Time     `json:"created_at"`
-	UpdatedAt time.Time     `json:"updated_at"`
+	return core.PricingVariant{
+		ID:     s.ID,
+		Source: s.Source,
+		RawKey: s.RawKey,
+		Key: core.PriceKey{
+			ModelKey: core.ModelKey{
+				Provider:  core.Provider(s.Provider.Name),
+				ModelName: s.ModelName,
+			},
+			SelectorKey: s.SelectorKey,
+		},
+		ModelType:             core.ParseModelType(s.ModelType),
+		Selectors:             selectors,
+		RateCard:              s.RateCard,
+		Status:                s.Status,
+		SourceRates:           s.SourceRates,
+		UnsupportedRateFields: s.UnsupportedRateFields,
+	}
 }
 
-func (StoreBaseModelPricing) TableName() string { return "model_pricing" }
-
-func (s *StoreBaseModelPricing) ToCore() *core.BasePricing {
-	out := core.BasePricing{
-		ID:        s.ID,
-		ModelName: s.ModelName,
-		ModelType: core.ParseModelType(s.ModelType),
-		CreatedAt: s.CreatedAt,
-		UpdatedAt: s.UpdatedAt,
+func newStoreModelPricing(variant *core.PricingVariant, providerID, source string, now time.Time) StoreModelPricing {
+	status := variant.Status
+	if status == "" {
+		status = core.RateUnpriced
 	}
-	if s.Provider.Name != "" {
-		out.Provider = core.Provider(s.Provider.Name)
+	return StoreModelPricing{
+		ID:                    uuid.Must(uuid.NewV7()).String(),
+		Source:                source,
+		RawKey:                variant.RawKey,
+		ProviderID:            providerID,
+		ModelName:             variant.Key.ModelName,
+		SelectorKey:           variant.Selectors.CanonicalKey(),
+		Selectors:             variant.Selectors,
+		ModelType:             variant.ModelType.String(),
+		RateCard:              variant.RateCard,
+		Status:                status,
+		SourceRates:           variant.SourceRates,
+		UnsupportedRateFields: variant.UnsupportedRateFields,
+		CreatedAt:             now,
+		UpdatedAt:             now,
 	}
-	if s.Rates != nil {
-		out.Pricing = core.Pricing(*s.Rates)
-	}
-	return &out
 }
 
-func (s *Store) CreateBasePricing(modelprice core.BasePricing) (*StoreBaseModelPricing, error) {
-	var provider StoreProvider
-	if err := s.DB.Where("name = ?", modelprice.Provider).First(&provider).Error; err != nil {
-		return nil, fmt.Errorf("provider %q not found: %w", modelprice.Provider, err)
+func (s *Store) ListModelPricing() ([]StoreModelPricing, error) {
+	var rows []StoreModelPricing
+	if err := s.DB.Preload("Provider").Find(&rows).Error; err != nil {
+		return nil, fmt.Errorf("failed to list model pricing: %w", err)
 	}
-
-	rates := Storepricing(modelprice.Pricing)
-	payload := StoreBaseModelPricing{
-		ID:         uuid.Must(uuid.NewV7()).String(),
-		ModelName:  modelprice.ModelName,
-		ModelType:  modelprice.ModelType.String(),
-		ProviderID: provider.ID,
-		Rates:      &rates,
-	}
-
-	if err := s.DB.Create(&payload).Error; err != nil {
-		return nil, fmt.Errorf("create model pricing for %s, provider %s: %w", modelprice.ModelName, modelprice.Provider, err)
-	}
-
-	var created StoreBaseModelPricing
-	if err := s.DB.Preload("Provider").Where("id = ?", payload.ID).First(&created).Error; err != nil {
-		return nil, fmt.Errorf("reload model pricing: %w", err)
-	}
-
-	return &created, nil
+	return rows, nil
 }
 
-func (s *Store) UpdateBasePricing(id string, modelprice core.Pricing) (*StoreBaseModelPricing, error) {
-	rates := Storepricing(modelprice)
-	var result StoreBaseModelPricing
+func (s *Store) GetModelPricing(id string) (*StoreModelPricing, error) {
+	var row StoreModelPricing
+	if err := s.DB.Preload("Provider").Where("id = ?", id).First(&row).Error; err != nil {
+		return nil, fmt.Errorf("model pricing %q not found: %w", id, err)
+	}
+	return &row, nil
+}
+
+func (s *Store) CreateModelPricing(variant core.PricingVariant, source string) (*StoreModelPricing, error) {
+	var payload StoreModelPricing
 	err := s.DB.Transaction(func(tx *gorm.DB) error {
-		res := tx.Model(&StoreBaseModelPricing{}).Where("id = ?", id).Update("rates", &rates)
-		if res.Error != nil {
-			return fmt.Errorf("update model pricing %q: %w", id, res.Error)
+		provider, err := s.resolveProvider(tx, variant.Key.Provider)
+		if err != nil {
+			return err
 		}
-		if res.RowsAffected == 0 {
-			return fmt.Errorf("model pricing %q not found", id)
-		}
-
-		if err := tx.Preload("Provider").Where("id = ?", id).First(&result).Error; err != nil {
-			return fmt.Errorf("reload model pricing %q: %w", id, err)
+		payload = newStoreModelPricing(&variant, provider.ID, source, time.Now())
+		if err := tx.Create(&payload).Error; err != nil {
+			return fmt.Errorf("create model pricing for %s: %w", variant.RawKey, err)
 		}
 		return nil
 	})
-
 	if err != nil {
 		return nil, err
 	}
-	return &result, nil
+	return s.GetModelPricing(payload.ID)
 }
 
-func (s *Store) ListBasePricing() ([]StoreBaseModelPricing, error) {
-	var result []StoreBaseModelPricing
-	if err := s.DB.Preload("Provider").Find(&result).Error; err != nil {
-		return nil, fmt.Errorf("failed to list base pricing for models: %w", err)
+func (s *Store) UpdateModelPricingRates(id string, card core.RateCard, status core.RateStatus) (*StoreModelPricing, error) {
+	res := s.DB.Model(&StoreModelPricing{}).Where("id = ?", id).Updates(map[string]any{
+		"rate_card":  card,
+		"status":     status,
+		"updated_at": time.Now(),
+	})
+	if res.Error != nil {
+		return nil, fmt.Errorf("update model pricing %q: %w", id, res.Error)
 	}
-	return result, nil
+	if res.RowsAffected == 0 {
+		return nil, fmt.Errorf("model pricing %q not found", id)
+	}
+	return s.GetModelPricing(id)
 }
 
-// BulkSyncBasePricing upserts everything a feed published, then drops the rows
-// that feed no longer carries. Scoped by source, so one feed never touches
-// another's rows or anything with source='manual'.
-//
-// Models whose provider has no row in `providers` are skipped.
-func (s *Store) BulkSyncBasePricing(source string, prices []core.BasePricing) error {
+func (s *Store) DeleteModelPricing(id string) error {
+	res := s.DB.Where("id = ?", id).Delete(&StoreModelPricing{})
+	if res.Error != nil {
+		return fmt.Errorf("delete model pricing %q: %w", id, res.Error)
+	}
+	if res.RowsAffected == 0 {
+		return fmt.Errorf("model pricing %q not found", id)
+	}
+	return nil
+}
+
+func (s *Store) BulkSyncModelPricing(source string, variants []core.PricingVariant) error {
 	if source == "" {
-		return fmt.Errorf("source is required for a base pricing sync")
+		return fmt.Errorf("source is required for a pricing sync")
 	}
-	if len(prices) == 0 {
+	if len(variants) == 0 {
 		return nil
 	}
 
-	var providers []StoreProvider
-	if err := s.DB.Find(&providers).Error; err != nil {
-		return fmt.Errorf("failed to load providers for base pricing sync: %w", err)
-	}
-	providerIDs := make(map[core.Provider]string, len(providers))
-	for _, p := range providers {
-		providerIDs[core.Provider(p.Name)] = p.ID
+	providerIDs, err := s.ProviderIDs(nil)
+	if err != nil {
+		return fmt.Errorf("pricing sync: %w", err)
 	}
 
 	now := time.Now()
-	rows := make([]StoreBaseModelPricing, 0, len(prices))
-	skipped := 0
-	for i := range prices {
-		bp := &prices[i]
-		providerID, ok := providerIDs[bp.Provider]
+	rows := make([]StoreModelPricing, 0, len(variants))
+	seen := make(map[string]struct{}, len(variants))
+	skipped, duplicates := 0, 0
+
+	for i := range variants {
+		variant := &variants[i]
+		providerID, ok := providerIDs[variant.Key.Provider]
 		if !ok {
 			skipped++
 			continue
 		}
-		rates := Storepricing(bp.Pricing)
-		rows = append(rows, StoreBaseModelPricing{
-			ID:         uuid.Must(uuid.NewV7()).String(),
-			ModelName:  bp.ModelName,
-			ProviderID: providerID,
-			ModelType:  bp.ModelType.String(),
-			Source:     source,
-			Rates:      &rates,
-			CreatedAt:  now,
-			UpdatedAt:  now,
-		})
+
+		if _, exists := seen[variant.RawKey]; exists {
+			duplicates++
+			continue
+		}
+		seen[variant.RawKey] = struct{}{}
+		rows = append(rows, newStoreModelPricing(variant, providerID, source, now))
 	}
+
 	if skipped > 0 {
-		s.logger.Warn("base pricing sync skipped models with unknown providers",
+		s.logger.Warn("pricing sync skipped variants with unknown providers",
 			zap.Int("skipped", skipped), zap.String("source", source))
+	}
+	if duplicates > 0 {
+		s.logger.Warn("pricing sync dropped duplicate raw keys",
+			zap.Int("duplicates", duplicates), zap.String("source", source))
 	}
 	if len(rows) == 0 {
 		return nil
@@ -199,34 +187,33 @@ func (s *Store) BulkSyncBasePricing(source string, prices []core.BasePricing) er
 
 	return s.DB.Transaction(func(tx *gorm.DB) error {
 		err := tx.Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "model_name"}, {Name: "provider_id"}},
-			DoUpdates: clause.AssignmentColumns([]string{"model_type", "rates", "source", "updated_at"}),
+			Columns: []clause.Column{{Name: "source"}, {Name: "raw_key"}},
+			DoUpdates: clause.AssignmentColumns([]string{
+				"provider_id", "model_name", "selector_key", "selectors",
+				"model_type", "rates", "billable", "updated_at",
+			}),
 		}).CreateInBatches(rows, 500).Error
 		if err != nil {
-			return fmt.Errorf("base pricing upsert (%s): %w", source, err)
+			return fmt.Errorf("model pricing upsert (%s): %w", source, err)
 		}
 
-		// now is captured before the upsert, so every row just written has
-		// updated_at >= now and survives this delete.
 		return tx.Where("source = ? AND updated_at < ?", source, now).
-			Delete(&StoreBaseModelPricing{}).Error
+			Delete(&StoreModelPricing{}).Error
 	})
 }
 
-// --------------- Custom pricing ----------------
-
 type StoreCustomModelPricing struct {
-	ID        string `gorm:"primaryKey;type:text"                                           json:"id"`
-	Name      string `gorm:"not null;type:text"                                             json:"name"`
-	ModelName string `gorm:"not null;type:text;uniqueIndex:idx_override_scope"              json:"model_name"`
-	ModelType string `gorm:"not null;type:text"                                             json:"model_type"`
+	ID        string `gorm:"primaryKey;type:text"                              json:"id"`
+	Name      string `gorm:"not null;type:text"                                json:"name"`
+	ModelName string `gorm:"not null;type:text;uniqueIndex:idx_override_scope" json:"model_name"`
+	ModelType string `gorm:"not null;type:text"                                json:"model_type"`
 
-	ScopeType         core.ScopeType `gorm:"not null;type:text;uniqueIndex:idx_override_scope"              json:"scope_type"`
-	ScopeVirtualkeyID *string        `gorm:"type:text;uniqueIndex:idx_override_scope"                       json:"scope_virtual_key_id"`
-	ScopeProviderID   *string        `gorm:"type:text"                                                      json:"scope_provider_id,omitempty"`
-	ScopeProvider     *StoreProvider `gorm:"foreignKey:ScopeProviderID;references:ID"                       json:"scope_provider,omitempty"`
+	ScopeType         core.ScopeType `gorm:"not null;type:text;uniqueIndex:idx_override_scope" json:"scope_type"`
+	ScopeVirtualkeyID *string        `gorm:"type:text;uniqueIndex:idx_override_scope"          json:"scope_virtual_key_id"`
+	ScopeProviderID   *string        `gorm:"type:text"                                         json:"scope_provider_id,omitempty"`
+	ScopeProvider     *StoreProvider `gorm:"foreignKey:ScopeProviderID;references:ID"          json:"scope_provider,omitempty"`
 
-	Rates     *Storepricing `gorm:"serializer:json;type:jsonb"                                     json:"rates"`
+	RateCard  core.RateCard `gorm:"serializer:json;type:text" json:"rate_card"`
 	CreatedAt time.Time     `json:"created_at"`
 	UpdatedAt time.Time     `json:"updated_at"`
 }
@@ -248,10 +235,7 @@ func (o *StoreCustomModelPricing) ToCore() *core.CustomPricing {
 		out.ScopeProvider = &p
 	}
 
-	if o.Rates != nil {
-		out.Pricing = core.Pricing(*o.Rates)
-	}
-
+	out.RateCard = o.RateCard
 	return &out
 }
 
@@ -288,8 +272,7 @@ func (s *Store) CreateCustomPricing(b core.CustomPricingRequest) (*StoreCustomMo
 		return nil, fmt.Errorf("invalid scope_type %q", b.ScopeType)
 	}
 
-	rates := Storepricing(b.Pricing)
-	payload.Rates = &rates
+	payload.RateCard = b.RateCard
 
 	if err := s.DB.Create(&payload).Error; err != nil {
 		return nil, fmt.Errorf("create override pricing: %w", err)
@@ -319,12 +302,10 @@ func (s *Store) ListCustomPricing() ([]StoreCustomModelPricing, error) {
 	return result, nil
 }
 
-func (s *Store) UpdateCustomPricing(pricingID string, pricing core.Pricing) (*StoreCustomModelPricing, error) {
-	rates := Storepricing(pricing)
-
+func (s *Store) UpdateCustomPricing(pricingID string, card core.RateCard) (*StoreCustomModelPricing, error) {
 	var result StoreCustomModelPricing
 	err := s.DB.Transaction(func(tx *gorm.DB) error {
-		res := tx.Model(&StoreCustomModelPricing{}).Where("id = ?", pricingID).Update("rates", &rates)
+		res := tx.Model(&StoreCustomModelPricing{}).Where("id = ?", pricingID).Update("rate_card", card)
 		if res.Error != nil {
 			return fmt.Errorf("update override pricing %q: %w", pricingID, res.Error)
 		}

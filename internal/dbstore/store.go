@@ -85,24 +85,38 @@ func (s *Store) Migrate() error {
 		&StoreBudget{},
 		&StoreModelAPIRegistry{},
 		&StoreModelMetadata{},
-		&StoreBaseModelPricing{},
+		&StoreModelPricing{},
 		&StoreCustomModelPricing{},
 		&StoreProvider{},
 		&StoreUsageRecord{},
 		&StoreVirtualKey{},
 	}
 
-	// idx_model_pricing lost model_type. AutoMigrate matches indexes by NAME,
-	// so it sees the old one and skips - drop it and let AutoMigrate rebuild it
-	// over the new columns.
+	// Both catalog tables changed their key. Pricing moved from
+	// UNIQUE(model_name, provider_id) - which forced every priced variant of a
+	// model onto one row - to UNIQUE(source, raw_key) plus a non-unique lookup
+	// index. Metadata gained source in its key.
+	//
+	// AutoMigrate matches indexes by NAME, so it sees the old ones and skips.
+	// They must be dropped for the new ones to be created, and the old pricing
+	// index would reject variant rows outright.
 	//
 	// TODO: replace with a versioned migration before this runs anywhere real.
 	// Dropping on every boot is idempotent but wasteful, and it silently
 	// rebuilds an index someone may have altered by hand.
-	if s.DB.Migrator().HasTable(&StoreBaseModelPricing{}) &&
-		s.DB.Migrator().HasIndex(&StoreBaseModelPricing{}, "idx_model_pricing") {
-		if err := s.DB.Migrator().DropIndex(&StoreBaseModelPricing{}, "idx_model_pricing"); err != nil {
-			return fmt.Errorf("drop stale idx_model_pricing: %w", err)
+	staleIndexes := []struct {
+		table any
+		name  string
+	}{
+		{&StoreModelPricing{}, "idx_model_pricing"},
+		{&StoreModelMetadata{}, "idx_model_metadata"},
+	}
+	for _, stale := range staleIndexes {
+		if s.DB.Migrator().HasTable(stale.table) &&
+			s.DB.Migrator().HasIndex(stale.table, stale.name) {
+			if err := s.DB.Migrator().DropIndex(stale.table, stale.name); err != nil {
+				return fmt.Errorf("drop stale %s: %w", stale.name, err)
+			}
 		}
 	}
 
