@@ -152,6 +152,8 @@ type PricingVariant struct {
 }
 
 type Usage struct {
+	Tier Tier `json:"tier,omitempty"`
+
 	InputTokens       int64 `json:"input_tokens,omitempty"`
 	OutputTokens      int64 `json:"output_tokens,omitempty"`
 	ReasoningTokens   int64 `json:"reasoning_tokens,omitempty"`
@@ -171,13 +173,9 @@ type Usage struct {
 	Queries int64 `json:"queries,omitempty"`
 }
 
-func CalculateCost(pricing Pricing, usage Usage, tier Tier) float64 {
+func CalculateCost(pricing Pricing, usage Usage) float64 {
+	tier := usage.Tier
 	longContext := pricing.isLongContext(usage.InputTokens)
-
-	// Cached tokens bill at the cache-read rate, so the input term must charge
-	// only the uncached remainder or they are counted twice. A provider
-	// reporting more cached than total is a bug on their side; clamp rather
-	// than emit a negative charge.
 	uncachedInput := usage.InputTokens
 	if pricing.CacheReadInputTokenCost != nil {
 		uncachedInput -= usage.CachedInputTokens
@@ -214,15 +212,9 @@ func CalculateCost(pricing Pricing, usage Usage, tier Tier) float64 {
 }
 
 var (
-	// ErrVariantRequired - priced only per variant, request sent no selectors.
-	ErrVariantRequired = errors.New("model requires variant parameters")
-
-	// ErrUnsupportedVariant - request sent selectors we do not price. Kept
-	// distinct from ErrVariantRequired: the client fixes them differently.
+	ErrVariantRequired    = errors.New("model requires variant parameters")
 	ErrUnsupportedVariant = errors.New("no price for the requested variant")
-
-	// ErrUnpricedVariant - a row exists but its rate semantics are unconfirmed.
-	ErrUnpricedVariant = errors.New("variant has no billable rate")
+	ErrUnpricedVariant    = errors.New("variant has no billable rate")
 )
 
 // ------------- Operator overrides ----------------------
