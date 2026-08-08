@@ -12,21 +12,26 @@ import (
 )
 
 type StoreModelPricing struct {
-	ID                    string             `gorm:"primaryKey;type:text" json:"id"`
-	Source                string             `gorm:"not null;type:text;uniqueIndex:uq_model_pricing_source_row,priority:1;default:manual" json:"source"`
-	RawKey                string             `gorm:"not null;type:text;uniqueIndex:uq_model_pricing_source_row,priority:2"                json:"raw_key"`
-	ProviderID            string             `gorm:"not null;type:text;index:ix_model_pricing_lookup,priority:1" json:"provider_id"`
-	Provider              StoreProvider      `gorm:"foreignKey:ProviderID;references:ID"                          json:"provider"`
-	ModelName             string             `gorm:"not null;type:text;index:ix_model_pricing_lookup,priority:2" json:"model_name"`
-	SelectorKey           string             `gorm:"not null;type:text;default:'{}';index:ix_model_pricing_lookup,priority:3" json:"selector_key"`
-	Selectors             core.SelectorSet   `gorm:"serializer:json;type:text"                                                json:"selectors"`
-	ModelType             string             `gorm:"not null;type:text"        json:"model_type"`
-	RateCard              core.RateCard      `gorm:"serializer:json;type:text" json:"rate_card"`
+	ID          string           `gorm:"primaryKey;type:text" json:"id"`
+	Source      string           `gorm:"not null;type:text;uniqueIndex:uq_model_pricing_source_row,priority:1;default:manual" json:"source"`
+	RawKey      string           `gorm:"not null;type:text;uniqueIndex:uq_model_pricing_source_row,priority:2"                json:"raw_key"`
+	ProviderID  string           `gorm:"not null;type:text;index:ix_model_pricing_lookup,priority:1" json:"provider_id"`
+	Provider    StoreProvider    `gorm:"foreignKey:ProviderID;references:ID"                          json:"provider"`
+	ModelName   string           `gorm:"not null;type:text;index:ix_model_pricing_lookup,priority:2" json:"model_name"`
+	SelectorKey string           `gorm:"not null;type:text;default:'{}';index:ix_model_pricing_lookup,priority:3" json:"selector_key"`
+	Selectors   core.SelectorSet `gorm:"serializer:json;type:text"                                                json:"selectors"`
+	ModelType   string           `gorm:"not null;type:text" json:"model_type"`
+	Pricing     core.Pricing     `gorm:"serializer:json;type:text" json:"pricing"`
+
 	Status                core.RateStatus    `gorm:"not null;type:text;default:unpriced" json:"status"`
-	SourceRates           map[string]float64 `gorm:"serializer:json;type:text" json:"source_rates"`
-	UnsupportedRateFields []string           `gorm:"serializer:json;type:text" json:"unsupported_rate_fields"`
-	CreatedAt             time.Time          `json:"created_at"`
-	UpdatedAt             time.Time          `json:"updated_at"`
+	SourceRates           map[string]float64 `gorm:"serializer:json;type:text"           json:"source_rates"`
+	UnsupportedRateFields []string           `gorm:"serializer:json;type:text"           json:"unsupported_rate_fields"`
+
+	HeadlineInputCostPerToken  *float64 `gorm:"column:input_cost_per_token;index:ix_model_pricing_input_cost"   json:"input_cost_per_token,omitempty"`
+	HeadlineOutputCostPerToken *float64 `gorm:"column:output_cost_per_token;index:ix_model_pricing_output_cost" json:"output_cost_per_token,omitempty"`
+
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 func (StoreModelPricing) TableName() string { return "model_pricing" }
@@ -48,7 +53,7 @@ func (s *StoreModelPricing) ToCore() core.PricingVariant {
 		},
 		ModelType:             core.ParseModelType(s.ModelType),
 		Selectors:             selectors,
-		RateCard:              s.RateCard,
+		Pricing:               s.Pricing,
 		Status:                s.Status,
 		SourceRates:           s.SourceRates,
 		UnsupportedRateFields: s.UnsupportedRateFields,
@@ -61,20 +66,22 @@ func newStoreModelPricing(variant *core.PricingVariant, providerID, source strin
 		status = core.RateUnpriced
 	}
 	return StoreModelPricing{
-		ID:                    uuid.Must(uuid.NewV7()).String(),
-		Source:                source,
-		RawKey:                variant.RawKey,
-		ProviderID:            providerID,
-		ModelName:             variant.Key.ModelName,
-		SelectorKey:           variant.Selectors.CanonicalKey(),
-		Selectors:             variant.Selectors,
-		ModelType:             variant.ModelType.String(),
-		RateCard:              variant.RateCard,
-		Status:                status,
-		SourceRates:           variant.SourceRates,
-		UnsupportedRateFields: variant.UnsupportedRateFields,
-		CreatedAt:             now,
-		UpdatedAt:             now,
+		ID:                         uuid.Must(uuid.NewV7()).String(),
+		Source:                     source,
+		RawKey:                     variant.RawKey,
+		ProviderID:                 providerID,
+		ModelName:                  variant.Key.ModelName,
+		SelectorKey:                variant.Selectors.CanonicalKey(),
+		Selectors:                  variant.Selectors,
+		ModelType:                  variant.ModelType.String(),
+		Pricing:                    variant.Pricing,
+		Status:                     status,
+		SourceRates:                variant.SourceRates,
+		UnsupportedRateFields:      variant.UnsupportedRateFields,
+		HeadlineInputCostPerToken:  variant.Pricing.InputCostPerToken,
+		HeadlineOutputCostPerToken: variant.Pricing.OutputCostPerToken,
+		CreatedAt:                  now,
+		UpdatedAt:                  now,
 	}
 }
 
@@ -113,11 +120,13 @@ func (s *Store) CreateModelPricing(variant core.PricingVariant, source string) (
 	return s.GetModelPricing(payload.ID)
 }
 
-func (s *Store) UpdateModelPricingRates(id string, card core.RateCard, status core.RateStatus) (*StoreModelPricing, error) {
+func (s *Store) UpdateModelPricingRates(id string, pricing core.Pricing, status core.RateStatus) (*StoreModelPricing, error) {
 	res := s.DB.Model(&StoreModelPricing{}).Where("id = ?", id).Updates(map[string]any{
-		"rate_card":  card,
-		"status":     status,
-		"updated_at": time.Now(),
+		"pricing":               pricing,
+		"status":                status,
+		"input_cost_per_token":  pricing.InputCostPerToken,
+		"output_cost_per_token": pricing.OutputCostPerToken,
+		"updated_at":            time.Now(),
 	})
 	if res.Error != nil {
 		return nil, fmt.Errorf("update model pricing %q: %w", id, res.Error)
@@ -190,7 +199,9 @@ func (s *Store) BulkSyncModelPricing(source string, variants []core.PricingVaria
 			Columns: []clause.Column{{Name: "source"}, {Name: "raw_key"}},
 			DoUpdates: clause.AssignmentColumns([]string{
 				"provider_id", "model_name", "selector_key", "selectors",
-				"model_type", "rates", "billable", "updated_at",
+				"model_type", "pricing", "status", "source_rates",
+				"unsupported_rate_fields", "input_cost_per_token",
+				"output_cost_per_token", "updated_at",
 			}),
 		}).CreateInBatches(rows, 500).Error
 		if err != nil {
@@ -213,9 +224,9 @@ type StoreCustomModelPricing struct {
 	ScopeProviderID   *string        `gorm:"type:text"                                         json:"scope_provider_id,omitempty"`
 	ScopeProvider     *StoreProvider `gorm:"foreignKey:ScopeProviderID;references:ID"          json:"scope_provider,omitempty"`
 
-	RateCard  core.RateCard `gorm:"serializer:json;type:text" json:"rate_card"`
-	CreatedAt time.Time     `json:"created_at"`
-	UpdatedAt time.Time     `json:"updated_at"`
+	Pricing   core.Pricing `gorm:"serializer:json;type:text" json:"pricing"`
+	CreatedAt time.Time    `json:"created_at"`
+	UpdatedAt time.Time    `json:"updated_at"`
 }
 
 func (StoreCustomModelPricing) TableName() string { return "model_pricing_override" }
@@ -235,7 +246,7 @@ func (o *StoreCustomModelPricing) ToCore() *core.CustomPricing {
 		out.ScopeProvider = &p
 	}
 
-	out.RateCard = o.RateCard
+	out.Pricing = o.Pricing
 	return &out
 }
 
@@ -272,7 +283,7 @@ func (s *Store) CreateCustomPricing(b core.CustomPricingRequest) (*StoreCustomMo
 		return nil, fmt.Errorf("invalid scope_type %q", b.ScopeType)
 	}
 
-	payload.RateCard = b.RateCard
+	payload.Pricing = b.Pricing
 
 	if err := s.DB.Create(&payload).Error; err != nil {
 		return nil, fmt.Errorf("create override pricing: %w", err)
@@ -302,10 +313,10 @@ func (s *Store) ListCustomPricing() ([]StoreCustomModelPricing, error) {
 	return result, nil
 }
 
-func (s *Store) UpdateCustomPricing(pricingID string, card core.RateCard) (*StoreCustomModelPricing, error) {
+func (s *Store) UpdateCustomPricing(pricingID string, pricing core.Pricing) (*StoreCustomModelPricing, error) {
 	var result StoreCustomModelPricing
 	err := s.DB.Transaction(func(tx *gorm.DB) error {
-		res := tx.Model(&StoreCustomModelPricing{}).Where("id = ?", pricingID).Update("rate_card", card)
+		res := tx.Model(&StoreCustomModelPricing{}).Where("id = ?", pricingID).Update("pricing", pricing)
 		if res.Error != nil {
 			return fmt.Errorf("update override pricing %q: %w", pricingID, res.Error)
 		}
