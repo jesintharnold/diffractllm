@@ -15,6 +15,15 @@ func (m ModelKey) SlashKey() string {
 	return string(m.Provider) + "/" + m.ModelName
 }
 
+type CatalogKey struct {
+	ModelKey
+	ModelType ModelType
+}
+
+func NewCatalogKey(model ModelKey, modelType ModelType) CatalogKey {
+	return CatalogKey{ModelKey: model, ModelType: modelType}
+}
+
 type ModelLimits struct {
 	ContextWindow        int32 `json:"context_window,omitempty"`
 	MaxInputTokens       int32 `json:"max_input_tokens,omitempty"`
@@ -24,13 +33,21 @@ type ModelLimits struct {
 
 type ModelMetadata struct {
 	ID           string      `json:"id,omitempty"`
-	Key          ModelKey    `json:"key"`
+	Provider     Provider    `json:"provider"`
 	ModelType    ModelType   `json:"model_type"`
+	ModelName    string      `json:"model_name"`
 	BaseModel    string      `json:"base_model,omitempty"`
 	Capability   Capability  `json:"-"`
 	Limits       ModelLimits `json:"limits"`
-	Source       string      `json:"source"`
 	SourceRawKey string      `json:"source_raw_key,omitempty"`
+}
+
+func (m ModelMetadata) ModelKey() ModelKey {
+	return ModelKey{Provider: m.Provider, ModelName: m.ModelName}
+}
+
+func (m ModelMetadata) CatalogKey() CatalogKey {
+	return CatalogKey{ModelKey: m.ModelKey(), ModelType: m.ModelType}
 }
 
 type SelectorSet struct {

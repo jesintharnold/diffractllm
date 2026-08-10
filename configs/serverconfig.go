@@ -56,7 +56,6 @@ type Observability struct {
 }
 
 type ModelCatalogConfig struct {
-	SourceName   string        `mapstructure:"source_name"` // "litellm" | "bifrost"
 	SourceURL    string        `mapstructure:"source_url"`
 	SyncInterval time.Duration `mapstructure:"sync_interval"`
 }
@@ -139,9 +138,6 @@ func (m *ModelCatalogConfig) Validate() error {
 		return err
 	}
 
-	if m.SourceName == "" {
-		return fmt.Errorf("source_name is required when enabled")
-	}
 	if m.SourceURL == "" {
 		return fmt.Errorf("source_url is required when enabled")
 	}

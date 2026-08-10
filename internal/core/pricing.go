@@ -499,7 +499,6 @@ func (p *Pricing) inputVideoSecondRate(totalTokens int64) float64 {
 	return rate(p.InputCostPerVideoPerSecond)
 }
 
-
 func (p *Pricing) outputVideoSecondRate(resolution string, hasAudio, fromVideo bool) float64 {
 	switch resolution {
 	case "360p":
@@ -662,17 +661,17 @@ type Usage struct {
 	Tier              ServiceTier `json:"tier,omitempty"`
 	CacheLongTTL      bool        `json:"cache_long_ttl,omitempty"`
 	SearchContextSize string      `json:"search_context_size,omitempty"`
-	VideoResolution string `json:"video_resolution,omitempty"` // 360p 480p 540p 720p 1080p 4k pro standard
-	VideoHasAudio   bool   `json:"video_has_audio,omitempty"`
-	VideoFromVideo  bool   `json:"video_from_video,omitempty"`
-	ImageQuality    string `json:"image_quality,omitempty"` // low medium high auto
+	VideoResolution   string      `json:"video_resolution,omitempty"` // 360p 480p 540p 720p 1080p 4k pro standard
+	VideoHasAudio     bool        `json:"video_has_audio,omitempty"`
+	VideoFromVideo    bool        `json:"video_from_video,omitempty"`
+	ImageQuality      string      `json:"image_quality,omitempty"` // low medium high auto
 
-	InputTokens         int64       `json:"input_tokens,omitempty"`
-	OutputTokens        int64       `json:"output_tokens,omitempty"`
-	ReasoningTokens     int64       `json:"reasoning_tokens,omitempty"`
-	CitationTokens      int64       `json:"citation_tokens,omitempty"`
-	CachedInputTokens   int64       `json:"cached_input_tokens,omitempty"`
-	CacheCreationTokens int64       `json:"cache_creation_tokens,omitempty"`
+	InputTokens         int64 `json:"input_tokens,omitempty"`
+	OutputTokens        int64 `json:"output_tokens,omitempty"`
+	ReasoningTokens     int64 `json:"reasoning_tokens,omitempty"`
+	CitationTokens      int64 `json:"citation_tokens,omitempty"`
+	CachedInputTokens   int64 `json:"cached_input_tokens,omitempty"`
+	CacheCreationTokens int64 `json:"cache_creation_tokens,omitempty"`
 
 	InputAudioTokens         int64   `json:"input_audio_tokens,omitempty"`
 	OutputAudioTokens        int64   `json:"output_audio_tokens,omitempty"`
@@ -767,7 +766,6 @@ func CalculateCost(p Pricing, u Usage) float64 {
 
 type PricingVariant struct {
 	ID        string      `json:"id,omitempty"`
-	Source    string      `json:"source"`
 	RawKey    string      `json:"raw_key"`
 	Key       PriceKey    `json:"key"`
 	ModelType ModelType   `json:"model_type"`

@@ -37,6 +37,16 @@ var (
 
 var errControlRow = errors.New("feed row is not a model")
 
+func isQualityMarker(parts []string) bool {
+	if len(parts) < 3 {
+		return false
+	}
+	if _, known := qualityMarkers[parts[0]]; !known {
+		return false
+	}
+	return sizeMarker.MatchString(parts[1])
+}
+
 type SourceSchema struct {
 	diffracModelType     core.ModelType   `json:"-"`
 	diffractProvider     core.Provider    `json:"-"`
@@ -210,7 +220,7 @@ func (c *CatalogSource) build(rows []SourceSchema) {
 	c.ModelsCatalog = make([]core.ModelMetadata, 0, len(rows))
 	c.PricingCatalog = make([]core.PricingVariant, 0, len(rows))
 
-	seen := make(map[core.ModelKey]struct{}, len(rows))
+	seen := make(map[core.CatalogKey]struct{}, len(rows))
 
 	for i := range rows {
 		row := &rows[i]
@@ -218,12 +228,14 @@ func (c *CatalogSource) build(rows []SourceSchema) {
 			Provider:  row.diffractProvider,
 			ModelName: row.diffractModelName,
 		}
+		catalogKey := core.NewCatalogKey(key, row.diffracModelType)
 
-		if _, exists := seen[key]; !exists {
-			seen[key] = struct{}{}
+		if _, exists := seen[catalogKey]; !exists {
+			seen[catalogKey] = struct{}{}
 			c.ModelsCatalog = append(c.ModelsCatalog, core.ModelMetadata{
-				Key:        key,
+				Provider:   row.diffractProvider,
 				ModelType:  row.diffracModelType,
+				ModelName:  row.diffractModelName,
 				BaseModel:  row.BaseModel,
 				Capability: row.diffractCapabilities,
 				Limits: core.ModelLimits{
@@ -232,13 +244,11 @@ func (c *CatalogSource) build(rows []SourceSchema) {
 					MaxOutputTokens:      row.MaxOutputTokens,
 					LongContextThreshold: row.LongContextThreshold,
 				},
-				Source:       SourceBifrost,
 				SourceRawKey: row.diffractRawKey,
 			})
 		}
 
 		c.PricingCatalog = append(c.PricingCatalog, core.PricingVariant{
-			Source:    SourceBifrost,
 			RawKey:    row.diffractRawKey,
 			Key:       core.NewPriceKey(key, row.diffractSelectorSet),
 			ModelType: row.diffracModelType,

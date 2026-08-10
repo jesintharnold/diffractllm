@@ -1,4 +1,4 @@
-﻿package dbstore
+package dbstore
 
 import (
 	"fmt"
@@ -19,5 +19,3 @@ func (s *Store) seedProviders() error {
 	}
 	return nil
 }
-
-

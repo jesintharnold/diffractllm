@@ -38,7 +38,6 @@ func (s *StoreModelPricing) ToCore() core.PricingVariant {
 
 	return core.PricingVariant{
 		ID:     s.ID,
-		Source: s.Source,
 		RawKey: s.RawKey,
 		Key: core.PriceKey{
 			ModelKey: core.ModelKey{

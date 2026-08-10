@@ -17,7 +17,7 @@ type StoreModelMetadata struct {
 	ProviderID           string        `gorm:"not null;type:text;uniqueIndex:uq_model_metadata,priority:2;index:ix_model_metadata_lookup,priority:1" json:"provider_id"`
 	Provider             StoreProvider `gorm:"foreignKey:ProviderID;references:ID"                                                                   json:"provider"`
 	ModelName            string        `gorm:"not null;type:text;uniqueIndex:uq_model_metadata,priority:3;index:ix_model_metadata_lookup,priority:2" json:"model_name"`
-	ModelType            string        `gorm:"not null;type:text" json:"model_type"`
+	ModelType            string        `gorm:"not null;type:text;uniqueIndex:uq_model_metadata,priority:4;index:ix_model_metadata_lookup,priority:3" json:"model_type"`
 	BaseModel            string        `gorm:"type:text;index"    json:"base_model"`
 	Capabilities         []string      `gorm:"serializer:json;type:text" json:"capabilities"`
 	ContextWindow        int32         `json:"context_window"`
@@ -33,12 +33,10 @@ func (StoreModelMetadata) TableName() string { return "model_metadata" }
 
 func (s *StoreModelMetadata) ToCore() core.ModelMetadata {
 	return core.ModelMetadata{
-		ID: s.ID,
-		Key: core.ModelKey{
-			Provider:  core.Provider(s.Provider.Name),
-			ModelName: s.ModelName,
-		},
+		ID:         s.ID,
+		Provider:   core.Provider(s.Provider.Name),
 		ModelType:  core.ParseModelType(s.ModelType),
+		ModelName:  s.ModelName,
 		BaseModel:  s.BaseModel,
 		Capability: core.ParseCapabilityStrings(s.Capabilities),
 		Limits: core.ModelLimits{
@@ -47,7 +45,6 @@ func (s *StoreModelMetadata) ToCore() core.ModelMetadata {
 			MaxOutputTokens:      s.MaxOutputTokens,
 			LongContextThreshold: s.LongContextThreshold,
 		},
-		Source:       s.Source,
 		SourceRawKey: s.SourceRawKey,
 	}
 }
@@ -57,7 +54,7 @@ func newStoreModelMetadata(md *core.ModelMetadata, providerID, source string, no
 		ID:                   uuid.Must(uuid.NewV7()).String(),
 		Source:               source,
 		ProviderID:           providerID,
-		ModelName:            md.Key.ModelName,
+		ModelName:            md.ModelName,
 		ModelType:            md.ModelType.String(),
 		BaseModel:            md.BaseModel,
 		Capabilities:         md.Capability.String(),
@@ -74,13 +71,13 @@ func newStoreModelMetadata(md *core.ModelMetadata, providerID, source string, no
 func (s *Store) CreateModelMetadata(md core.ModelMetadata, source string) (*StoreModelMetadata, error) {
 	var payload StoreModelMetadata
 	err := s.DB.Transaction(func(tx *gorm.DB) error {
-		provider, err := s.resolveProvider(tx, md.Key.Provider)
+		provider, err := s.resolveProvider(tx, md.Provider)
 		if err != nil {
 			return err
 		}
 		payload = newStoreModelMetadata(&md, provider.ID, source, time.Now())
 		if err := tx.Create(&payload).Error; err != nil {
-			return fmt.Errorf("create model metadata for %s/%s: %w", md.Key.Provider, md.Key.ModelName, err)
+			return fmt.Errorf("create model metadata for %s/%s: %w", md.Provider, md.ModelName, err)
 		}
 		return nil
 	})
@@ -168,22 +165,23 @@ func (s *Store) BulkSyncModelMetadata(source string, models []core.ModelMetadata
 
 	now := time.Now()
 	rows := make([]StoreModelMetadata, 0, len(models))
-	seen := make(map[core.ModelKey]struct{}, len(models))
+	seen := make(map[core.CatalogKey]struct{}, len(models))
 	skipped, duplicates := 0, 0
 
 	for i := range models {
 		md := &models[i]
-		providerID, ok := providerIDs[md.Key.Provider]
+		providerID, ok := providerIDs[md.Provider]
 		if !ok {
 			skipped++
 			continue
 		}
 
-		if _, exists := seen[md.Key]; exists {
+		catalogKey := md.CatalogKey()
+		if _, exists := seen[catalogKey]; exists {
 			duplicates++
 			continue
 		}
-		seen[md.Key] = struct{}{}
+		seen[catalogKey] = struct{}{}
 		rows = append(rows, newStoreModelMetadata(md, providerID, source, now))
 	}
 
@@ -202,10 +200,11 @@ func (s *Store) BulkSyncModelMetadata(source string, models []core.ModelMetadata
 	return s.DB.Transaction(func(tx *gorm.DB) error {
 		err := tx.Clauses(clause.OnConflict{
 			Columns: []clause.Column{
-				{Name: "source"}, {Name: "provider_id"}, {Name: "model_name"},
+				{Name: "source"}, {Name: "provider_id"},
+				{Name: "model_name"}, {Name: "model_type"},
 			},
 			DoUpdates: clause.AssignmentColumns([]string{
-				"model_type", "base_model", "capabilities", "context_window",
+				"base_model", "capabilities", "context_window",
 				"max_input_tokens", "max_output_tokens", "long_context_threshold",
 				"source_raw_key", "updated_at",
 			}),
