@@ -187,11 +187,6 @@ func adaptRow(rawKey string, raw json.RawMessage) (core.ModelMetadata, core.Pric
 		pricing.SearchContextCostPerQueryHigh = row.SearchContext.High
 	}
 
-	sourceRates, unsupported, err := auditRates(raw)
-	if err != nil {
-		return core.ModelMetadata{}, core.PricingVariant{}, err
-	}
-
 	metadata := core.ModelMetadata{
 		Key:        key,
 		ModelType:  modelType,
@@ -208,14 +203,12 @@ func adaptRow(rawKey string, raw json.RawMessage) (core.ModelMetadata, core.Pric
 	}
 
 	variant := core.PricingVariant{
-		Source:                SourceBifrost,
-		RawKey:                rawKey,
-		Key:                   core.NewPriceKey(key, selectors),
-		ModelType:             modelType,
-		Selectors:             selectors,
-		Pricing:               pricing,
-		SourceRates:           sourceRates,
-		UnsupportedRateFields: unsupported,
+		Source:    SourceBifrost,
+		RawKey:    rawKey,
+		Key:       core.NewPriceKey(key, selectors),
+		ModelType: modelType,
+		Selectors: selectors,
+		Pricing:   pricing,
 	}
 
 	return metadata, variant, nil
@@ -248,40 +241,6 @@ func (r feedRow) capabilities() core.Capability {
 	set(r.SupportsAssistantPrefill, core.CapAssistantPrefill)
 	set(r.SupportsEmbeddingImageInput, core.CapEmbeddingImageInput)
 	return capability
-}
-
-func auditRates(raw json.RawMessage) (map[string]float64, []string, error) {
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &fields); err != nil {
-		return nil, nil, fmt.Errorf("decode fields: %w", err)
-	}
-
-	rates := make(map[string]float64)
-	var unsupported []string
-
-	for name, encoded := range fields {
-		if !isRateField(name) || string(encoded) == "null" {
-			continue
-		}
-
-		if name == searchContextField {
-			continue
-		}
-
-		var value float64
-		if err := json.Unmarshal(encoded, &value); err != nil {
-			unsupported = append(unsupported, name)
-			continue
-		}
-		rates[name] = value
-
-		if !core.IsKnownPricingField(name) {
-			unsupported = append(unsupported, name)
-		}
-	}
-
-	sort.Strings(unsupported)
-	return rates, unsupported, nil
 }
 
 const searchContextField = "search_context_cost_per_query"

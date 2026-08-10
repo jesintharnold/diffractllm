@@ -15,9 +15,13 @@ const (
 	BandAbove512K int64 = 512_000
 )
 
-var knownPricingTags = buildKnownPricingTags()
+const (
+	PixelsAbove1024 int64 = 1024 * 1024
+	PixelsAbove2048 int64 = 2048 * 2048
+	PixelsAbove4096 int64 = 4096 * 4096
+)
 
-func buildKnownPricingTags() map[string]struct{} {
+func PricingFieldNames() map[string]struct{} {
 	pricingType := reflect.TypeFor[Pricing]()
 	tags := make(map[string]struct{}, pricingType.NumField())
 	for i := 0; i < pricingType.NumField(); i++ {
@@ -27,11 +31,6 @@ func buildKnownPricingTags() map[string]struct{} {
 		}
 	}
 	return tags
-}
-
-func IsKnownPricingField(name string) bool {
-	_, known := knownPricingTags[name]
-	return known
 }
 
 type ServiceTier uint8
@@ -173,6 +172,20 @@ type Pricing struct {
 	InputCostPerPixel  *float64 `json:"input_cost_per_pixel,omitempty"`
 	OutputCostPerPixel *float64 `json:"output_cost_per_pixel,omitempty"`
 
+	// Quality tiers, selected by the request's quality parameter.
+	OutputCostPerImageLowQuality    *float64 `json:"output_cost_per_image_low_quality,omitempty"`
+	OutputCostPerImageMediumQuality *float64 `json:"output_cost_per_image_medium_quality,omitempty"`
+	OutputCostPerImageHighQuality   *float64 `json:"output_cost_per_image_high_quality,omitempty"`
+	OutputCostPerImageAutoQuality   *float64 `json:"output_cost_per_image_auto_quality,omitempty"`
+
+	// Pixel bands, applied strictly above the named square. The feed spells
+	// some as a single dimension and some as both; both forms are live.
+	OutputCostPerImageAbove1024And1024Pixels *float64 `json:"output_cost_per_image_above_1024_and_1024_pixels,omitempty"`
+	OutputCostPerImageAbove2048And2048Pixels *float64 `json:"output_cost_per_image_above_2048_and_2048_pixels,omitempty"`
+	OutputCostPerImageAbove4096And4096Pixels *float64 `json:"output_cost_per_image_above_4096_and_4096_pixels,omitempty"`
+	OutputCostPerImageAbove2048Pixels        *float64 `json:"output_cost_per_image_above_2048_pixels,omitempty"`
+	OutputCostPerImageAbove4096Pixels        *float64 `json:"output_cost_per_image_above_4096_pixels,omitempty"`
+
 	// ---------------- video and time ----------------
 	InputCostPerVideoPerSecond                *float64 `json:"input_cost_per_video_per_second,omitempty"`
 	InputCostPerVideoPerSecondAbove128kTokens *float64 `json:"input_cost_per_video_per_second_above_128k_tokens,omitempty"`
@@ -181,6 +194,38 @@ type Pricing struct {
 	OutputCostPerVideo                        *float64 `json:"output_cost_per_video,omitempty"`
 	InputCostPerSecond                        *float64 `json:"input_cost_per_second,omitempty"`
 	OutputCostPerSecond                       *float64 `json:"output_cost_per_second,omitempty"`
+
+	// Input video billed by clip length band.
+	InputCostPerVideoPerSecondAbove8sInterval  *float64 `json:"input_cost_per_video_per_second_above_8s_interval,omitempty"`
+	InputCostPerVideoPerSecondAbove15sInterval *float64 `json:"input_cost_per_video_per_second_above_15s_interval,omitempty"`
+
+	// Output video per second by resolution. _audio and _video_in are
+	// surcharged variants of the same resolution, not separate resolutions.
+	OutputCostPerVideoPerSecond360p          *float64 `json:"output_cost_per_video_per_second_360p,omitempty"`
+	OutputCostPerVideoPerSecond360pAudio     *float64 `json:"output_cost_per_video_per_second_360p_audio,omitempty"`
+	OutputCostPerVideoPerSecond480p          *float64 `json:"output_cost_per_video_per_second_480p,omitempty"`
+	OutputCostPerVideoPerSecond480pVideoIn   *float64 `json:"output_cost_per_video_per_second_480p_video_in,omitempty"`
+	OutputCostPerVideoPerSecond540p          *float64 `json:"output_cost_per_video_per_second_540p,omitempty"`
+	OutputCostPerVideoPerSecond540pAudio     *float64 `json:"output_cost_per_video_per_second_540p_audio,omitempty"`
+	OutputCostPerVideoPerSecond720p          *float64 `json:"output_cost_per_video_per_second_720p,omitempty"`
+	OutputCostPerVideoPerSecond720pAudio     *float64 `json:"output_cost_per_video_per_second_720p_audio,omitempty"`
+	OutputCostPerVideoPerSecond720pVideoIn   *float64 `json:"output_cost_per_video_per_second_720p_video_in,omitempty"`
+	OutputCostPerVideoPerSecond1080p         *float64 `json:"output_cost_per_video_per_second_1080p,omitempty"`
+	OutputCostPerVideoPerSecond1080pAudio    *float64 `json:"output_cost_per_video_per_second_1080p_audio,omitempty"`
+	OutputCostPerVideoPerSecond1080pVideoIn  *float64 `json:"output_cost_per_video_per_second_1080p_video_in,omitempty"`
+	OutputCostPerVideoPerSecond4k            *float64 `json:"output_cost_per_video_per_second_4k,omitempty"`
+	OutputCostPerVideoPerSecond4kAudio       *float64 `json:"output_cost_per_video_per_second_4k_audio,omitempty"`
+	OutputCostPerVideoPerSecond4kVideoIn     *float64 `json:"output_cost_per_video_per_second_4k_video_in,omitempty"`
+	OutputCostPerVideoPerSecondPro           *float64 `json:"output_cost_per_video_per_second_pro,omitempty"`
+	OutputCostPerVideoPerSecondProAudio      *float64 `json:"output_cost_per_video_per_second_pro_audio,omitempty"`
+	OutputCostPerVideoPerSecondStandard      *float64 `json:"output_cost_per_video_per_second_standard,omitempty"`
+	OutputCostPerVideoPerSecondStandardAudio *float64 `json:"output_cost_per_video_per_second_standard_audio,omitempty"`
+	OutputCostPerSecond1080p                 *float64 `json:"output_cost_per_second_1080p,omitempty"`
+
+	// Flat per-video prices for a fixed resolution and duration.
+	OutputCostPerVideo768p6s  *float64 `json:"output_cost_per_video_768p_6s,omitempty"`
+	OutputCostPerVideo768p10s *float64 `json:"output_cost_per_video_768p_10s,omitempty"`
+	OutputCostPerVideo1080p6s *float64 `json:"output_cost_per_video_1080p_6s,omitempty"`
 
 	// ---------------- per-unit ----------------
 	InputCostPerQuery               *float64 `json:"input_cost_per_query,omitempty"`
@@ -454,6 +499,147 @@ func (p *Pricing) inputVideoSecondRate(totalTokens int64) float64 {
 	return rate(p.InputCostPerVideoPerSecond)
 }
 
+
+func (p *Pricing) outputVideoSecondRate(resolution string, hasAudio, fromVideo bool) float64 {
+	switch resolution {
+	case "360p":
+		if hasAudio && p.OutputCostPerVideoPerSecond360pAudio != nil {
+			return *p.OutputCostPerVideoPerSecond360pAudio
+		}
+		if p.OutputCostPerVideoPerSecond360p != nil {
+			return *p.OutputCostPerVideoPerSecond360p
+		}
+	case "480p":
+		if fromVideo && p.OutputCostPerVideoPerSecond480pVideoIn != nil {
+			return *p.OutputCostPerVideoPerSecond480pVideoIn
+		}
+		if p.OutputCostPerVideoPerSecond480p != nil {
+			return *p.OutputCostPerVideoPerSecond480p
+		}
+	case "540p":
+		if hasAudio && p.OutputCostPerVideoPerSecond540pAudio != nil {
+			return *p.OutputCostPerVideoPerSecond540pAudio
+		}
+		if p.OutputCostPerVideoPerSecond540p != nil {
+			return *p.OutputCostPerVideoPerSecond540p
+		}
+	case "720p":
+		if hasAudio && p.OutputCostPerVideoPerSecond720pAudio != nil {
+			return *p.OutputCostPerVideoPerSecond720pAudio
+		}
+		if fromVideo && p.OutputCostPerVideoPerSecond720pVideoIn != nil {
+			return *p.OutputCostPerVideoPerSecond720pVideoIn
+		}
+		if p.OutputCostPerVideoPerSecond720p != nil {
+			return *p.OutputCostPerVideoPerSecond720p
+		}
+	case "1080p":
+		if hasAudio && p.OutputCostPerVideoPerSecond1080pAudio != nil {
+			return *p.OutputCostPerVideoPerSecond1080pAudio
+		}
+		if fromVideo && p.OutputCostPerVideoPerSecond1080pVideoIn != nil {
+			return *p.OutputCostPerVideoPerSecond1080pVideoIn
+		}
+		if v := rate(p.OutputCostPerVideoPerSecond1080p, p.OutputCostPerSecond1080p); v != 0 {
+			return v
+		}
+	case "4k":
+		if hasAudio && p.OutputCostPerVideoPerSecond4kAudio != nil {
+			return *p.OutputCostPerVideoPerSecond4kAudio
+		}
+		if fromVideo && p.OutputCostPerVideoPerSecond4kVideoIn != nil {
+			return *p.OutputCostPerVideoPerSecond4kVideoIn
+		}
+		if p.OutputCostPerVideoPerSecond4k != nil {
+			return *p.OutputCostPerVideoPerSecond4k
+		}
+	case "pro":
+		if hasAudio && p.OutputCostPerVideoPerSecondProAudio != nil {
+			return *p.OutputCostPerVideoPerSecondProAudio
+		}
+		if p.OutputCostPerVideoPerSecondPro != nil {
+			return *p.OutputCostPerVideoPerSecondPro
+		}
+	case "standard":
+		if hasAudio && p.OutputCostPerVideoPerSecondStandardAudio != nil {
+			return *p.OutputCostPerVideoPerSecondStandardAudio
+		}
+		if p.OutputCostPerVideoPerSecondStandard != nil {
+			return *p.OutputCostPerVideoPerSecondStandard
+		}
+	}
+	return rate(p.OutputCostPerVideoPerSecond)
+}
+
+// outputImageRate prefers an explicit quality tier, then the pixel band the
+// image falls into, then the flat per-image rate. Bands apply strictly above
+// their threshold, matching the token bands.
+func (p *Pricing) outputImageRate(quality string, pixels int64) float64 {
+	switch quality {
+	case "low":
+		if p.OutputCostPerImageLowQuality != nil {
+			return *p.OutputCostPerImageLowQuality
+		}
+	case "medium":
+		if p.OutputCostPerImageMediumQuality != nil {
+			return *p.OutputCostPerImageMediumQuality
+		}
+	case "high":
+		if p.OutputCostPerImageHighQuality != nil {
+			return *p.OutputCostPerImageHighQuality
+		}
+	case "auto":
+		if p.OutputCostPerImageAutoQuality != nil {
+			return *p.OutputCostPerImageAutoQuality
+		}
+	}
+
+	if pixels > PixelsAbove4096 {
+		if v := rate(p.OutputCostPerImageAbove4096And4096Pixels, p.OutputCostPerImageAbove4096Pixels); v != 0 {
+			return v
+		}
+	}
+	if pixels > PixelsAbove2048 {
+		if v := rate(p.OutputCostPerImageAbove2048And2048Pixels, p.OutputCostPerImageAbove2048Pixels); v != 0 {
+			return v
+		}
+	}
+	if pixels > PixelsAbove1024 && p.OutputCostPerImageAbove1024And1024Pixels != nil {
+		return *p.OutputCostPerImageAbove1024And1024Pixels
+	}
+	return rate(p.OutputCostPerImage)
+}
+
+// inputVideoSecondRateForClip bills a whole input clip by its duration band.
+func (p *Pricing) inputVideoSecondRateForClip(seconds float64, totalTokens int64) float64 {
+	if seconds > 15 && p.InputCostPerVideoPerSecondAbove15sInterval != nil {
+		return *p.InputCostPerVideoPerSecondAbove15sInterval
+	}
+	if seconds > 8 && p.InputCostPerVideoPerSecondAbove8sInterval != nil {
+		return *p.InputCostPerVideoPerSecondAbove8sInterval
+	}
+	return p.inputVideoSecondRate(totalTokens)
+}
+
+// outputVideoRate covers models priced per finished video at a fixed
+// resolution and duration rather than per second.
+func (p *Pricing) outputVideoRate(resolution string, seconds float64) float64 {
+	switch resolution {
+	case "768p":
+		if seconds > 6 && p.OutputCostPerVideo768p10s != nil {
+			return *p.OutputCostPerVideo768p10s
+		}
+		if p.OutputCostPerVideo768p6s != nil {
+			return *p.OutputCostPerVideo768p6s
+		}
+	case "1080p":
+		if p.OutputCostPerVideo1080p6s != nil {
+			return *p.OutputCostPerVideo1080p6s
+		}
+	}
+	return rate(p.OutputCostPerVideo)
+}
+
 func (p *Pricing) searchQueryRate(contextSize string) float64 {
 	switch contextSize {
 	case "low":
@@ -473,9 +659,14 @@ func (p *Pricing) searchQueryRate(contextSize string) float64 {
 }
 
 type Usage struct {
-	Tier                ServiceTier `json:"tier,omitempty"`
-	CacheLongTTL        bool        `json:"cache_long_ttl,omitempty"`
-	SearchContextSize   string      `json:"search_context_size,omitempty"`
+	Tier              ServiceTier `json:"tier,omitempty"`
+	CacheLongTTL      bool        `json:"cache_long_ttl,omitempty"`
+	SearchContextSize string      `json:"search_context_size,omitempty"`
+	VideoResolution string `json:"video_resolution,omitempty"` // 360p 480p 540p 720p 1080p 4k pro standard
+	VideoHasAudio   bool   `json:"video_has_audio,omitempty"`
+	VideoFromVideo  bool   `json:"video_from_video,omitempty"`
+	ImageQuality    string `json:"image_quality,omitempty"` // low medium high auto
+
 	InputTokens         int64       `json:"input_tokens,omitempty"`
 	OutputTokens        int64       `json:"output_tokens,omitempty"`
 	ReasoningTokens     int64       `json:"reasoning_tokens,omitempty"`
@@ -546,16 +737,16 @@ func CalculateCost(p Pricing, u Usage) float64 {
 	total += float64(u.OutputCharacters) * p.outputCharacterRate(u.InputTokens)
 
 	total += float64(u.InputImages) * p.inputImageRate(u.InputTokens)
-	total += float64(u.OutputImages) * rate(p.OutputCostPerImage)
+	total += float64(u.OutputImages) * p.outputImageRate(u.ImageQuality, u.OutputPixels)
 	total += float64(u.InputImageTokens) * rate(p.InputCostPerImageToken)
 	total += float64(u.OutputImageTokens) * rate(p.OutputCostPerImageToken)
 	total += float64(u.GeneratedPixels) * rate(p.InputCostPerPixel)
 	total += float64(u.OutputPixels) * rate(p.OutputCostPerPixel)
 
-	total += u.InputVideoSeconds * p.inputVideoSecondRate(u.InputTokens)
-	total += u.OutputVideoSeconds * rate(p.OutputCostPerVideoPerSecond)
+	total += u.InputVideoSeconds * p.inputVideoSecondRateForClip(u.InputVideoSeconds, u.InputTokens)
+	total += u.OutputVideoSeconds * p.outputVideoSecondRate(u.VideoResolution, u.VideoHasAudio, u.VideoFromVideo)
 	total += float64(u.OutputVideoTokens) * rate(p.OutputCostPerVideoToken)
-	total += float64(u.OutputVideos) * rate(p.OutputCostPerVideo)
+	total += float64(u.OutputVideos) * p.outputVideoRate(u.VideoResolution, u.OutputVideoSeconds)
 	total += u.InputSeconds * rate(p.InputCostPerSecond)
 	total += u.OutputSeconds * rate(p.OutputCostPerSecond)
 
@@ -583,24 +774,11 @@ type PricingVariant struct {
 	Selectors SelectorSet `json:"selectors"`
 
 	Pricing Pricing `json:"pricing"`
-
-	SourceRates           map[string]float64 `json:"source_rates,omitempty"`
-	UnsupportedRateFields []string           `json:"unsupported_rate_fields,omitempty"`
-}
-
-// Billable reports whether every price-like field the source published for this
-// variant has a billing rule. A variant carrying an unrecognised rate field is
-// refused rather than billed at a partial rate: in the affected rows the field
-// we do recognise is always the cheapest tier, so billing it would silently
-// undercharge (up to 15.6x on replicate/bytedance/seedance-2.0).
-func (v PricingVariant) Billable() bool {
-	return len(v.UnsupportedRateFields) == 0
 }
 
 var (
 	ErrVariantRequired    = errors.New("model requires variant parameters")
 	ErrUnsupportedVariant = errors.New("no price for the requested variant")
-	ErrUnpricedVariant    = errors.New("variant has no billable rate")
 )
 
 func pricingFieldPairs(merged *Pricing, override *Pricing) []struct {
@@ -689,11 +867,45 @@ func pricingFieldPairs(merged *Pricing, override *Pricing) []struct {
 		{&merged.OutputCostPerImageToken, override.OutputCostPerImageToken},
 		{&merged.InputCostPerPixel, override.InputCostPerPixel},
 		{&merged.OutputCostPerPixel, override.OutputCostPerPixel},
+		{&merged.OutputCostPerImageLowQuality, override.OutputCostPerImageLowQuality},
+		{&merged.OutputCostPerImageMediumQuality, override.OutputCostPerImageMediumQuality},
+		{&merged.OutputCostPerImageHighQuality, override.OutputCostPerImageHighQuality},
+		{&merged.OutputCostPerImageAutoQuality, override.OutputCostPerImageAutoQuality},
+		{&merged.OutputCostPerImageAbove1024And1024Pixels, override.OutputCostPerImageAbove1024And1024Pixels},
+		{&merged.OutputCostPerImageAbove2048And2048Pixels, override.OutputCostPerImageAbove2048And2048Pixels},
+		{&merged.OutputCostPerImageAbove4096And4096Pixels, override.OutputCostPerImageAbove4096And4096Pixels},
+		{&merged.OutputCostPerImageAbove2048Pixels, override.OutputCostPerImageAbove2048Pixels},
+		{&merged.OutputCostPerImageAbove4096Pixels, override.OutputCostPerImageAbove4096Pixels},
 		{&merged.InputCostPerVideoPerSecond, override.InputCostPerVideoPerSecond},
 		{&merged.InputCostPerVideoPerSecondAbove128kTokens, override.InputCostPerVideoPerSecondAbove128kTokens},
+		{&merged.InputCostPerVideoPerSecondAbove8sInterval, override.InputCostPerVideoPerSecondAbove8sInterval},
+		{&merged.InputCostPerVideoPerSecondAbove15sInterval, override.InputCostPerVideoPerSecondAbove15sInterval},
 		{&merged.OutputCostPerVideoPerSecond, override.OutputCostPerVideoPerSecond},
+		{&merged.OutputCostPerVideoPerSecond360p, override.OutputCostPerVideoPerSecond360p},
+		{&merged.OutputCostPerVideoPerSecond360pAudio, override.OutputCostPerVideoPerSecond360pAudio},
+		{&merged.OutputCostPerVideoPerSecond480p, override.OutputCostPerVideoPerSecond480p},
+		{&merged.OutputCostPerVideoPerSecond480pVideoIn, override.OutputCostPerVideoPerSecond480pVideoIn},
+		{&merged.OutputCostPerVideoPerSecond540p, override.OutputCostPerVideoPerSecond540p},
+		{&merged.OutputCostPerVideoPerSecond540pAudio, override.OutputCostPerVideoPerSecond540pAudio},
+		{&merged.OutputCostPerVideoPerSecond720p, override.OutputCostPerVideoPerSecond720p},
+		{&merged.OutputCostPerVideoPerSecond720pAudio, override.OutputCostPerVideoPerSecond720pAudio},
+		{&merged.OutputCostPerVideoPerSecond720pVideoIn, override.OutputCostPerVideoPerSecond720pVideoIn},
+		{&merged.OutputCostPerVideoPerSecond1080p, override.OutputCostPerVideoPerSecond1080p},
+		{&merged.OutputCostPerVideoPerSecond1080pAudio, override.OutputCostPerVideoPerSecond1080pAudio},
+		{&merged.OutputCostPerVideoPerSecond1080pVideoIn, override.OutputCostPerVideoPerSecond1080pVideoIn},
+		{&merged.OutputCostPerVideoPerSecond4k, override.OutputCostPerVideoPerSecond4k},
+		{&merged.OutputCostPerVideoPerSecond4kAudio, override.OutputCostPerVideoPerSecond4kAudio},
+		{&merged.OutputCostPerVideoPerSecond4kVideoIn, override.OutputCostPerVideoPerSecond4kVideoIn},
+		{&merged.OutputCostPerVideoPerSecondPro, override.OutputCostPerVideoPerSecondPro},
+		{&merged.OutputCostPerVideoPerSecondProAudio, override.OutputCostPerVideoPerSecondProAudio},
+		{&merged.OutputCostPerVideoPerSecondStandard, override.OutputCostPerVideoPerSecondStandard},
+		{&merged.OutputCostPerVideoPerSecondStandardAudio, override.OutputCostPerVideoPerSecondStandardAudio},
+		{&merged.OutputCostPerSecond1080p, override.OutputCostPerSecond1080p},
 		{&merged.OutputCostPerVideoToken, override.OutputCostPerVideoToken},
 		{&merged.OutputCostPerVideo, override.OutputCostPerVideo},
+		{&merged.OutputCostPerVideo768p6s, override.OutputCostPerVideo768p6s},
+		{&merged.OutputCostPerVideo768p10s, override.OutputCostPerVideo768p10s},
+		{&merged.OutputCostPerVideo1080p6s, override.OutputCostPerVideo1080p6s},
 		{&merged.InputCostPerSecond, override.InputCostPerSecond},
 		{&merged.OutputCostPerSecond, override.OutputCostPerSecond},
 		{&merged.InputCostPerQuery, override.InputCostPerQuery},
