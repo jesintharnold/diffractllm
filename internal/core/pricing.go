@@ -2,6 +2,8 @@ package core
 
 import (
 	"errors"
+	"reflect"
+	"strings"
 	"time"
 )
 
@@ -12,6 +14,25 @@ const (
 	BandAbove272K int64 = 272_000
 	BandAbove512K int64 = 512_000
 )
+
+var knownPricingTags = buildKnownPricingTags()
+
+func buildKnownPricingTags() map[string]struct{} {
+	pricingType := reflect.TypeFor[Pricing]()
+	tags := make(map[string]struct{}, pricingType.NumField())
+	for i := 0; i < pricingType.NumField(); i++ {
+		tag := pricingType.Field(i).Tag.Get("json")
+		if name, _, _ := strings.Cut(tag, ","); name != "" && name != "-" {
+			tags[name] = struct{}{}
+		}
+	}
+	return tags
+}
+
+func IsKnownPricingField(name string) bool {
+	_, known := knownPricingTags[name]
+	return known
+}
 
 type ServiceTier uint8
 
@@ -553,14 +574,6 @@ func CalculateCost(p Pricing, u Usage) float64 {
 	return total
 }
 
-type RateStatus string
-
-const (
-	RatePriced       RateStatus = "priced"
-	RateExplicitFree RateStatus = "explicit_free"
-	RateUnpriced     RateStatus = "unpriced"
-)
-
 type PricingVariant struct {
 	ID        string      `json:"id,omitempty"`
 	Source    string      `json:"source"`
@@ -569,15 +582,19 @@ type PricingVariant struct {
 	ModelType ModelType   `json:"model_type"`
 	Selectors SelectorSet `json:"selectors"`
 
-	Pricing Pricing    `json:"pricing"`
-	Status  RateStatus `json:"status"`
+	Pricing Pricing `json:"pricing"`
 
 	SourceRates           map[string]float64 `json:"source_rates,omitempty"`
 	UnsupportedRateFields []string           `json:"unsupported_rate_fields,omitempty"`
 }
 
+// Billable reports whether every price-like field the source published for this
+// variant has a billing rule. A variant carrying an unrecognised rate field is
+// refused rather than billed at a partial rate: in the affected rows the field
+// we do recognise is always the cheapest tier, so billing it would silently
+// undercharge (up to 15.6x on replicate/bytedance/seedance-2.0).
 func (v PricingVariant) Billable() bool {
-	return v.Status == RatePriced || v.Status == RateExplicitFree
+	return len(v.UnsupportedRateFields) == 0
 }
 
 var (
@@ -624,7 +641,6 @@ func pricingFieldPairs(merged *Pricing, override *Pricing) []struct {
 		{&merged.OutputCostPerTokenFlexAbove272kTokens, override.OutputCostPerTokenFlexAbove272kTokens},
 		{&merged.InputCostPerTokenBatchesAbove272kTokens, override.InputCostPerTokenBatchesAbove272kTokens},
 		{&merged.OutputCostPerTokenBatchesAbove272kTokens, override.OutputCostPerTokenBatchesAbove272kTokens},
-
 		{&merged.CacheReadInputTokenCost, override.CacheReadInputTokenCost},
 		{&merged.CacheReadInputTokenCostPriority, override.CacheReadInputTokenCostPriority},
 		{&merged.CacheReadInputTokenCostFlex, override.CacheReadInputTokenCostFlex},
@@ -639,7 +655,6 @@ func pricingFieldPairs(merged *Pricing, override *Pricing) []struct {
 		{&merged.CacheReadInputTokenCostFlexAbove272kTokens, override.CacheReadInputTokenCostFlexAbove272kTokens},
 		{&merged.CacheReadInputTokenCostBatchesAbove272kTokens, override.CacheReadInputTokenCostBatchesAbove272kTokens},
 		{&merged.InputCostPerTokenCacheHit, override.InputCostPerTokenCacheHit},
-
 		{&merged.CacheCreationInputTokenCost, override.CacheCreationInputTokenCost},
 		{&merged.CacheCreationInputTokenCostPriority, override.CacheCreationInputTokenCostPriority},
 		{&merged.CacheCreationInputTokenCostFlex, override.CacheCreationInputTokenCostFlex},
@@ -654,10 +669,8 @@ func pricingFieldPairs(merged *Pricing, override *Pricing) []struct {
 		{&merged.CacheCreationInputTokenCostAbove1hrAbove200kTokens, override.CacheCreationInputTokenCostAbove1hrAbove200kTokens},
 		{&merged.CacheCreationInputTokenCostAbove1hrFast, override.CacheCreationInputTokenCostAbove1hrFast},
 		{&merged.CacheCreationInputTokenCostBatches1h, override.CacheCreationInputTokenCostBatches1h},
-
 		{&merged.OutputCostPerReasoningToken, override.OutputCostPerReasoningToken},
 		{&merged.CitationCostPerToken, override.CitationCostPerToken},
-
 		{&merged.InputCostPerAudioToken, override.InputCostPerAudioToken},
 		{&merged.OutputCostPerAudioToken, override.OutputCostPerAudioToken},
 		{&merged.InputCostPerAudioTokenPriority, override.InputCostPerAudioTokenPriority},
@@ -665,12 +678,10 @@ func pricingFieldPairs(merged *Pricing, override *Pricing) []struct {
 		{&merged.CacheCreationInputAudioTokenCost, override.CacheCreationInputAudioTokenCost},
 		{&merged.InputCostPerAudioPerSecond, override.InputCostPerAudioPerSecond},
 		{&merged.InputCostPerAudioPerSecondAbove128kTokens, override.InputCostPerAudioPerSecondAbove128kTokens},
-
 		{&merged.InputCostPerCharacter, override.InputCostPerCharacter},
 		{&merged.OutputCostPerCharacter, override.OutputCostPerCharacter},
 		{&merged.InputCostPerCharacterAbove128kTokens, override.InputCostPerCharacterAbove128kTokens},
 		{&merged.OutputCostPerCharacterAbove128kTokens, override.OutputCostPerCharacterAbove128kTokens},
-
 		{&merged.InputCostPerImage, override.InputCostPerImage},
 		{&merged.OutputCostPerImage, override.OutputCostPerImage},
 		{&merged.InputCostPerImageAbove128kTokens, override.InputCostPerImageAbove128kTokens},
@@ -678,7 +689,6 @@ func pricingFieldPairs(merged *Pricing, override *Pricing) []struct {
 		{&merged.OutputCostPerImageToken, override.OutputCostPerImageToken},
 		{&merged.InputCostPerPixel, override.InputCostPerPixel},
 		{&merged.OutputCostPerPixel, override.OutputCostPerPixel},
-
 		{&merged.InputCostPerVideoPerSecond, override.InputCostPerVideoPerSecond},
 		{&merged.InputCostPerVideoPerSecondAbove128kTokens, override.InputCostPerVideoPerSecondAbove128kTokens},
 		{&merged.OutputCostPerVideoPerSecond, override.OutputCostPerVideoPerSecond},
@@ -686,7 +696,6 @@ func pricingFieldPairs(merged *Pricing, override *Pricing) []struct {
 		{&merged.OutputCostPerVideo, override.OutputCostPerVideo},
 		{&merged.InputCostPerSecond, override.InputCostPerSecond},
 		{&merged.OutputCostPerSecond, override.OutputCostPerSecond},
-
 		{&merged.InputCostPerQuery, override.InputCostPerQuery},
 		{&merged.SearchContextCostPerQueryLow, override.SearchContextCostPerQueryLow},
 		{&merged.SearchContextCostPerQueryMedium, override.SearchContextCostPerQueryMedium},

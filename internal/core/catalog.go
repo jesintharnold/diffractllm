@@ -2,9 +2,7 @@ package core
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
-	"sort"
 	"strings"
 )
 
@@ -35,25 +33,8 @@ type ModelMetadata struct {
 	SourceRawKey string      `json:"source_raw_key,omitempty"`
 }
 
-func (m *ModelMetadata) Supports(required Capability) bool {
-	return m.Capability.SupportsAll(required)
-}
-
-var (
-	ErrCatalogMiss       = errors.New("model not found in catalog")
-	ErrCapabilityMissing = errors.New("model does not support the request")
-)
-
-// -------------- selector -------------------
-
-type Selector struct {
-	Name  string `json:"name"`
-	Value string `json:"value"`
-}
-
 type SelectorSet struct {
-	Values []Selector `json:"values,omitempty"`
-	Key    string     `json:"key"`
+	Key string `json:"key"`
 }
 
 const EmptySelectorKey = "{}"
@@ -63,35 +44,19 @@ func NewSelectorSet(values map[string]string) (SelectorSet, error) {
 		return SelectorSet{Key: EmptySelectorKey}, nil
 	}
 
-	names := make([]string, 0, len(values))
 	for name, value := range values {
 		if strings.TrimSpace(name) == "" || strings.TrimSpace(value) == "" {
 			return SelectorSet{}, fmt.Errorf("selector name and value are required")
 		}
-		names = append(names, name)
 	}
-	sort.Strings(names)
-
-	var key strings.Builder
-	key.WriteByte('{')
-	selectors := make([]Selector, 0, len(names))
-	for i, name := range names {
-		if i > 0 {
-			key.WriteByte(',')
-		}
-		encodedName, _ := json.Marshal(name)
-		encodedValue, _ := json.Marshal(values[name])
-		key.Write(encodedName)
-		key.WriteByte(':')
-		key.Write(encodedValue)
-		selectors = append(selectors, Selector{Name: name, Value: values[name]})
+	encoded, err := json.Marshal(values)
+	if err != nil {
+		return SelectorSet{}, fmt.Errorf("encode selector key: %w", err)
 	}
-	key.WriteByte('}')
-
-	return SelectorSet{Values: selectors, Key: key.String()}, nil
+	return SelectorSet{Key: string(encoded)}, nil
 }
 
-func (s SelectorSet) IsEmpty() bool { return len(s.Values) == 0 }
+func (s SelectorSet) IsEmpty() bool { return s.CanonicalKey() == EmptySelectorKey }
 func (s SelectorSet) CanonicalKey() string {
 	if s.Key == "" {
 		return EmptySelectorKey

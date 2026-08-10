@@ -1,3 +1,10 @@
+//go:build ignore
+
+// This file predates the catalog split and references types that no longer
+// exist (core.ModelMetaData, core.BasePricing, ListBasePricing). It is excluded
+// from the build until the catalog pass rewrites it around a single snapshot
+// pointer and a selector-aware Resolve.
+
 package modelcatalog
 
 import (

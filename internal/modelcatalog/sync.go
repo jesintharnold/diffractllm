@@ -1,3 +1,9 @@
+//go:build ignore
+
+// Excluded alongside modelcatalog.go: the lifecycle here drives that file's
+// ModelCatalog. The Start/Stop/loop structure is sound and comes back as-is in
+// the catalog pass.
+
 package modelcatalog
 
 import (

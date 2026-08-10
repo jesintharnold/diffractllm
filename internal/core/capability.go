@@ -108,6 +108,12 @@ const (
 	ModelTypeModeration
 	ModelTypeRerank
 	ModelTypeSearch
+	ModelTypeVideoGeneration
+	ModelTypeImageEdit
+	ModelTypeRealtime
+	ModelTypeOCR
+	ModelTypeVectorStore
+	ModelType3D
 )
 
 func (t ModelType) String() string {
@@ -132,6 +138,18 @@ func (t ModelType) String() string {
 		return "rerank"
 	case ModelTypeSearch:
 		return "search"
+	case ModelTypeVideoGeneration:
+		return "video_generation"
+	case ModelTypeImageEdit:
+		return "image_edit"
+	case ModelTypeRealtime:
+		return "realtime"
+	case ModelTypeOCR:
+		return "ocr"
+	case ModelTypeVectorStore:
+		return "vector_store"
+	case ModelType3D:
+		return "3d"
 	default:
 		return "unknown"
 	}
@@ -159,6 +177,18 @@ func ParseModelType(mode string) ModelType {
 		return ModelTypeRerank
 	case "search":
 		return ModelTypeSearch
+	case "video_generation":
+		return ModelTypeVideoGeneration
+	case "image_edit":
+		return ModelTypeImageEdit
+	case "realtime":
+		return ModelTypeRealtime
+	case "ocr":
+		return ModelTypeOCR
+	case "vector_store":
+		return ModelTypeVectorStore
+	case "3d":
+		return ModelType3D
 	default:
 		return ModelTypeUnknown
 	}
