@@ -13,18 +13,17 @@ import (
 
 type StoreModelPricing struct {
 	ID          string           `gorm:"primaryKey;type:text" json:"id"`
-	Source      string           `gorm:"not null;type:text;uniqueIndex:uq_model_pricing_source_row,priority:1;default:manual" json:"source"`
-	RawKey      string           `gorm:"not null;type:text;uniqueIndex:uq_model_pricing_source_row,priority:2"                json:"raw_key"`
-	ProviderID  string           `gorm:"not null;type:text;index:ix_model_pricing_lookup,priority:1" json:"provider_id"`
+	RawKey      string           `gorm:"not null;type:text;uniqueIndex:idx_uq_model_pricing_raw_key" json:"raw_key"`
+	ProviderID  string           `gorm:"not null;type:text" json:"provider_id"`
 	Provider    StoreProvider    `gorm:"foreignKey:ProviderID;references:ID"                          json:"provider"`
-	ModelName   string           `gorm:"not null;type:text;index:ix_model_pricing_lookup,priority:2" json:"model_name"`
-	SelectorKey string           `gorm:"not null;type:text;default:'{}';index:ix_model_pricing_lookup,priority:3" json:"selector_key"`
+	ModelName   string           `gorm:"not null;type:text" json:"model_name"`
+	SelectorKey string           `gorm:"not null;type:text;default:'{}'" json:"selector_key"`
 	Selectors   core.SelectorSet `gorm:"serializer:json;type:text"                                                json:"selectors"`
 	ModelType   string           `gorm:"not null;type:text" json:"model_type"`
 	Pricing     core.Pricing     `gorm:"serializer:json;type:text" json:"pricing"`
 
-	HeadlineInputCostPerToken  *float64 `gorm:"column:input_cost_per_token;index:ix_model_pricing_input_cost"   json:"input_cost_per_token,omitempty"`
-	HeadlineOutputCostPerToken *float64 `gorm:"column:output_cost_per_token;index:ix_model_pricing_output_cost" json:"output_cost_per_token,omitempty"`
+	HeadlineInputCostPerToken  *float64 `gorm:"column:input_cost_per_token"   json:"input_cost_per_token,omitempty"`
+	HeadlineOutputCostPerToken *float64 `gorm:"column:output_cost_per_token" json:"output_cost_per_token,omitempty"`
 
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -52,10 +51,9 @@ func (s *StoreModelPricing) ToCore() core.PricingVariant {
 	}
 }
 
-func newStoreModelPricing(variant *core.PricingVariant, providerID, source string, now time.Time) StoreModelPricing {
+func newStoreModelPricing(variant *core.PricingVariant, providerID string, now time.Time) StoreModelPricing {
 	return StoreModelPricing{
 		ID:                         uuid.Must(uuid.NewV7()).String(),
-		Source:                     source,
 		RawKey:                     variant.RawKey,
 		ProviderID:                 providerID,
 		ModelName:                  variant.Key.ModelName,
@@ -86,14 +84,14 @@ func (s *Store) GetModelPricing(id string) (*StoreModelPricing, error) {
 	return &row, nil
 }
 
-func (s *Store) CreateModelPricing(variant core.PricingVariant, source string) (*StoreModelPricing, error) {
+func (s *Store) CreateModelPricing(variant core.PricingVariant) (*StoreModelPricing, error) {
 	var payload StoreModelPricing
 	err := s.DB.Transaction(func(tx *gorm.DB) error {
 		provider, err := s.resolveProvider(tx, variant.Key.Provider)
 		if err != nil {
 			return err
 		}
-		payload = newStoreModelPricing(&variant, provider.ID, source, time.Now())
+		payload = newStoreModelPricing(&variant, provider.ID, time.Now())
 		if err := tx.Create(&payload).Error; err != nil {
 			return fmt.Errorf("create model pricing for %s: %w", variant.RawKey, err)
 		}
@@ -132,10 +130,7 @@ func (s *Store) DeleteModelPricing(id string) error {
 	return nil
 }
 
-func (s *Store) BulkSyncModelPricing(source string, variants []core.PricingVariant) error {
-	if source == "" {
-		return fmt.Errorf("source is required for a pricing sync")
-	}
+func (s *Store) BulkSyncModelPricing(variants []core.PricingVariant) error {
 	if len(variants) == 0 {
 		return nil
 	}
@@ -163,16 +158,16 @@ func (s *Store) BulkSyncModelPricing(source string, variants []core.PricingVaria
 			continue
 		}
 		seen[variant.RawKey] = struct{}{}
-		rows = append(rows, newStoreModelPricing(variant, providerID, source, now))
+		rows = append(rows, newStoreModelPricing(variant, providerID, now))
 	}
 
 	if skipped > 0 {
 		s.logger.Warn("pricing sync skipped variants with unknown providers",
-			zap.Int("skipped", skipped), zap.String("source", source))
+			zap.Int("skipped", skipped))
 	}
 	if duplicates > 0 {
 		s.logger.Warn("pricing sync dropped duplicate raw keys",
-			zap.Int("duplicates", duplicates), zap.String("source", source))
+			zap.Int("duplicates", duplicates))
 	}
 	if len(rows) == 0 {
 		return nil
@@ -180,7 +175,7 @@ func (s *Store) BulkSyncModelPricing(source string, variants []core.PricingVaria
 
 	return s.DB.Transaction(func(tx *gorm.DB) error {
 		err := tx.Clauses(clause.OnConflict{
-			Columns: []clause.Column{{Name: "source"}, {Name: "raw_key"}},
+			Columns: []clause.Column{{Name: "raw_key"}},
 			DoUpdates: clause.AssignmentColumns([]string{
 				"provider_id", "model_name", "selector_key", "selectors",
 				"model_type", "pricing", "input_cost_per_token",
@@ -188,22 +183,20 @@ func (s *Store) BulkSyncModelPricing(source string, variants []core.PricingVaria
 			}),
 		}).CreateInBatches(rows, 500).Error
 		if err != nil {
-			return fmt.Errorf("model pricing upsert (%s): %w", source, err)
+			return fmt.Errorf("model pricing upsert: %w", err)
 		}
-
-		return tx.Where("source = ? AND updated_at < ?", source, now).
-			Delete(&StoreModelPricing{}).Error
+		return nil
 	})
 }
 
 type StoreCustomModelPricing struct {
 	ID        string `gorm:"primaryKey;type:text"                              json:"id"`
 	Name      string `gorm:"not null;type:text"                                json:"name"`
-	ModelName string `gorm:"not null;type:text;uniqueIndex:idx_override_scope" json:"model_name"`
+	ModelName string `gorm:"not null;type:text" json:"model_name"`
 	ModelType string `gorm:"not null;type:text"                                json:"model_type"`
 
-	ScopeType         core.ScopeType `gorm:"not null;type:text;uniqueIndex:idx_override_scope" json:"scope_type"`
-	ScopeVirtualkeyID *string        `gorm:"type:text;uniqueIndex:idx_override_scope"          json:"scope_virtual_key_id"`
+	ScopeType         core.ScopeType `gorm:"not null;type:text" json:"scope_type"`
+	ScopeVirtualkeyID *string        `gorm:"type:text"          json:"scope_virtual_key_id"`
 	ScopeProviderID   *string        `gorm:"type:text"                                         json:"scope_provider_id,omitempty"`
 	ScopeProvider     *StoreProvider `gorm:"foreignKey:ScopeProviderID;references:ID"          json:"scope_provider,omitempty"`
 

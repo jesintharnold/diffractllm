@@ -13,12 +13,11 @@ import (
 
 type StoreModelMetadata struct {
 	ID                   string        `gorm:"primaryKey;type:text" json:"id"`
-	Source               string        `gorm:"not null;type:text;uniqueIndex:uq_model_metadata,priority:1;default:manual" json:"source"`
-	ProviderID           string        `gorm:"not null;type:text;uniqueIndex:uq_model_metadata,priority:2;index:ix_model_metadata_lookup,priority:1" json:"provider_id"`
+	ProviderID           string        `gorm:"not null;type:text;uniqueIndex:idx_uq_model_metadata,priority:1" json:"provider_id"`
 	Provider             StoreProvider `gorm:"foreignKey:ProviderID;references:ID"                                                                   json:"provider"`
-	ModelName            string        `gorm:"not null;type:text;uniqueIndex:uq_model_metadata,priority:3;index:ix_model_metadata_lookup,priority:2" json:"model_name"`
-	ModelType            string        `gorm:"not null;type:text;uniqueIndex:uq_model_metadata,priority:4;index:ix_model_metadata_lookup,priority:3" json:"model_type"`
-	BaseModel            string        `gorm:"type:text;index"    json:"base_model"`
+	ModelName            string        `gorm:"not null;type:text;uniqueIndex:idx_uq_model_metadata,priority:2" json:"model_name"`
+	ModelType            string        `gorm:"not null;type:text;uniqueIndex:idx_uq_model_metadata,priority:3" json:"model_type"`
+	BaseModel            string        `gorm:"type:text"    json:"base_model"`
 	Capabilities         []string      `gorm:"serializer:json;type:text" json:"capabilities"`
 	ContextWindow        int32         `json:"context_window"`
 	MaxInputTokens       int32         `json:"max_input_tokens"`
@@ -49,10 +48,9 @@ func (s *StoreModelMetadata) ToCore() core.ModelMetadata {
 	}
 }
 
-func newStoreModelMetadata(md *core.ModelMetadata, providerID, source string, now time.Time) StoreModelMetadata {
+func newStoreModelMetadata(md *core.ModelMetadata, providerID string, now time.Time) StoreModelMetadata {
 	return StoreModelMetadata{
 		ID:                   uuid.Must(uuid.NewV7()).String(),
-		Source:               source,
 		ProviderID:           providerID,
 		ModelName:            md.ModelName,
 		ModelType:            md.ModelType.String(),
@@ -68,14 +66,14 @@ func newStoreModelMetadata(md *core.ModelMetadata, providerID, source string, no
 	}
 }
 
-func (s *Store) CreateModelMetadata(md core.ModelMetadata, source string) (*StoreModelMetadata, error) {
+func (s *Store) CreateModelMetadata(md core.ModelMetadata) (*StoreModelMetadata, error) {
 	var payload StoreModelMetadata
 	err := s.DB.Transaction(func(tx *gorm.DB) error {
 		provider, err := s.resolveProvider(tx, md.Provider)
 		if err != nil {
 			return err
 		}
-		payload = newStoreModelMetadata(&md, provider.ID, source, time.Now())
+		payload = newStoreModelMetadata(&md, provider.ID, time.Now())
 		if err := tx.Create(&payload).Error; err != nil {
 			return fmt.Errorf("create model metadata for %s/%s: %w", md.Provider, md.ModelName, err)
 		}
@@ -150,10 +148,7 @@ func (s *Store) DeleteModelMetadata(id string) error {
 	return nil
 }
 
-func (s *Store) BulkSyncModelMetadata(source string, models []core.ModelMetadata) error {
-	if source == "" {
-		return fmt.Errorf("source is required for a metadata sync")
-	}
+func (s *Store) BulkSyncModelMetadata(models []core.ModelMetadata) error {
 	if len(models) == 0 {
 		return nil
 	}
@@ -182,16 +177,16 @@ func (s *Store) BulkSyncModelMetadata(source string, models []core.ModelMetadata
 			continue
 		}
 		seen[catalogKey] = struct{}{}
-		rows = append(rows, newStoreModelMetadata(md, providerID, source, now))
+		rows = append(rows, newStoreModelMetadata(md, providerID, now))
 	}
 
 	if skipped > 0 {
 		s.logger.Warn("metadata sync skipped models with unknown providers",
-			zap.Int("skipped", skipped), zap.String("source", source))
+			zap.Int("skipped", skipped))
 	}
 	if duplicates > 0 {
 		s.logger.Warn("metadata sync dropped duplicate model keys",
-			zap.Int("duplicates", duplicates), zap.String("source", source))
+			zap.Int("duplicates", duplicates))
 	}
 	if len(rows) == 0 {
 		return nil
@@ -200,8 +195,9 @@ func (s *Store) BulkSyncModelMetadata(source string, models []core.ModelMetadata
 	return s.DB.Transaction(func(tx *gorm.DB) error {
 		err := tx.Clauses(clause.OnConflict{
 			Columns: []clause.Column{
-				{Name: "source"}, {Name: "provider_id"},
-				{Name: "model_name"}, {Name: "model_type"},
+				{Name: "provider_id"},
+				{Name: "model_name"},
+				{Name: "model_type"},
 			},
 			DoUpdates: clause.AssignmentColumns([]string{
 				"base_model", "capabilities", "context_window",
@@ -210,10 +206,8 @@ func (s *Store) BulkSyncModelMetadata(source string, models []core.ModelMetadata
 			}),
 		}).CreateInBatches(rows, 500).Error
 		if err != nil {
-			return fmt.Errorf("model metadata upsert (%s): %w", source, err)
+			return fmt.Errorf("model metadata upsert: %w", err)
 		}
-
-		return tx.Where("source = ? AND updated_at < ?", source, now).
-			Delete(&StoreModelMetadata{}).Error
+		return nil
 	})
 }
