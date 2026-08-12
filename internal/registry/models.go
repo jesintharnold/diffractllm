@@ -9,7 +9,7 @@ import (
 )
 
 type deploymentSnapshot struct {
-	ModelLookup map[core.ModelKey][]*core.Deployment
+	ModelLookup map[core.CatalogKey][]*core.Deployment
 }
 
 func buildDeployments(apiDetails *core.ModelAPIRegistry, states *core.StateManager) []*core.Deployment {
@@ -31,7 +31,7 @@ func buildDeployments(apiDetails *core.ModelAPIRegistry, states *core.StateManag
 }
 
 func buildDeploymentSnapshot(apiRegistries []*core.ModelAPIRegistry, states *core.StateManager) *deploymentSnapshot {
-	modelLookup := make(map[core.ModelKey][]*core.Deployment)
+	modelLookup := make(map[core.CatalogKey][]*core.Deployment)
 	for _, apiDetails := range apiRegistries {
 		for _, deployment := range buildDeployments(apiDetails, states) {
 			key := deployment.Key()
@@ -53,7 +53,7 @@ func NewDeploymentRegistry(apiRegistries []*core.ModelAPIRegistry, states *core.
 	return registry
 }
 
-func (registry *DeploymentRegistry) LookupModel(key core.ModelKey) ([]*core.Deployment, bool) {
+func (registry *DeploymentRegistry) LookupModel(key core.CatalogKey) ([]*core.Deployment, bool) {
 	deployments, found := registry.state.Load().ModelLookup[key]
 	return deployments, found
 }
@@ -67,7 +67,7 @@ func (registry *DeploymentRegistry) SyncDeployments(apiDetails *core.ModelAPIReg
 	defer registry.mu.Unlock()
 
 	old := registry.state.Load()
-	next := make(map[core.ModelKey][]*core.Deployment, len(old.ModelLookup))
+	next := make(map[core.CatalogKey][]*core.Deployment, len(old.ModelLookup))
 	maps.Copy(next, old.ModelLookup)
 	removedIDs := make(map[string]struct{})
 
@@ -109,7 +109,7 @@ func (registry *DeploymentRegistry) RemoveDeployments(apiRegistryID string) erro
 	defer registry.mu.Unlock()
 
 	old := registry.state.Load()
-	next := make(map[core.ModelKey][]*core.Deployment, len(old.ModelLookup))
+	next := make(map[core.CatalogKey][]*core.Deployment, len(old.ModelLookup))
 	maps.Copy(next, old.ModelLookup)
 	removedIDs := make([]string, 0)
 

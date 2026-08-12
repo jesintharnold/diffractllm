@@ -10,7 +10,7 @@ import (
 )
 
 type Selector interface {
-	Deployment(key core.ModelKey, deployments []*core.Deployment) *core.Deployment
+	Deployment(key core.CatalogKey, deployments []*core.Deployment) *core.Deployment
 }
 
 type SelectionEngine struct {
@@ -36,7 +36,7 @@ func (se *SelectionEngine) kind(kind core.LBKind) Selector {
 	return se.selectors[core.LBRoundRobin]
 }
 
-func (se *SelectionEngine) hasHealthyDeployment(key core.ModelKey) bool {
+func (se *SelectionEngine) hasHealthyDeployment(key core.CatalogKey) bool {
 	deployments, ok := se.registry.LookupModel(key)
 	if !ok {
 		return false
@@ -84,7 +84,7 @@ func (se *SelectionEngine) Resolve(rctx *core.DiffractLLMContext) (*core.Deploym
 					if pc == nil {
 						return false
 					}
-					key := core.ModelKey{Provider: pc.Provider, ModelName: rkey.ModelName}
+					key := core.CatalogKey{Provider: pc.Provider, ModelName: rkey.ModelName}
 					if !pc.IsModelAllowed(key) {
 						return false
 					}
@@ -94,7 +94,7 @@ func (se *SelectionEngine) Resolve(rctx *core.DiffractLLMContext) (*core.Deploym
 			provider = string(providerConfigs[0].Provider)
 		}
 
-		rkey = core.ModelKey{
+		rkey = core.CatalogKey{
 			Provider:  core.Provider(provider),
 			ModelName: rkey.ModelName,
 		}
@@ -118,7 +118,7 @@ func (se *SelectionEngine) Resolve(rctx *core.DiffractLLMContext) (*core.Deploym
 	return nil, core.NewInternalError("model selection engine", "model key is unknown or its fields doesn`t exist", nil)
 }
 
-func (se *SelectionEngine) commit(rctx *core.DiffractLLMContext, key core.ModelKey, deployment *core.Deployment) *core.Deployment {
+func (se *SelectionEngine) commit(rctx *core.DiffractLLMContext, key core.CatalogKey, deployment *core.Deployment) *core.Deployment {
 	rctx.Modelkey = key
 	rctx.SelectedDeployment = deployment
 	return deployment
@@ -136,7 +136,7 @@ func newRoundRobin() *roundRobin {
 }
 
 func (r *roundRobin) Deployment(
-	key core.ModelKey,
+	key core.CatalogKey,
 	deployments []*core.Deployment,
 ) *core.Deployment {
 	return nil

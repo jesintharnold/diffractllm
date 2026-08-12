@@ -1,10 +1,3 @@
-//go:build ignore
-
-// This file predates the catalog split and references types that no longer
-// exist (core.ModelMetaData, core.BasePricing, ListBasePricing). It is excluded
-// from the build until the catalog pass rewrites it around a single snapshot
-// pointer and a selector-aware Resolve.
-
 package modelcatalog
 
 import (
@@ -21,11 +14,51 @@ import (
 )
 
 type ModelSnapshot struct {
-	entries  []core.ModelMetaData
-	metadata map[core.ModelKey]*core.ModelMetaData
+	entries  []core.ModelMetadata
+	metadata map[core.CatalogKey]*core.ModelMetadata
 }
 
-type BasePricingSnapshot map[core.ModelKey]*core.BasePricing
+type BasePricingSnapshot struct {
+	base     map[core.CatalogKey]*core.PricingVariant
+	variants map[core.CatalogKey][]*core.PricingVariant
+}
+
+func newBasePricingSnapshot(rows []core.PricingVariant) *BasePricingSnapshot {
+	snapshot := &BasePricingSnapshot{
+		base:     make(map[core.CatalogKey]*core.PricingVariant, len(rows)),
+		variants: make(map[core.CatalogKey][]*core.PricingVariant),
+	}
+
+	for i := range rows {
+		variant := &rows[i]
+		key := variant.CatalogKey()
+		existing, seen := snapshot.base[key]
+		if !seen || (variant.Selectors.IsEmpty() && !existing.Selectors.IsEmpty()) {
+			snapshot.base[key] = variant
+		}
+		snapshot.variants[key] = append(snapshot.variants[key], variant)
+	}
+
+	for key, bucket := range snapshot.variants {
+		if len(bucket) < 2 {
+			delete(snapshot.variants, key)
+		}
+	}
+	return snapshot
+}
+
+func (s *BasePricingSnapshot) find(key core.CatalogKey, selectorKey string) *core.PricingVariant {
+	if bucket, ok := s.variants[key]; ok {
+		for _, variant := range bucket {
+			if variant.Selectors.CanonicalKey() == selectorKey {
+				return variant
+			}
+		}
+	}
+	return s.base[key]
+}
+
+func (s *BasePricingSnapshot) Len() int { return len(s.base) }
 
 type CustomPriceSnapshot map[string]*core.CustomScopePricing
 
@@ -70,14 +103,14 @@ func (c *ModelCatalog) LoadModels() error {
 		return fmt.Errorf("load model metadata: %w", err)
 	}
 
-	models := make([]core.ModelMetaData, 0, len(rows))
+	models := make([]core.ModelMetadata, 0, len(rows))
 	for i := range rows {
 		models = append(models, rows[i].ToCore())
 	}
-	metadata := make(map[core.ModelKey]*core.ModelMetaData, len(models))
+	metadata := make(map[core.CatalogKey]*core.ModelMetadata, len(models))
 	for i := range models {
 		md := &models[i]
-		metadata[md.Key()] = md
+		metadata[md.CatalogKey()] = md
 	}
 
 	c.models.Store(&ModelSnapshot{entries: models, metadata: metadata})
@@ -90,20 +123,22 @@ func (c *ModelCatalog) LoadModels() error {
 func (c *ModelCatalog) LoadBasePricing() error {
 	start := time.Now()
 
-	rows, err := c.store.ListBasePricing()
+	rows, err := c.store.ListModelPricing()
 	if err != nil {
 		return fmt.Errorf("load base pricing: %w", err)
 	}
 
-	tempBase := make(BasePricingSnapshot, len(rows))
+	variants := make([]core.PricingVariant, 0, len(rows))
 	for i := range rows {
-		mp := rows[i].ToCore()
-		tempBase[core.ModelKey{Provider: mp.Provider, ModelName: mp.ModelName}] = mp
+		variants = append(variants, rows[i].ToCore())
 	}
-	c.basePricing.Store(&tempBase)
+
+	snapshot := newBasePricingSnapshot(variants)
+	c.basePricing.Store(snapshot)
 	c.lastBaseSync.Store(time.Now().UnixNano())
 	c.logger.Debug("base pricing hot-swapped",
-		zap.Int("rows", len(tempBase)), zap.Duration("took", time.Since(start)))
+		zap.Int("rows", len(variants)), zap.Int("models", snapshot.Len()),
+		zap.Duration("took", time.Since(start)))
 	return nil
 }
 
@@ -151,7 +186,7 @@ func (c *ModelCatalog) LoadCustomPricing() error {
 	return nil
 }
 
-func (c *ModelCatalog) Lookup(key core.ModelKey) (*core.ModelMetaData, bool) {
+func (c *ModelCatalog) Lookup(key core.CatalogKey) (*core.ModelMetadata, bool) {
 	snap := c.models.Load()
 	if snap == nil {
 		return nil, false
@@ -174,13 +209,13 @@ func (c *ModelCatalog) ModelsForProvider(provider core.Provider) []string {
 	return out
 }
 
-func (c *ModelCatalog) ResolvePrice(virtualKeyID string, key core.ModelKey) *core.Pricing {
+func (c *ModelCatalog) ResolvePrice(virtualKeyID string, key core.CatalogKey, selectorKey string) *core.Pricing {
 	basePtr := c.basePricing.Load()
 	if basePtr == nil {
 		return nil
 	}
-	bp, ok := (*basePtr)[key]
-	if !ok {
+	bp := basePtr.find(key, selectorKey)
+	if bp == nil {
 		return nil
 	}
 
@@ -194,13 +229,16 @@ func (c *ModelCatalog) ResolvePrice(virtualKeyID string, key core.ModelKey) *cor
 	}
 
 	if vkPrice, found := scoped.VirtualKey[virtualKeyID]; found {
-		return core.MergePricing(&bp.Pricing, &vkPrice.Pricing)
+		merged := core.MergePricing(bp.Pricing, vkPrice.Pricing)
+		return &merged
 	}
 	if provPrice, found := scoped.Provider[key.Provider]; found {
-		return core.MergePricing(&bp.Pricing, &provPrice.Pricing)
+		merged := core.MergePricing(bp.Pricing, provPrice.Pricing)
+		return &merged
 	}
 	if scoped.Global != nil {
-		return core.MergePricing(&bp.Pricing, &scoped.Global.Pricing)
+		merged := core.MergePricing(bp.Pricing, scoped.Global.Pricing)
+		return &merged
 	}
 	return &bp.Pricing
 }

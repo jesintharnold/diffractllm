@@ -18,8 +18,8 @@ type Deployment struct {
 	UpdatedAt     time.Time        `json:"updated_at,omitempty"`
 }
 
-func (d *Deployment) Key() ModelKey {
-	return ModelKey{Provider: d.ModelProvider, ModelName: d.ModelName}
+func (d *Deployment) Key() CatalogKey {
+	return CatalogKey{Provider: d.ModelProvider, ModelName: d.ModelName}
 }
 
 type ModelAPIRegistryResponse struct {

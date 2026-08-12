@@ -16,7 +16,7 @@ type DiffractLLMContext struct {
 	Request     *http.Request
 	BodyBytes   []byte
 	SDKProvider Provider
-	Modelkey    ModelKey
+	Modelkey    CatalogKey
 	RequestKind RequestKind
 	Writer      http.ResponseWriter
 	metadata    map[DiffractLLMContextKey]any
@@ -93,7 +93,7 @@ func (rc *DiffractLLMContext) reset() {
 	rc.Request = nil
 	rc.BodyBytes = nil
 	rc.SDKProvider = ""
-	rc.Modelkey = ModelKey{}
+	rc.Modelkey = CatalogKey{}
 	rc.RequestKind = ""
 	rc.Writer = nil
 	rc.aborted.Store(false)

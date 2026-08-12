@@ -65,7 +65,7 @@ type ProviderConfig struct {
 	allowAll             bool                `json:"-"`
 }
 
-func (config *ProviderConfig) IsModelAllowed(key ModelKey) bool {
+func (config *ProviderConfig) IsModelAllowed(key CatalogKey) bool {
 	if config == nil || key.Provider != config.Provider || key.ModelName == "" {
 		return false
 	}
@@ -165,7 +165,7 @@ func (vkconfig *VirtualKey) ProviderConfig(provider Provider) *ProviderConfig {
 	return nil
 }
 
-func (vkconfig *VirtualKey) IsModelKeyAllowed(key ModelKey) bool {
+func (vkconfig *VirtualKey) IsModelKeyAllowed(key CatalogKey) bool {
 	for _, vkproviderconfig := range vkconfig.ProviderConfigs {
 		if vkproviderconfig.IsModelAllowed(key) {
 			return true

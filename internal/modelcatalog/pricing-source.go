@@ -224,11 +224,11 @@ func (c *CatalogSource) build(rows []SourceSchema) {
 
 	for i := range rows {
 		row := &rows[i]
-		key := core.ModelKey{
+		catalogKey := core.CatalogKey{
 			Provider:  row.diffractProvider,
 			ModelName: row.diffractModelName,
+			ModelType: row.diffracModelType,
 		}
-		catalogKey := core.NewCatalogKey(key, row.diffracModelType)
 
 		if _, exists := seen[catalogKey]; !exists {
 			seen[catalogKey] = struct{}{}
@@ -250,7 +250,8 @@ func (c *CatalogSource) build(rows []SourceSchema) {
 
 		c.PricingCatalog = append(c.PricingCatalog, core.PricingVariant{
 			RawKey:    row.diffractRawKey,
-			Key:       core.NewPriceKey(key, row.diffractSelectorSet),
+			Provider:  row.diffractProvider,
+			ModelName: row.diffractModelName,
 			ModelType: row.diffracModelType,
 			Selectors: row.diffractSelectorSet,
 			Pricing:   row.Pricing,

@@ -11,16 +11,19 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+
+
+
+
 type StoreModelPricing struct {
 	ID          string           `gorm:"primaryKey;type:text" json:"id"`
 	RawKey      string           `gorm:"not null;type:text;uniqueIndex:idx_uq_model_pricing_raw_key" json:"raw_key"`
 	ProviderID  string           `gorm:"not null;type:text" json:"provider_id"`
 	Provider    StoreProvider    `gorm:"foreignKey:ProviderID;references:ID"                          json:"provider"`
 	ModelName   string           `gorm:"not null;type:text" json:"model_name"`
-	SelectorKey string           `gorm:"not null;type:text;default:'{}'" json:"selector_key"`
-	Selectors   core.SelectorSet `gorm:"serializer:json;type:text"                                                json:"selectors"`
-	ModelType   string           `gorm:"not null;type:text" json:"model_type"`
-	Pricing     core.Pricing     `gorm:"serializer:json;type:text" json:"pricing"`
+	SelectorKey string       `gorm:"not null;type:text;default:'{}'" json:"selector_key"`
+	ModelType   string       `gorm:"not null;type:text" json:"model_type"`
+	Pricing     core.Pricing `gorm:"serializer:json;type:text" json:"pricing"`
 
 	HeadlineInputCostPerToken  *float64 `gorm:"column:input_cost_per_token"   json:"input_cost_per_token,omitempty"`
 	HeadlineOutputCostPerToken *float64 `gorm:"column:output_cost_per_token" json:"output_cost_per_token,omitempty"`
@@ -32,21 +35,13 @@ type StoreModelPricing struct {
 func (StoreModelPricing) TableName() string { return "model_pricing" }
 
 func (s *StoreModelPricing) ToCore() core.PricingVariant {
-	selectors := s.Selectors
-	selectors.Key = s.SelectorKey
-
 	return core.PricingVariant{
-		ID:     s.ID,
-		RawKey: s.RawKey,
-		Key: core.PriceKey{
-			ModelKey: core.ModelKey{
-				Provider:  core.Provider(s.Provider.Name),
-				ModelName: s.ModelName,
-			},
-			SelectorKey: s.SelectorKey,
-		},
+		ID:        s.ID,
+		RawKey:    s.RawKey,
+		Provider:  core.Provider(s.Provider.Name),
+		ModelName: s.ModelName,
 		ModelType: core.ParseModelType(s.ModelType),
-		Selectors: selectors,
+		Selectors: core.SelectorSet{Key: s.SelectorKey},
 		Pricing:   s.Pricing,
 	}
 }
@@ -56,9 +51,8 @@ func newStoreModelPricing(variant *core.PricingVariant, providerID string, now t
 		ID:                         uuid.Must(uuid.NewV7()).String(),
 		RawKey:                     variant.RawKey,
 		ProviderID:                 providerID,
-		ModelName:                  variant.Key.ModelName,
+		ModelName:                  variant.ModelName,
 		SelectorKey:                variant.Selectors.CanonicalKey(),
-		Selectors:                  variant.Selectors,
 		ModelType:                  variant.ModelType.String(),
 		Pricing:                    variant.Pricing,
 		HeadlineInputCostPerToken:  variant.Pricing.InputCostPerToken,
@@ -87,7 +81,7 @@ func (s *Store) GetModelPricing(id string) (*StoreModelPricing, error) {
 func (s *Store) CreateModelPricing(variant core.PricingVariant) (*StoreModelPricing, error) {
 	var payload StoreModelPricing
 	err := s.DB.Transaction(func(tx *gorm.DB) error {
-		provider, err := s.resolveProvider(tx, variant.Key.Provider)
+		provider, err := s.resolveProvider(tx, variant.Provider)
 		if err != nil {
 			return err
 		}
@@ -147,7 +141,7 @@ func (s *Store) BulkSyncModelPricing(variants []core.PricingVariant) error {
 
 	for i := range variants {
 		variant := &variants[i]
-		providerID, ok := providerIDs[variant.Key.Provider]
+		providerID, ok := providerIDs[variant.Provider]
 		if !ok {
 			skipped++
 			continue
@@ -177,7 +171,7 @@ func (s *Store) BulkSyncModelPricing(variants []core.PricingVariant) error {
 		err := tx.Clauses(clause.OnConflict{
 			Columns: []clause.Column{{Name: "raw_key"}},
 			DoUpdates: clause.AssignmentColumns([]string{
-				"provider_id", "model_name", "selector_key", "selectors",
+				"provider_id", "model_name", "selector_key",
 				"model_type", "pricing", "input_cost_per_token",
 				"output_cost_per_token", "updated_at",
 			}),

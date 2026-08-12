@@ -6,22 +6,19 @@ import (
 	"strings"
 )
 
-type ModelKey struct {
+type CatalogKey struct {
 	Provider  Provider
 	ModelName string
-}
-
-func (m ModelKey) SlashKey() string {
-	return string(m.Provider) + "/" + m.ModelName
-}
-
-type CatalogKey struct {
-	ModelKey
 	ModelType ModelType
 }
 
-func NewCatalogKey(model ModelKey, modelType ModelType) CatalogKey {
-	return CatalogKey{ModelKey: model, ModelType: modelType}
+func (c CatalogKey) SlashKey() string {
+	return string(c.Provider) + "/" + c.ModelName
+}
+
+func (c CatalogKey) RouteKey() CatalogKey {
+	c.ModelType = ModelTypeUnknown
+	return c
 }
 
 type ModelLimits struct {
@@ -42,12 +39,8 @@ type ModelMetadata struct {
 	SourceRawKey string      `json:"source_raw_key,omitempty"`
 }
 
-func (m ModelMetadata) ModelKey() ModelKey {
-	return ModelKey{Provider: m.Provider, ModelName: m.ModelName}
-}
-
 func (m ModelMetadata) CatalogKey() CatalogKey {
-	return CatalogKey{ModelKey: m.ModelKey(), ModelType: m.ModelType}
+	return CatalogKey{Provider: m.Provider, ModelName: m.ModelName, ModelType: m.ModelType}
 }
 
 type SelectorSet struct {
@@ -79,13 +72,4 @@ func (s SelectorSet) CanonicalKey() string {
 		return EmptySelectorKey
 	}
 	return s.Key
-}
-
-type PriceKey struct {
-	ModelKey
-	SelectorKey string
-}
-
-func NewPriceKey(model ModelKey, selectors SelectorSet) PriceKey {
-	return PriceKey{ModelKey: model, SelectorKey: selectors.CanonicalKey()}
 }

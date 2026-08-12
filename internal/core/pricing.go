@@ -767,11 +767,15 @@ func CalculateCost(p Pricing, u Usage) float64 {
 type PricingVariant struct {
 	ID        string      `json:"id,omitempty"`
 	RawKey    string      `json:"raw_key"`
-	Key       PriceKey    `json:"key"`
-	ModelType ModelType   `json:"model_type"`
 	Selectors SelectorSet `json:"selectors"`
+	Provider  Provider    `json:"provider"`
+	ModelType ModelType   `json:"model_type"`
+	ModelName string      `json:"model_name"`
+	Pricing   Pricing     `json:"pricing"`
+}
 
-	Pricing Pricing `json:"pricing"`
+func (v PricingVariant) CatalogKey() CatalogKey {
+	return CatalogKey{Provider: v.Provider, ModelName: v.ModelName, ModelType: v.ModelType}
 }
 
 var (

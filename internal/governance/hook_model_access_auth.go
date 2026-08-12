@@ -36,7 +36,7 @@ func (hook *ModelAccessHook) Execute(rctx *core.DiffractLLMContext) *core.Diffra
 
 	if providerName, modelName, found := strings.Cut(requested, "/"); found && providerName != "" && modelName != "" {
 		if config := virtualKey.ProviderConfig(core.Provider(providerName)); config != nil {
-			requestedKey := core.ModelKey{Provider: config.Provider, ModelName: modelName}
+			requestedKey := core.CatalogKey{Provider: config.Provider, ModelName: modelName}
 			if config.IsModelAllowed(requestedKey) {
 				rctx.Modelkey = requestedKey
 				hook.logger.Debug("model access allowed", zap.String("virtual_key_id", rctx.VirtualKeyID), zap.String("provider", providerName), zap.String("model", modelName))
@@ -56,12 +56,12 @@ func (hook *ModelAccessHook) Execute(rctx *core.DiffractLLMContext) *core.Diffra
 	}
 
 	for _, config := range virtualKey.ProviderConfigs {
-		requestedKey := core.ModelKey{
+		requestedKey := core.CatalogKey{
 			Provider:  config.Provider,
 			ModelName: requested,
 		}
 		if config.IsModelAllowed(requestedKey) {
-			rctx.Modelkey = core.ModelKey{ModelName: requested}
+			rctx.Modelkey = core.CatalogKey{ModelName: requested}
 			hook.logger.Debug("model access allowed", zap.String("virtual_key_id", rctx.VirtualKeyID), zap.String("model", requested))
 			return nil
 		}
