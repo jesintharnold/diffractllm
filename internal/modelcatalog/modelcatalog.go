@@ -14,8 +14,9 @@ import (
 )
 
 type ModelSnapshot struct {
-	entries  []core.ModelMetadata
-	metadata map[core.CatalogKey]*core.ModelMetadata
+	entries    []core.ModelMetadata
+	metadata   map[core.CatalogKey]*core.ModelMetadata
+	byProvider map[core.Provider]map[string]struct{}
 }
 
 type BasePricingSnapshot struct {
@@ -108,12 +109,20 @@ func (c *ModelCatalog) LoadModels() error {
 		models = append(models, rows[i].ToCore())
 	}
 	metadata := make(map[core.CatalogKey]*core.ModelMetadata, len(models))
+	byProvider := make(map[core.Provider]map[string]struct{})
 	for i := range models {
 		md := &models[i]
 		metadata[md.CatalogKey()] = md
+
+		names, ok := byProvider[md.Provider]
+		if !ok {
+			names = make(map[string]struct{})
+			byProvider[md.Provider] = names
+		}
+		names[md.ModelName] = struct{}{}
 	}
 
-	c.models.Store(&ModelSnapshot{entries: models, metadata: metadata})
+	c.models.Store(&ModelSnapshot{entries: models, metadata: metadata, byProvider: byProvider})
 	c.lastModelSync.Store(time.Now().UnixNano())
 	c.logger.Debug("model metadata hot-swapped",
 		zap.Int("models", len(models)), zap.Duration("took", time.Since(start)))
@@ -193,6 +202,20 @@ func (c *ModelCatalog) Lookup(key core.CatalogKey) (*core.ModelMetadata, bool) {
 	}
 	md, ok := snap.metadata[key]
 	return md, ok
+}
+
+func (c *ModelCatalog) Ready() bool { return c.models.Load() != nil }
+func (c *ModelCatalog) HasModel(provider core.Provider, modelName string) bool {
+	snap := c.models.Load()
+	if snap == nil {
+		return false
+	}
+	names, ok := snap.byProvider[provider]
+	if !ok {
+		return false
+	}
+	_, ok = names[modelName]
+	return ok
 }
 
 func (c *ModelCatalog) ModelsForProvider(provider core.Provider) []string {

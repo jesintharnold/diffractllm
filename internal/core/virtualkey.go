@@ -151,7 +151,6 @@ type VirtualKey struct {
 	IsActive        bool
 	ExpiresAt       *time.Time
 	Mode            VKMode
-	CustomPoolName  string
 	LoadBalancer    LBKind
 	ProviderConfigs []*ProviderConfig
 }
@@ -166,8 +165,13 @@ func (vkconfig *VirtualKey) ProviderConfig(provider Provider) *ProviderConfig {
 }
 
 func (vkconfig *VirtualKey) IsModelKeyAllowed(key CatalogKey) bool {
+	if key.Provider != "" {
+		return vkconfig.ProviderConfig(key.Provider).IsModelAllowed(key)
+	}
 	for _, vkproviderconfig := range vkconfig.ProviderConfigs {
-		if vkproviderconfig.IsModelAllowed(key) {
+		probe := key
+		probe.Provider = vkproviderconfig.Provider
+		if vkproviderconfig.IsModelAllowed(probe) {
 			return true
 		}
 	}
@@ -179,7 +183,6 @@ type VirtualKeyRequest struct {
 	BudgetID        string           `json:"budget_id" binding:"required"`
 	ExpiresAt       *time.Time       `json:"expires_at"`
 	Mode            *VKMode          `json:"mode" binding:"required"`
-	CustomPoolName  string           `json:"custom_pool_name,omitempty"`
 	LoadBalancer    *LBKind          `json:"load_balancer" binding:"required"`
 	ProviderConfigs []ProviderConfig `json:"provider_configs" binding:"required,min=1"`
 }
@@ -190,7 +193,6 @@ type VirtualKeyResponse struct {
 	ClientID        string           `json:"client_id"`
 	BudgetID        string           `json:"budget_id"`
 	Mode            VKMode           `json:"mode"`
-	CustomPoolName  string           `json:"custom_pool_name,omitempty"`
 	LoadBalancer    LBKind           `json:"load_balancer"`
 	ProviderConfigs []ProviderConfig `json:"provider_configs"`
 	IsActive        bool             `json:"is_active"`

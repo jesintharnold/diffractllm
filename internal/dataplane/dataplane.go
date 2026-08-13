@@ -111,10 +111,6 @@ func (se *SelectionEngine) Resolve(rctx *core.DiffractLLMContext) (*core.Deploym
 
 	}
 
-	if rkey.ModelName == "" && rkey.Provider == "" {
-
-	}
-
 	return nil, core.NewInternalError("model selection engine", "model key is unknown or its fields doesn`t exist", nil)
 }
 
@@ -122,24 +118,6 @@ func (se *SelectionEngine) commit(rctx *core.DiffractLLMContext, key core.Catalo
 	rctx.Modelkey = key
 	rctx.SelectedDeployment = deployment
 	return deployment
-}
-
-// --------- core algorithms -----------------
-
-type roundRobin struct {
-	deploymentCursors sync.Map
-	poolModelCursors  sync.Map
-}
-
-func newRoundRobin() *roundRobin {
-	return &roundRobin{}
-}
-
-func (r *roundRobin) Deployment(
-	key core.CatalogKey,
-	deployments []*core.Deployment,
-) *core.Deployment {
-	return nil
 }
 
 func selectWeightedProvider(configs []*core.ProviderConfig, healthChk func(*core.ProviderConfig) bool) *core.ProviderConfig {
@@ -190,4 +168,22 @@ func isHealthy(deployment *core.Deployment) bool {
 	return deployment != nil &&
 		deployment.State != nil &&
 		deployment.State.IsHealthy()
+}
+
+// --------- core algorithms -----------------
+
+type roundRobin struct {
+	deploymentCursors sync.Map
+	poolModelCursors  sync.Map
+}
+
+func newRoundRobin() *roundRobin {
+	return &roundRobin{}
+}
+
+func (r *roundRobin) Deployment(
+	key core.CatalogKey,
+	deployments []*core.Deployment,
+) *core.Deployment {
+	return nil
 }

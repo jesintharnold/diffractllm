@@ -3,7 +3,6 @@ package dbstore
 import (
 	"diffractllm/internal/core"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -19,7 +18,6 @@ type StoreVirtualKey struct {
 	BudgetID        string                `gorm:"not null;type:text"`
 	Mode            string                `gorm:"not null;type:text;default:'direct'"`
 	ProviderConfigs []core.ProviderConfig `gorm:"type:json;serializer:json" json:"provider_configs"`
-	CustomPoolName  string                `gorm:"not null;type:text;default:''" json:"custom_pool_name"`
 	LoadBalancer    string                `gorm:"not null;type:text;default:'round_robin'" json:"load_balancer"`
 	IsActive        bool                  `gorm:"not null;default:true"`
 	CreatedAt       time.Time
@@ -51,7 +49,6 @@ func (key *StoreVirtualKey) ToCore() (*core.VirtualKey, error) {
 		IsActive:        key.IsActive,
 		ExpiresAt:       key.ExpiresAt,
 		Mode:            mode,
-		CustomPoolName:  key.CustomPoolName,
 		LoadBalancer:    loadBalancer,
 		ProviderConfigs: providerConfigs,
 	}, nil
@@ -72,7 +69,6 @@ func (key *StoreVirtualKey) ToResponse() (core.VirtualKeyResponse, error) {
 		ClientID:        key.ClientID,
 		BudgetID:        key.BudgetID,
 		Mode:            mode,
-		CustomPoolName:  key.CustomPoolName,
 		LoadBalancer:    loadBalancer,
 		ProviderConfigs: key.ProviderConfigs,
 		IsActive:        key.IsActive,
@@ -145,7 +141,6 @@ func (s *Store) RevokeVirtualKey(id string) error {
 type UpdateVirtualKeyRoutingRequest struct {
 	Mode            *core.VKMode
 	ProviderConfigs []core.ProviderConfig
-	CustomPoolName  *string
 	LoadBalancer    *core.LBKind
 }
 
@@ -161,9 +156,6 @@ func (s *Store) UpdateVirtualKeyRouting(keyID string, request UpdateVirtualKeyRo
 		if request.ProviderConfigs != nil {
 			key.ProviderConfigs = request.ProviderConfigs
 		}
-		if request.CustomPoolName != nil {
-			key.CustomPoolName = strings.TrimSpace(*request.CustomPoolName)
-		}
 		if request.LoadBalancer != nil {
 			key.LoadBalancer = request.LoadBalancer.String()
 		}
@@ -176,9 +168,6 @@ func (s *Store) UpdateVirtualKeyRouting(keyID string, request UpdateVirtualKeyRo
 		}
 		if _, err := core.ParseLBKind(key.LoadBalancer); err != nil {
 			return err
-		}
-		if strings.Contains(key.CustomPoolName, "/") {
-			return fmt.Errorf("custom pool name cannot contain '/'")
 		}
 		return tx.Save(&key).Error
 	})
@@ -203,11 +192,6 @@ func (s *Store) CreateVirtualKeyTx(payload *core.VirtualKeyRequest, apiKey, hash
 	if _, err := core.CompileProviderConfigs(*payload.Mode, payload.ProviderConfigs); err != nil {
 		return nil, err
 	}
-	customPoolName := strings.TrimSpace(payload.CustomPoolName)
-	if strings.Contains(customPoolName, "/") {
-		return nil, fmt.Errorf("custom pool name cannot contain '/'")
-	}
-
 	var result CreateVirtualKeyResult
 	err := s.DB.Transaction(func(tx *gorm.DB) error {
 		var budget StoreBudget
@@ -231,7 +215,6 @@ func (s *Store) CreateVirtualKeyTx(payload *core.VirtualKeyRequest, apiKey, hash
 			BudgetID:        budget.ID,
 			Mode:            payload.Mode.String(),
 			ProviderConfigs: payload.ProviderConfigs,
-			CustomPoolName:  customPoolName,
 			LoadBalancer:    payload.LoadBalancer.String(),
 			IsActive:        true,
 			ExpiresAt:       payload.ExpiresAt,
