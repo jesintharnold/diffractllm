@@ -10,12 +10,48 @@ import (
 )
 
 type StoreProvider struct {
-	ID           string `gorm:"primaryKey;type:text"                           json:"id"`
-	Name         string `gorm:"not null;type:text;uniqueIndex:uq_provider_name" json:"name"`
-	IsConfigured bool   `gorm:"not null;default:false"                         json:"is_configured"`
+	ID           string             `gorm:"primaryKey;type:text"                           json:"id"`
+	Name         string             `gorm:"not null;type:text;uniqueIndex:uq_provider_name" json:"name"`
+	IsConfigured bool               `gorm:"not null;default:false"                         json:"is_configured"`
+	Network      core.NetworkConfig `gorm:"serializer:json;type:text" json:"network_config"`
+	Proxy        *core.ProxyConfig  `gorm:"serializer:json;type:text" json:"proxy_config,omitempty"`
 }
 
 func (StoreProvider) TableName() string { return "providers" }
+
+func (s *StoreProvider) ToUpstream() *core.Upstream {
+	return &core.Upstream{
+		Provider: core.Provider(s.Name),
+		Network:  s.Network,
+		Proxy:    s.Proxy,
+	}
+}
+
+func (s *Store) ListProviders() ([]StoreProvider, error) {
+	var rows []StoreProvider
+	if err := s.DB.Find(&rows).Error; err != nil {
+		return nil, fmt.Errorf("failed to list providers: %w", err)
+	}
+	return rows, nil
+}
+
+func (s *Store) UpdateProviderConfig(provider core.Provider, network core.NetworkConfig, proxy *core.ProxyConfig) error {
+	res := s.DB.Model(&StoreProvider{}).
+		Where("name = ?", string(provider)).
+		Select("network", "proxy", "is_configured").
+		Updates(&StoreProvider{
+			Network:      network,
+			Proxy:        proxy,
+			IsConfigured: true,
+		})
+	if res.Error != nil {
+		return fmt.Errorf("update provider %q config: %w", provider, res.Error)
+	}
+	if res.RowsAffected == 0 {
+		return fmt.Errorf("provider %q not found", provider)
+	}
+	return nil
+}
 
 func (s *Store) resolveProvider(tx *gorm.DB, provider core.Provider) (StoreProvider, error) {
 	var rowProvider StoreProvider

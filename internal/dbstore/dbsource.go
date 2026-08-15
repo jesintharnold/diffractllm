@@ -52,35 +52,31 @@ func (s *DBSource) Init() error {
 	return nil
 }
 
-func (s *DBSource) Load() (*core.ModelPlaneSnapshot, error) {
+func (s *DBSource) Load() ([]*core.Upstream, []*core.Credential, error) {
 	if s.store == nil {
-		return nil, fmt.Errorf("db source store is not initialized")
+		return nil, nil, fmt.Errorf("db source store is not initialized")
 	}
 
-	registries, err := s.store.ListModelAPIRegistries()
+	providers, err := s.store.ListProviders()
 	if err != nil {
-		return nil, fmt.Errorf("db source list api registries: %w", err)
+		return nil, nil, fmt.Errorf("db source list providers: %w", err)
+	}
+	credentials, err := s.store.ListCredentials()
+	if err != nil {
+		return nil, nil, fmt.Errorf("db source list credentials: %w", err)
 	}
 
-	snap := &core.ModelPlaneSnapshot{
-		APIRegistries: make([]core.ModelAPIRegistry, 0, len(registries)),
+	providerconfigs := make([]*core.Upstream, 0, len(providers))
+	for i := range providers {
+		providerconfigs = append(providerconfigs, providers[i].ToUpstream())
 	}
 
-	for i := range registries {
-		k := &registries[i]
-		snap.APIRegistries = append(snap.APIRegistries, core.ModelAPIRegistry{
-			ID:                 k.ID,
-			Provider:           core.Provider(k.Provider.Name),
-			BaseURL:            k.BaseURL,
-			APIkey:             deref(k.APIKey),
-			EnableCustomHeader: k.EnableCustomHeader,
-			CustomHeader:       k.CustomHeader,
-			ExpiryAt:           k.ExpiryAt,
-			AllowedModels:      k.AllowedModels,
-		})
+	creds := make([]*core.Credential, 0, len(credentials))
+	for i := range credentials {
+		creds = append(creds, credentials[i].ToCore())
 	}
 
-	return snap, nil
+	return providerconfigs, creds, nil
 }
 
 func (s *DBSource) GetStore() *Store { return s.store }

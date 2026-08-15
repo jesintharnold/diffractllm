@@ -33,7 +33,7 @@ type DiffractLLMContext struct {
 	// === LOAD BALANCER ====
 	RequestedProvider  Provider
 	RequestedModel     string
-	SelectedDeployment *Deployment
+	SelectedCredential *Credential
 
 	// === PROXY OUTCOME FIELDS ===
 	UpstreamStatus int
@@ -105,7 +105,7 @@ func (rc *DiffractLLMContext) reset() {
 	rc.VirtualKeyPolicy = nil
 	rc.RequestedProvider = ""
 	rc.RequestedModel = ""
-	rc.SelectedDeployment = nil
+	rc.SelectedCredential = nil
 
 	rc.AuthFrozen = false
 	rc.UpstreamStatus = 0
