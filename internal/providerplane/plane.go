@@ -44,15 +44,35 @@ func NewProviderPlane(settings []*core.Upstream, cred []*core.Credential) *Provi
 }
 
 func (plane *ProviderPlane) Candidates(key core.CatalogKey) []*core.Credential {
-	return nil
+	snap := plane.credSnapshot.Load()
+	if snap == nil {
+		return nil
+	}
+	bucket := snap.providerCredentials[key.Provider]
+	candidates := make([]*core.Credential, 0, len(bucket))
+	for _, cred := range bucket {
+		if cred.CheckValidity() && cred.CheckModel(key.ModelName) {
+			candidates = append(candidates, cred)
+		}
+	}
+	return candidates
 }
 
 func (plane *ProviderPlane) Credentials(provider core.Provider) []*core.Credential {
-	return nil
+	snap := plane.credSnapshot.Load()
+	if snap == nil {
+		return nil
+	}
+	return snap.providerCredentials[provider]
 }
 
 func (plane *ProviderPlane) ProviderConfig(provider core.Provider) (*core.Upstream, bool) {
-	return nil, false
+	snap := plane.credSnapshot.Load()
+	if snap == nil {
+		return nil, false
+	}
+	settings, ok := snap.providerConfigs[provider]
+	return settings, ok
 }
 
 func (plane *ProviderPlane) clone() *snapshot {
