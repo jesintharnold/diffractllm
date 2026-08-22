@@ -90,7 +90,7 @@ type ChatAssistantAudio struct {
 }
 
 type ChatAudioParams struct {
-	Format string `json:"format"` // wav | mp3 | flac | opus | pcm16
+	Format string `json:"format"`
 	Voice  string `json:"voice"`
 }
 
@@ -289,16 +289,52 @@ type ChatResponseChoice struct {
 	LogProbs     *ChatLogProbs          `json:"logprobs,omitempty"`
 }
 
+type ChatResponseEnvelope struct {
+	ID                string          `json:"id"`
+	Object            string          `json:"object"`
+	Created           int             `json:"created"`
+	Model             string          `json:"model"`
+	ServiceTier       *string         `json:"service_tier,omitempty"`
+	SystemFingerprint string          `json:"system_fingerprint,omitempty"`
+	Metadata          *map[string]any `json:"metadata,omitempty"`
+	Moderation        any             `json:"moderation,omitempty"`
+	Usage             *Usage          `json:"usage,omitempty"`
+	Raw               json.RawMessage `json:"-"`
+}
+
 type DiffractLLMChatCompletionResponse struct {
-	ID                string               `json:"id"`
-	Choices           []ChatResponseChoice `json:"choices"`
-	Created           int                  `json:"created"`
-	Model             string               `json:"model"`
-	Object            string               `json:"object"`
-	Metadata          *map[string]any      `json:"metadata,omitempty"`
-	Moderation        any                  `json:"moderation,omitempty"`
-	ServiceTier       *string              `json:"service_tier,omitempty"`
-	SystemFingerprint string               `json:"system_fingerprint"`
-	Usage             *Usage               `json:"usage"`
-	Raw               json.RawMessage      `json:"-"`
+	ChatResponseEnvelope
+	Choices []ChatResponseChoice `json:"choices"`
+}
+
+type ChatMessageDelta struct {
+	Role      *Role               `json:"role,omitempty"`
+	Content   *string             `json:"content,omitempty"`
+	Refusal   *string             `json:"refusal,omitempty"`
+	Reasoning *string             `json:"reasoning,omitempty"`
+	ToolCalls []ToolCall          `json:"tool_calls,omitempty"`
+	Audio     *ChatAssistantAudio `json:"audio,omitempty"`
+}
+
+type ChatStreamChoice struct {
+	Index        int              `json:"index"`
+	Delta        ChatMessageDelta `json:"delta"`
+	FinishReason *FinishReason    `json:"finish_reason,omitempty"`
+	LogProbs     *ChatLogProbs    `json:"logprobs,omitempty"`
+}
+
+type ChatStreamEventType string
+
+const (
+	StreamEventDelta    ChatStreamEventType = "delta"
+	StreamEventComplete ChatStreamEventType = "complete"
+	StreamEventError    ChatStreamEventType = "error"
+)
+
+type DiffractLLMChatCompletionStreamResponse struct {
+	ChatResponseEnvelope
+	Type        ChatStreamEventType `json:"-"`
+	Choices     []ChatStreamChoice  `json:"choices"`
+	Error       *DiffractLLMError   `json:"error,omitempty"`
+	Obfuscation *string             `json:"obfuscation,omitempty"`
 }
