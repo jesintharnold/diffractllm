@@ -43,6 +43,13 @@ type DiffractLLMContext struct {
 	RequestCompleted bool
 	ResponseStatus   int
 	ResponseBytes    int
+
+	Usage *Usage
+
+	Cost               float64
+	StreamChunks       int32
+	StreamFinishReason FinishReason
+	StreamAborted      bool
 }
 
 func (rc *DiffractLLMContext) Context() context.Context { return rc.ctx }
@@ -58,6 +65,19 @@ func (rc *DiffractLLMContext) Set(key DiffractLLMContextKey, value any) error {
 func (rc *DiffractLLMContext) Get(key DiffractLLMContextKey) (any, bool) {
 	val, ok := rc.metadata[key]
 	return val, ok
+}
+
+func (rc *DiffractLLMContext) Overwrite(key DiffractLLMContextKey, value any) {
+	rc.metadata[key] = value
+}
+
+// Write appends raw bytes to the response after headers are sent. SSE needs
+// this: JSON below sets a status and cannot be called per chunk. Keeping the
+// write behind this method also keeps ResponseBytes accurate for streams.
+func (rc *DiffractLLMContext) Write(p []byte) (int, error) {
+	n, err := rc.Writer.Write(p)
+	rc.ResponseBytes += n
+	return n, err
 }
 func (rc *DiffractLLMContext) SetHeader(key, value string) {
 	rc.Writer.Header().Set(key, value)
@@ -114,6 +134,11 @@ func (rc *DiffractLLMContext) reset() {
 	rc.RequestCompleted = false
 	rc.ResponseStatus = 0
 	rc.ResponseBytes = 0
+	rc.Usage = nil
+	rc.Cost = 0
+	rc.StreamChunks = 0
+	rc.StreamFinishReason = ""
+	rc.StreamAborted = false
 
 	// Hook logs we are performing a reset - Important for flush
 	rc.HookLog.reset()
