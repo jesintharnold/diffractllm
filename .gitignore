@@ -1,7 +1,5 @@
 **/**.yaml
 **/refactor-plan/*.md
-**/reference
-**.md
 **.html
 
 # graft's local graph cache — regenerable, not committed (run `graft build`).
