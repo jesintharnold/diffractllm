@@ -1,6 +1,11 @@
 package core
 
-import "encoding/json"
+import (
+	"bytes"
+	"encoding/json"
+
+	"github.com/bytedance/sonic"
+)
 
 type Role string
 
@@ -64,6 +69,29 @@ type ChatContentPart struct {
 	PromptCacheBreakpoint *ChatPromptCacheBreakpoint `json:"prompt_cache_breakpoint,omitempty"`
 }
 
+type ChatContent []ChatContentPart
+
+func (c *ChatContent) UnmarshalJSON(b []byte) error {
+	b = bytes.TrimSpace(b)
+	if len(b) == 0 || bytes.Equal(b, []byte("null")) {
+		return nil
+	}
+	if b[0] == '"' {
+		var s string
+		if err := sonic.Unmarshal(b, &s); err != nil {
+			return err
+		}
+		*c = ChatContent{{Type: ContentText, Text: &s}}
+		return nil
+	}
+	var parts []ChatContentPart
+	if err := sonic.Unmarshal(b, &parts); err != nil {
+		return err
+	}
+	*c = parts
+	return nil
+}
+
 type ToolFunctionCall struct {
 	Name      *string `json:"name"`
 	Arguments string  `json:"arguments"`
@@ -97,7 +125,7 @@ type ChatAudioParams struct {
 type DiffractLLMChatMessage struct {
 	Name       *string             `json:"name,omitempty"`
 	Role       Role                `json:"role"`
-	Content    []ChatContentPart   `json:"content,omitempty"`
+	Content    ChatContent         `json:"content,omitempty"`
 	Refusal    *string             `json:"refusal,omitempty"`
 	ToolCallID *string             `json:"tool_call_id,omitempty"`
 	ToolCalls  []ToolCall          `json:"tool_calls,omitempty"`
@@ -111,8 +139,8 @@ type ChatPrediction struct {
 }
 
 type ChatStreamOptions struct {
-	IncludeUsage       bool `json:"include_usage,omitempty"`
-	IncludeObfuscation bool `json:"include_obfuscation"`
+	IncludeUsage       *bool `json:"include_usage,omitempty"`
+	IncludeObfuscation *bool `json:"include_obfuscation,omitempty"`
 }
 
 type ChatPromptCacheOptions struct {

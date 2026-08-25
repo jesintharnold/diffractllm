@@ -668,10 +668,14 @@ type Usage struct {
 
 	InputTokens         int64 `json:"input_tokens,omitempty"`
 	OutputTokens        int64 `json:"output_tokens,omitempty"`
+	TotalTokens         int64 `json:"total_tokens,omitempty"`
 	ReasoningTokens     int64 `json:"reasoning_tokens,omitempty"`
 	CitationTokens      int64 `json:"citation_tokens,omitempty"`
 	CachedInputTokens   int64 `json:"cached_input_tokens,omitempty"`
 	CacheCreationTokens int64 `json:"cache_creation_tokens,omitempty"`
+
+	AcceptedPredictionTokens int64 `json:"accepted_prediction_tokens,omitempty"`
+	RejectedPredictionTokens int64 `json:"rejected_prediction_tokens,omitempty"`
 
 	InputAudioTokens         int64   `json:"input_audio_tokens,omitempty"`
 	OutputAudioTokens        int64   `json:"output_audio_tokens,omitempty"`
@@ -714,13 +718,33 @@ func CalculateCost(p Pricing, u Usage) float64 {
 	uncachedInput := u.InputTokens
 	if p.CacheReadInputTokenCost != nil || p.InputCostPerTokenCacheHit != nil {
 		uncachedInput -= u.CachedInputTokens
-		if uncachedInput < 0 {
-			uncachedInput = 0
-		}
+	}
+	if p.InputCostPerAudioToken != nil || p.InputCostPerAudioTokenPriority != nil {
+		uncachedInput -= u.InputAudioTokens
+	}
+	if p.InputCostPerImageToken != nil {
+		uncachedInput -= u.InputImageTokens
+	}
+	if uncachedInput < 0 {
+		uncachedInput = 0
+	}
+
+	plainOutput := u.OutputTokens
+	if p.OutputCostPerReasoningToken != nil {
+		plainOutput -= u.ReasoningTokens
+	}
+	if p.OutputCostPerAudioToken != nil {
+		plainOutput -= u.OutputAudioTokens
+	}
+	if p.OutputCostPerImageToken != nil {
+		plainOutput -= u.OutputImageTokens
+	}
+	if plainOutput < 0 {
+		plainOutput = 0
 	}
 
 	total := float64(uncachedInput) * p.inputRate(u.InputTokens, u.Tier)
-	total += float64(u.OutputTokens) * p.outputRate(u.InputTokens, u.Tier)
+	total += float64(plainOutput) * p.outputRate(u.InputTokens, u.Tier)
 	total += float64(u.CachedInputTokens) * p.cacheReadRate(u.InputTokens, u.Tier)
 	total += float64(u.CacheCreationTokens) * p.cacheCreationRate(u.InputTokens, u.Tier, u.CacheLongTTL)
 	total += float64(u.ReasoningTokens) * rate(p.OutputCostPerReasoningToken)
