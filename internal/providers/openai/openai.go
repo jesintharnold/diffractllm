@@ -38,6 +38,7 @@ func (op *OpenAIProvider) ChatCompletion(rctx *core.DiffractLLMContext, req *cor
 	if derr != nil {
 		return nil, derr
 	}
+
 	return HandleChatCompletion(rctx, op.Transport, cfg)
 }
 
@@ -64,12 +65,17 @@ func (op *OpenAIProvider) chatConfig(req *core.DiffractLLMChatCompletionRequest,
 		return ChatCompletionConfig{}, core.NewInternalError("openai", "building url", err)
 	}
 
+	headers := op.ProviderHeaders(stream)
+	if err := op.AuthInjection(cred, headers); err != nil {
+		return ChatCompletionConfig{}, core.NewUpstreamAuth("openai", url, err.Error())
+	}
+
 	return ChatCompletionConfig{
 		Provider: core.ProviderOpenAI,
 		URL:      url,
 		Model:    model,
 		Request:  req,
-		Headers:  op.providerHeaders(cred, stream),
+		Headers:  headers,
 	}, nil
 }
 
@@ -84,14 +90,21 @@ func (op *OpenAIProvider) endpoint(cred *core.Credential, kind core.RequestKind)
 	return strings.TrimRight(cred.Endpoint, "/") + path, nil
 }
 
-func (op *OpenAIProvider) providerHeaders(cred *core.Credential, stream bool) map[string]string {
+func (op *OpenAIProvider) ProviderHeaders(stream bool) map[string]string {
 	headers := map[string]string{
-		"Content-Type":  "application/json",
-		"Authorization": "Bearer " + cred.APIKey,
+		"Content-Type": "application/json",
 	}
 	if stream {
 		headers["Accept"] = "text/event-stream"
 		headers["Cache-Control"] = "no-cache"
 	}
 	return headers
+}
+
+func (op *OpenAIProvider) AuthInjection(cred *core.Credential, headers map[string]string) error {
+	if cred.APIKey == "" {
+		return errors.New("missing api key")
+	}
+	headers["Authorization"] = "Bearer " + cred.APIKey
+	return nil
 }
