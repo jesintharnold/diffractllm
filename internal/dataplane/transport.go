@@ -269,7 +269,7 @@ type DiffractLLMTransport struct {
 
 type DiffractLLMTransportRequest struct {
 	Method      string
-	Path        string
+	URL         string
 	Body        []byte
 	Headers     map[string]string
 	IsStreaming bool
@@ -306,7 +306,7 @@ func buildProviders(defaultConfig config.UpstreamConfig, upstreamProviderConfig 
 	return &providerClientMaps
 }
 
-func (t *DiffractLLMTransport) ServeHTTP(rctx *core.DiffractLLMContext, req *DiffractLLMTransportRequest, cred *core.Credential) (*DiffractLLMTransportResult, *core.DiffractLLMError) {
+func (t *DiffractLLMTransport) ServeHTTP(rctx *core.DiffractLLMContext, req *DiffractLLMTransportRequest) (*DiffractLLMTransportResult, *core.DiffractLLMError) {
 	provider := rctx.Modelkey.Provider
 	pt := t.providers.Load()
 	if pt == nil {
@@ -319,7 +319,7 @@ func (t *DiffractLLMTransport) ServeHTTP(rctx *core.DiffractLLMContext, req *Dif
 	}
 
 	providerClient, upstream := providerTransport.client, providerTransport.upstream
-	providerFullURL := strings.TrimRight(cred.Endpoint, "/") + req.Path
+	providerFullURL := req.URL
 
 	ctx := rctx.Context()
 	if !req.IsStreaming {

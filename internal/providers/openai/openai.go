@@ -1,8 +1,32 @@
 package openaiprovider
 
-import "diffractllm/internal/core"
+import (
+	"errors"
+	"fmt"
+	"strings"
+
+	"diffractllm/internal/core"
+	"diffractllm/internal/dataplane"
+
+	"go.uber.org/zap"
+)
+
+var openAIPaths = map[core.RequestKind]string{
+	core.ChatRequest: "/v1/chat/completions",
+}
+
+func PathFor(kind core.RequestKind) (string, bool) {
+	p, ok := openAIPaths[kind]
+	return p, ok
+}
 
 type OpenAIProvider struct {
+	Transport *dataplane.DiffractLLMTransport
+	Logger    *zap.Logger
+}
+
+func New(transport *dataplane.DiffractLLMTransport, logger *zap.Logger) *OpenAIProvider {
+	return &OpenAIProvider{Transport: transport, Logger: logger}
 }
 
 func (op *OpenAIProvider) ProviderName() core.Provider {
@@ -10,11 +34,54 @@ func (op *OpenAIProvider) ProviderName() core.Provider {
 }
 
 func (op *OpenAIProvider) ChatCompletion(rctx *core.DiffractLLMContext, req *core.DiffractLLMChatCompletionRequest, cred *core.Credential) (*core.DiffractLLMChatCompletionResponse, *core.DiffractLLMError) {
-	return nil, nil
+	cfg, derr := op.chatConfig(req, cred, false)
+	if derr != nil {
+		return nil, derr
+	}
+	return HandleChatCompletion(rctx, op.Transport, cfg)
 }
 
 func (op *OpenAIProvider) ChatCompletionStream(rctx *core.DiffractLLMContext, req *core.DiffractLLMChatCompletionRequest, cred *core.Credential) (<-chan *core.DiffractLLMChatCompletionStreamResponse, *core.DiffractLLMError) {
-	return nil, nil
+	cfg, derr := op.chatConfig(req, cred, true)
+	if derr != nil {
+		return nil, derr
+	}
+	return HandleChatCompletionStream(rctx, op.Transport, cfg)
+}
+
+func (op *OpenAIProvider) chatConfig(req *core.DiffractLLMChatCompletionRequest, cred *core.Credential, stream bool) (ChatCompletionConfig, *core.DiffractLLMError) {
+	if req == nil {
+		return ChatCompletionConfig{}, core.NewInvalidRequestBody("chat request is required", nil)
+	}
+	if cred == nil {
+		return ChatCompletionConfig{}, core.NewInternalError("openai", "credential is required", nil)
+	}
+
+	model := cred.CheckModelAlias(req.Model)
+
+	url, err := op.endpoint(cred, core.ChatRequest)
+	if err != nil {
+		return ChatCompletionConfig{}, core.NewInternalError("openai", "building url", err)
+	}
+
+	return ChatCompletionConfig{
+		Provider: core.ProviderOpenAI,
+		URL:      url,
+		Model:    model,
+		Request:  req,
+		Headers:  op.providerHeaders(cred, stream),
+	}, nil
+}
+
+func (op *OpenAIProvider) endpoint(cred *core.Credential, kind core.RequestKind) (string, error) {
+	if cred.Endpoint == "" {
+		return "", errors.New("endpoint is required")
+	}
+	path, ok := PathFor(kind)
+	if !ok {
+		return "", fmt.Errorf("unsupported request kind %s", kind)
+	}
+	return strings.TrimRight(cred.Endpoint, "/") + path, nil
 }
 
 func (op *OpenAIProvider) providerHeaders(cred *core.Credential, stream bool) map[string]string {

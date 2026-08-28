@@ -39,12 +39,12 @@ func SupportedProviders() []Provider {
 	return out
 }
 
-func ParseModelString(model string, sdkProvider Provider) (Provider, string) {
+func ParseModelString(model string) (Provider, string) {
 	model = strings.TrimSpace(model)
 	if provider, name, found := strings.Cut(model, "/"); found && provider != "" && name != "" {
 		if IsKnownProvider(provider) {
 			return Provider(provider), name
 		}
 	}
-	return sdkProvider, model
+	return "", model
 }

@@ -37,65 +37,14 @@ type OpenAIChatCompletionUsage struct {
 	CompletionTokensDetails *openAIChatCompletionTokensDetails `json:"completion_tokens_details,omitempty"`
 }
 
-func (u *OpenAIChatCompletionUsage) ToDMChatCompletionUsage() *core.Usage {
-	if u == nil {
-		return nil
-	}
-	out := &core.Usage{
-		InputTokens:  u.PromptTokens,
-		OutputTokens: u.CompletionTokens,
-	}
-	if d := u.PromptTokensDetails; d != nil {
-		out.CachedInputTokens = d.CachedTokens
-		out.InputAudioTokens = d.AudioTokens
-		out.InputImageTokens = d.ImageTokens
-		out.CacheCreationTokens = d.CacheWriteTokens
-	}
-	if d := u.CompletionTokensDetails; d != nil {
-		out.ReasoningTokens = d.ReasoningTokens
-		out.OutputAudioTokens = d.AudioTokens
-		out.AcceptedPredictionTokens = d.AcceptedPredictionTokens
-		out.RejectedPredictionTokens = d.RejectedPredictionTokens
-	}
-	out.TotalTokens = u.TotalTokens
-	return out
-}
-
-func ToOpenAIChatCompletionUsage(u *core.Usage) *OpenAIChatCompletionUsage {
-	if u == nil {
-		return nil
-	}
-	out := &OpenAIChatCompletionUsage{
-		PromptTokens:     u.InputTokens,
-		CompletionTokens: u.OutputTokens,
-		TotalTokens:      u.TotalTokens,
-	}
-	if out.TotalTokens == 0 {
-		out.TotalTokens = u.InputTokens + u.OutputTokens
-	}
-
-	if u.CachedInputTokens > 0 || u.CacheCreationTokens > 0 ||
-		u.InputAudioTokens > 0 || u.InputImageTokens > 0 {
-		out.PromptTokensDetails = &openAIChatPromptTokensDetails{
-			CachedTokens:     u.CachedInputTokens,
-			CacheWriteTokens: u.CacheCreationTokens,
-			AudioTokens:      u.InputAudioTokens,
-			ImageTokens:      u.InputImageTokens,
-		}
-	}
-	if u.ReasoningTokens > 0 || u.OutputAudioTokens > 0 ||
-		u.AcceptedPredictionTokens > 0 || u.RejectedPredictionTokens > 0 {
-		out.CompletionTokensDetails = &openAIChatCompletionTokensDetails{
-			ReasoningTokens:          u.ReasoningTokens,
-			AudioTokens:              u.OutputAudioTokens,
-			AcceptedPredictionTokens: u.AcceptedPredictionTokens,
-			RejectedPredictionTokens: u.RejectedPredictionTokens,
-		}
-	}
-	return out
-}
-
 type OpenAIChatCompletionResponse struct {
 	core.DiffractLLMChatCompletionResponse
 	Usage *OpenAIChatCompletionUsage `json:"usage,omitempty"`
 }
+
+type OpenAIChatCompletionStreamResponse struct {
+	core.DiffractLLMChatCompletionStreamResponse
+	Usage *OpenAIChatCompletionUsage `json:"usage,omitempty"`
+}
+
+

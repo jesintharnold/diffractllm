@@ -55,7 +55,7 @@ func (hook *ModelAccessHook) Execute(rctx *core.DiffractLLMContext) *core.Diffra
 		return core.NewMissingParameter("model")
 	}
 
-	if providerName, modelName := core.ParseModelString(requested, rctx.SDKProvider); providerName != "" {
+	if providerName, modelName := core.ParseModelString(requested); providerName != "" {
 		config := virtualKey.ProviderConfig(providerName)
 		if config == nil {
 			hook.logger.Warn("model access rejected", zap.String("virtual_key_id", rctx.VirtualKeyID), zap.String("provider", string(providerName)), zap.String("reason", "provider is not configured on this key"))
