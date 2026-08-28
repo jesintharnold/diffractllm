@@ -67,7 +67,7 @@ func (op *OpenAIProvider) chatConfig(req *core.DiffractLLMChatCompletionRequest,
 
 	headers := op.ProviderHeaders(stream)
 	if err := op.AuthInjection(cred, headers); err != nil {
-		return ChatCompletionConfig{}, core.NewUpstreamAuth("openai", url, err.Error())
+		return ChatCompletionConfig{}, core.NewUpstreamAuth("openai", core.SanitizeBackendURL(url), err.Error())
 	}
 
 	return ChatCompletionConfig{

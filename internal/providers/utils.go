@@ -1,13 +1,7 @@
 package providers
 
-import "net/url"
+import "diffractllm/internal/core"
 
 func SanitizeProviderEndpoint(raw string) string {
-	u, err := url.Parse(raw)
-	if err != nil {
-		return ""
-	}
-	u.RawQuery = ""
-	u.User = nil
-	return u.String()
+	return core.SanitizeBackendURL(raw)
 }

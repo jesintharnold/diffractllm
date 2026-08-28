@@ -320,6 +320,7 @@ func (t *DiffractLLMTransport) ServeHTTP(rctx *core.DiffractLLMContext, req *Dif
 
 	providerClient, upstream := providerTransport.client, providerTransport.upstream
 	providerFullURL := req.URL
+	safeURL := core.SanitizeBackendURL(providerFullURL)
 
 	ctx := rctx.Context()
 	if !req.IsStreaming {
@@ -350,7 +351,11 @@ func (t *DiffractLLMTransport) ServeHTTP(rctx *core.DiffractLLMContext, req *Dif
 
 		httpReq.ContentLength = int64(len(req.Body))
 
+
 		for k, v := range upstream.Network.Headers {
+			if reservedHeader(k) {
+				continue
+			}
 			httpReq.Header.Set(k, v)
 		}
 
@@ -364,10 +369,10 @@ func (t *DiffractLLMTransport) ServeHTTP(rctx *core.DiffractLLMContext, req *Dif
 
 		if err != nil {
 			if ctx.Err() != nil {
-				return nil, core.NewUpstreamTimeout(string(provider), providerFullURL, err)
+				return nil, core.NewUpstreamTimeout(string(provider), safeURL, err)
 			}
 
-			lastErr = core.NewUpstreamUnavailable(string(provider), providerFullURL, err)
+			lastErr = core.NewUpstreamUnavailable(string(provider), safeURL, err)
 
 			if attempt < maxAttempts {
 				if !sleepBackoff(ctx, backoff) {
@@ -388,7 +393,7 @@ func (t *DiffractLLMTransport) ServeHTTP(rctx *core.DiffractLLMContext, req *Dif
 			io.Copy(io.Discard, io.LimitReader(resp.Body, 4<<10))
 			resp.Body.Close()
 			if !sleepBackoff(ctx, wait) {
-				return nil, core.NewUpstreamError(string(provider), providerFullURL, resp.StatusCode, "retry aborted", nil)
+				return nil, core.NewUpstreamError(string(provider), safeURL, resp.StatusCode, "retry aborted", nil)
 			}
 			continue
 		}
@@ -464,6 +469,19 @@ func captureResponseHeaders(rctx *core.DiffractLLMContext, h http.Header) {
 		if v := h.Get(k); v != "" {
 			rctx.Overwrite(core.DiffractLLMContextKey("upstream."+k), v)
 		}
+	}
+}
+
+func reservedHeader(name string) bool {
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "authorization", "api-key", "x-api-key", "x-goog-api-key",
+		"content-type", "content-length", "host",
+		"connection", "proxy-connection", "keep-alive",
+		"proxy-authenticate", "proxy-authorization",
+		"te", "trailer", "transfer-encoding", "upgrade":
+		return true
+	default:
+		return false
 	}
 }
 

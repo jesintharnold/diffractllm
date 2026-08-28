@@ -12,6 +12,8 @@ import (
 	"github.com/bytedance/sonic"
 )
 
+const maxProviderErrorBodyBytes = 1 << 20
+
 type ChatCompletionConfig struct {
 	Provider core.Provider
 	URL      string
@@ -21,6 +23,7 @@ type ChatCompletionConfig struct {
 }
 
 func HandleChatCompletion(rctx *core.DiffractLLMContext, transport *dataplane.DiffractLLMTransport, cfg ChatCompletionConfig) (*core.DiffractLLMChatCompletionResponse, *core.DiffractLLMError) {
+	safeURL := core.SanitizeBackendURL(cfg.URL)
 	body, derr := BuildChatCompletionPayload(cfg.Request, cfg.Model, false)
 	if derr != nil {
 		return nil, derr
@@ -37,15 +40,15 @@ func HandleChatCompletion(rctx *core.DiffractLLMContext, transport *dataplane.Di
 	respBody, err := io.ReadAll(result.Body)
 	result.Body.Close()
 	if err != nil {
-		return nil, core.NewUpstreamError(string(cfg.Provider), cfg.URL, result.Status, "reading response", err)
+		return nil, core.NewUpstreamError(string(cfg.Provider), safeURL, result.Status, "reading response", err)
 	}
 	if result.Status != http.StatusOK {
-		return nil, ParseError(cfg.Provider, cfg.URL, result.Status, respBody)
+		return nil, ParseError(cfg.Provider, safeURL, result.Status, respBody)
 	}
 
 	var wire OpenAIChatCompletionResponse
 	if err := sonic.Unmarshal(respBody, &wire); err != nil {
-		return nil, core.NewUpstreamError(string(cfg.Provider), cfg.URL, result.Status, "unmarshalling response", err)
+		return nil, core.NewUpstreamError(string(cfg.Provider), safeURL, result.Status, "unmarshalling response", err)
 	}
 	wire.Raw = respBody
 	return wire.ToDMChatCompletionResponse(), nil
@@ -53,6 +56,7 @@ func HandleChatCompletion(rctx *core.DiffractLLMContext, transport *dataplane.Di
 }
 
 func HandleChatCompletionStream(rctx *core.DiffractLLMContext, transport *dataplane.DiffractLLMTransport, cfg ChatCompletionConfig) (<-chan *core.DiffractLLMChatCompletionStreamResponse, *core.DiffractLLMError) {
+	safeURL := core.SanitizeBackendURL(cfg.URL)
 	body, derr := BuildChatCompletionPayload(cfg.Request, cfg.Model, true)
 	if derr != nil {
 		return nil, derr
@@ -69,9 +73,11 @@ func HandleChatCompletionStream(rctx *core.DiffractLLMContext, transport *datapl
 	}
 
 	if result.Status != http.StatusOK {
-		respBody, _ := io.ReadAll(result.Body)
-		result.Body.Close()
-		return nil, ParseError(cfg.Provider, cfg.URL, result.Status, respBody)
+		respBody, err := readProviderErrorBody(result.Body)
+		if err != nil {
+			return nil, core.NewUpstreamError(string(cfg.Provider), safeURL, result.Status, "reading streaming error response", err)
+		}
+		return nil, ParseError(cfg.Provider, safeURL, result.Status, respBody)
 	}
 
 	passthrough := rctx.SDKProvider == core.ProviderOpenAI
@@ -87,10 +93,22 @@ func HandleChatCompletionStream(rctx *core.DiffractLLMContext, transport *datapl
 		sc := bufio.NewScanner(result.Body)
 		sc.Buffer(make([]byte, 64*1024), 1024*1024) // 64kb --> 1MB grow size for each stream delta
 		streamClosed := false
+		emitError := func(streamErr *core.DiffractLLMError) {
+			select {
+			case responseChan <- &core.DiffractLLMChatCompletionStreamResponse{
+				Type:  core.StreamEventError,
+				Error: streamErr,
+			}:
+			case <-rctx.Context().Done():
+			}
+		}
 
 		for sc.Scan() {
 			line := bytes.TrimSpace(sc.Bytes())
 			if len(line) == 0 || line[0] == ':' {
+				continue
+			}
+			if !bytes.HasPrefix(line, dataPrefix) {
 				continue
 			}
 
@@ -105,8 +123,13 @@ func HandleChatCompletionStream(rctx *core.DiffractLLMContext, transport *datapl
 			}
 
 			var wire OpenAIChatCompletionStreamResponse
-			if sonic.Unmarshal(delta, &wire) != nil {
-				continue
+			if err := sonic.Unmarshal(delta, &wire); err != nil {
+				emitError(core.NewUpstreamError(string(cfg.Provider), safeURL, http.StatusBadGateway, "invalid OpenAI SSE data frame", err))
+				return
+			}
+			if wire.Object != objectChatCompletionChunk {
+				emitError(ParseError(cfg.Provider, safeURL, http.StatusBadGateway, delta))
+				return
 			}
 			chunk := wire.ToDMChatCompletionStreamResponse()
 			if passthrough {
@@ -135,18 +158,25 @@ func HandleChatCompletionStream(rctx *core.DiffractLLMContext, transport *datapl
 			return
 		}
 
-		streamErr := core.NewUpstreamUnavailable(string(cfg.Provider), cfg.URL, err)
+		streamErr := core.NewUpstreamUnavailable(string(cfg.Provider), safeURL, err)
 		if errors.Is(err, dataplane.ErrStreamIdle) {
-			streamErr = core.NewUpstreamTimeout(string(cfg.Provider), cfg.URL, err)
+			streamErr = core.NewUpstreamTimeout(string(cfg.Provider), safeURL, err)
 		}
-
-		select {
-		case responseChan <- &core.DiffractLLMChatCompletionStreamResponse{
-			Type:  core.StreamEventError,
-			Error: streamErr,
-		}:
-		case <-rctx.Context().Done():
-		}
+		emitError(streamErr)
 	}()
 	return responseChan, nil
+}
+
+func readProviderErrorBody(body io.ReadCloser) ([]byte, error) {
+	defer body.Close()
+
+	reader := io.LimitReader(body, maxProviderErrorBodyBytes+1)
+	data, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > maxProviderErrorBodyBytes {
+		return nil, errors.New("provider error response exceeds size limit")
+	}
+	return data, nil
 }
