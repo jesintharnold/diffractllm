@@ -10,17 +10,17 @@ import (
 )
 
 type StoreCredential struct {
-	ID            string            `gorm:"primaryKey;type:text" json:"id"`
-	ProviderID    string            `gorm:"not null;type:text;index" json:"provider_id"`
-	Provider      StoreProvider     `gorm:"foreignKey:ProviderID;references:ID" json:"provider"`
-	Name          string            `gorm:"type:text" json:"name"`
-	APIKey        *string           `gorm:"type:text" json:"-"` // encrypted
-	Enabled       bool              `gorm:"not null;default:true" json:"enabled"`
-	ExpiryAt      *time.Time        `json:"expires_at,omitempty"`
-	AllowedModels []string          `gorm:"serializer:json;type:text" json:"allowed_models"`
-	BlockedModels []string          `gorm:"serializer:json;type:text" json:"blocked_models"`
-	Endpoint      string            `gorm:"type:text" json:"endpoint"`
-	Aliases       map[string]string `gorm:"serializer:json;type:text" json:"aliases"`
+	ID            string                `gorm:"primaryKey;type:text" json:"id"`
+	ProviderID    string                `gorm:"not null;type:text;index" json:"provider_id"`
+	Provider      StoreProvider         `gorm:"foreignKey:ProviderID;references:ID" json:"provider"`
+	Name          string                `gorm:"type:text" json:"name"`
+	APIKey        *string               `gorm:"type:text" json:"-"` // encrypted
+	Enabled       bool                  `gorm:"not null;default:true" json:"enabled"`
+	ExpiryAt      *time.Time            `json:"expires_at,omitempty"`
+	AllowedModels []string              `gorm:"serializer:json;type:text" json:"allowed_models"`
+	BlockedModels []string              `gorm:"serializer:json;type:text" json:"blocked_models"`
+	Endpoint      string                `gorm:"type:text" json:"endpoint"`
+	Aliases       map[string]core.Alias `gorm:"serializer:json;type:text" json:"aliases"`
 
 	AzureAPIVersion   *string  `gorm:"type:text" json:"azure_api_version,omitempty"`
 	AzureAuthMode     *string  `gorm:"type:text" json:"azure_auth_mode,omitempty"`
@@ -88,7 +88,6 @@ func (s *StoreCredential) ToCore() *core.Credential {
 	if cred.Provider == core.ProviderAzure && s.AzureAuthMode != nil {
 		cred.Settings.Azure = &core.AzureSettings{
 			AuthMode:     core.AzureAuthMode(deref(s.AzureAuthMode)),
-			APIVersion:   deref(s.AzureAPIVersion),
 			TenantID:     deref(s.AzureTenantID),
 			ClientID:     deref(s.AzureClientID),
 			ClientSecret: deref(s.AzureClientSecret),
@@ -123,7 +122,6 @@ func applyAzureSettings(row *StoreCredential, cred *core.Credential) {
 		return
 	}
 	row.AzureAuthMode = optKey(string(azure.AuthMode))
-	row.AzureAPIVersion = optKey(azure.APIVersion)
 	row.AzureTenantID = optKey(azure.TenantID)
 	row.AzureClientID = optKey(azure.ClientID)
 	row.AzureClientSecret = optKey(azure.ClientSecret)

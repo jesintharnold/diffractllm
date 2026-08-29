@@ -3,6 +3,7 @@ package core
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 )
 
@@ -28,10 +29,72 @@ func (cs *CredentialSettings) Validate(provider Provider) error {
 		}
 	}
 
-	// when other settings are added here
-
 	if check > 1 {
 		return fmt.Errorf("only one provider settings block may be set, got %d", check)
+	}
+
+	return nil
+}
+
+type Alias struct {
+	ModelID          string                `json:"deploymentID,omitempty"`
+	ModelName        string                `json:"model_name,omitempty"`
+	EndpointProtocol EndpointProtocol      `json:"endpoint_protocol,omitempty"`
+	RouteStyle       OpenAIAzureRouteStyle `json:"route_style,omitempty"`
+	APIVersion       string                `json:"api_version,omitempty"`
+}
+
+var protocolNameHints = []struct {
+	Protocol EndpointProtocol
+	Match    string
+}{
+	{ProtocolAnthropic, "claude"},
+	{ProtocolAnthropic, "anthropic."},
+}
+
+func (a *Alias) Protocol(requested string) EndpointProtocol {
+	if a == nil {
+		return ProtocolOpenAI
+	}
+	if a.EndpointProtocol != "" {
+		return a.EndpointProtocol
+	}
+	for _, candidate := range []string{a.ModelName, a.ModelID, requested} {
+		if candidate == "" {
+			continue
+		}
+		lowered := strings.ToLower(candidate)
+		for _, hint := range protocolNameHints {
+			if strings.Contains(lowered, hint.Match) {
+				return hint.Protocol
+			}
+		}
+	}
+	return ProtocolOpenAI
+}
+
+func (a *Alias) Validate() error {
+	if a.ModelID == "" {
+		return fmt.Errorf("deploymentID is required")
+	}
+
+	switch a.EndpointProtocol {
+	case "", ProtocolOpenAI, ProtocolAnthropic:
+	default:
+		return fmt.Errorf("unknown endpoint_protocol %q", a.EndpointProtocol)
+	}
+
+	switch a.RouteStyle {
+	case "", AzureRouteV1:
+	case AzureRouteDeployment:
+		if a.EndpointProtocol == ProtocolAnthropic {
+			return fmt.Errorf("route_style applies to openai models only")
+		}
+		if a.APIVersion == "" {
+			return fmt.Errorf("api-version is required for deployment route style")
+		}
+	default:
+		return fmt.Errorf("unknown route_style %q", a.RouteStyle)
 	}
 
 	return nil
@@ -47,7 +110,7 @@ type Credential struct {
 	AllowedModels []string           `json:"allowed_models" binding:"required,min=1"`
 	BlockedModels []string           `json:"blocked_models,omitempty"`
 	Endpoint      string             `json:"endpoint,omitempty"`
-	Aliases       map[string]string  `json:"aliases,omitempty"`
+	Aliases       map[string]Alias   `json:"aliases,omitempty"`
 	Settings      CredentialSettings `json:"settings,omitzero"`
 }
 
@@ -65,14 +128,14 @@ func (cred *Credential) CheckValidity() bool {
 	return cred != nil && cred.Enabled && (cred.ExpiryAt == nil || cred.ExpiryAt.After(time.Now()))
 }
 
-func (cred *Credential) CheckModelAlias(model string) string {
+func (cred *Credential) CheckModelAlias(model string) *Alias {
 	if cred == nil {
-		return model
+		return &Alias{ModelID: model}
 	}
 	if alias, ok := cred.Aliases[model]; ok {
-		return alias
+		return &alias
 	}
-	return model
+	return &Alias{ModelID: model}
 }
 
 func (cred *Credential) Validate() error {
@@ -99,6 +162,17 @@ func (cred *Credential) Validate() error {
 		}
 	}
 
+	for model, alias := range cred.Aliases {
+		if err := alias.Validate(); err != nil {
+			return fmt.Errorf("alias %q : %w", model, err)
+		}
+	}
+
+	// Azure carries its auth mode here, so the block is not optional.
+	if cred.Provider == ProviderAzure && cred.Settings.Azure == nil {
+		return fmt.Errorf("azure credentials require a settings.azure block")
+	}
+
 	// Validating indivudal settings here
 	if !cred.Settings.IsEmpty() {
 		return cred.Settings.Validate(cred.Provider)
@@ -106,3 +180,10 @@ func (cred *Credential) Validate() error {
 
 	return nil
 }
+
+type EndpointProtocol Provider
+
+const (
+	ProtocolOpenAI    EndpointProtocol = EndpointProtocol(ProviderOpenAI)
+	ProtocolAnthropic EndpointProtocol = EndpointProtocol(ProviderAnthropic)
+)

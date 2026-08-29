@@ -7,14 +7,22 @@ type AzureAuthMode string
 const (
 	AzureAuthKeyMode          AzureAuthMode = "azure_api_key"
 	AzureAuthServicePrincipal AzureAuthMode = "azure_service_principal"
-	AzureManagedIdentity      AzureAuthMode = "azure_managed_identity"
+	AzureManagedIdentity      AzureAuthMode = "azure_default_credential"
 )
 
 const DefaultAzureScope = "https://cognitiveservices.azure.com/.default"
 
+// Which Azure URL surface a deployment answers on. Set per alias, not per
+// credential - one resource can host both.
+type OpenAIAzureRouteStyle string
+
+const (
+	AzureRouteV1         OpenAIAzureRouteStyle = "v1"
+	AzureRouteDeployment OpenAIAzureRouteStyle = "deployment"
+)
+
 type AzureSettings struct {
 	AuthMode     AzureAuthMode `json:"auth_mode"`
-	APIVersion   string        `json:"api_version,omitempty"`
 	TenantID     string        `json:"tenant_id,omitempty"`
 	ClientID     string        `json:"client_id,omitempty"`
 	ClientSecret string        `json:"client_secret,omitempty"`
@@ -22,9 +30,6 @@ type AzureSettings struct {
 }
 
 func (azure *AzureSettings) Validate() error {
-	if azure.APIVersion == "" {
-		return fmt.Errorf("azure provider : api-version is required")
-	}
 
 	switch azure.AuthMode {
 	case AzureAuthKeyMode:

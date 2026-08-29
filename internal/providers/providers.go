@@ -7,8 +7,6 @@ import (
 
 type Provider interface {
 	ProviderName() core.Provider
-	ProviderHeaders(stream bool) map[string]string
-	AuthInjection(cred *core.Credential, headers map[string]string) error
 	ChatCompletion(rctx *core.DiffractLLMContext, req *core.DiffractLLMChatCompletionRequest, cred *core.Credential) (*core.DiffractLLMChatCompletionResponse, *core.DiffractLLMError)
 	ChatCompletionStream(rctx *core.DiffractLLMContext, req *core.DiffractLLMChatCompletionRequest, cred *core.Credential) (<-chan *core.DiffractLLMChatCompletionStreamResponse, *core.DiffractLLMError)
 }

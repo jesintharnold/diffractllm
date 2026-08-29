@@ -22,7 +22,7 @@ type ChatCompletionConfig struct {
 	Headers  map[string]string
 }
 
-func HandleChatCompletion(rctx *core.DiffractLLMContext, transport *dataplane.DiffractLLMTransport, cfg ChatCompletionConfig) (*core.DiffractLLMChatCompletionResponse, *core.DiffractLLMError) {
+func HandleChatCompletion(rctx *core.DiffractLLMContext, transport *dataplane.DiffractLLMTransport, cfg *ChatCompletionConfig) (*core.DiffractLLMChatCompletionResponse, *core.DiffractLLMError) {
 	safeURL := core.SanitizeBackendURL(cfg.URL)
 	body, derr := BuildChatCompletionPayload(cfg.Request, cfg.Model, false)
 	if derr != nil {
@@ -55,7 +55,7 @@ func HandleChatCompletion(rctx *core.DiffractLLMContext, transport *dataplane.Di
 
 }
 
-func HandleChatCompletionStream(rctx *core.DiffractLLMContext, transport *dataplane.DiffractLLMTransport, cfg ChatCompletionConfig) (<-chan *core.DiffractLLMChatCompletionStreamResponse, *core.DiffractLLMError) {
+func HandleChatCompletionStream(rctx *core.DiffractLLMContext, transport *dataplane.DiffractLLMTransport, cfg *ChatCompletionConfig) (<-chan *core.DiffractLLMChatCompletionStreamResponse, *core.DiffractLLMError) {
 	safeURL := core.SanitizeBackendURL(cfg.URL)
 	body, derr := BuildChatCompletionPayload(cfg.Request, cfg.Model, true)
 	if derr != nil {

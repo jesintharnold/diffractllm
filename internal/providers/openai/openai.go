@@ -20,6 +20,17 @@ func PathFor(kind core.RequestKind) (string, bool) {
 	return p, ok
 }
 
+func ProviderHeaders(stream bool) map[string]string {
+	headers := map[string]string{
+		"Content-Type": "application/json",
+	}
+	if stream {
+		headers["Accept"] = "text/event-stream"
+		headers["Cache-Control"] = "no-cache"
+	}
+	return headers
+}
+
 type OpenAIProvider struct {
 	Transport *dataplane.DiffractLLMTransport
 	Logger    *zap.Logger
@@ -50,30 +61,30 @@ func (op *OpenAIProvider) ChatCompletionStream(rctx *core.DiffractLLMContext, re
 	return HandleChatCompletionStream(rctx, op.Transport, cfg)
 }
 
-func (op *OpenAIProvider) chatConfig(req *core.DiffractLLMChatCompletionRequest, cred *core.Credential, stream bool) (ChatCompletionConfig, *core.DiffractLLMError) {
+func (op *OpenAIProvider) chatConfig(req *core.DiffractLLMChatCompletionRequest, cred *core.Credential, stream bool) (*ChatCompletionConfig, *core.DiffractLLMError) {
 	if req == nil {
-		return ChatCompletionConfig{}, core.NewInvalidRequestBody("chat request is required", nil)
+		return nil, core.NewInvalidRequestBody("chat request is required", nil)
 	}
 	if cred == nil {
-		return ChatCompletionConfig{}, core.NewInternalError("openai", "credential is required", nil)
+		return nil, core.NewInternalError("openai", "credential is required", nil)
 	}
 
 	model := cred.CheckModelAlias(req.Model)
 
 	url, err := op.endpoint(cred, core.ChatRequest)
 	if err != nil {
-		return ChatCompletionConfig{}, core.NewInternalError("openai", "building url", err)
+		return nil, core.NewInternalError("openai", "building url", err)
 	}
 
-	headers := op.ProviderHeaders(stream)
+	headers := ProviderHeaders(stream)
 	if err := op.AuthInjection(cred, headers); err != nil {
-		return ChatCompletionConfig{}, core.NewUpstreamAuth("openai", core.SanitizeBackendURL(url), err.Error())
+		return nil, core.NewUpstreamAuth("openai", core.SanitizeBackendURL(url), err.Error())
 	}
 
-	return ChatCompletionConfig{
+	return &ChatCompletionConfig{
 		Provider: core.ProviderOpenAI,
 		URL:      url,
-		Model:    model,
+		Model:    model.ModelID,
 		Request:  req,
 		Headers:  headers,
 	}, nil
@@ -88,17 +99,6 @@ func (op *OpenAIProvider) endpoint(cred *core.Credential, kind core.RequestKind)
 		return "", fmt.Errorf("unsupported request kind %s", kind)
 	}
 	return strings.TrimRight(cred.Endpoint, "/") + path, nil
-}
-
-func (op *OpenAIProvider) ProviderHeaders(stream bool) map[string]string {
-	headers := map[string]string{
-		"Content-Type": "application/json",
-	}
-	if stream {
-		headers["Accept"] = "text/event-stream"
-		headers["Cache-Control"] = "no-cache"
-	}
-	return headers
 }
 
 func (op *OpenAIProvider) AuthInjection(cred *core.Credential, headers map[string]string) error {
