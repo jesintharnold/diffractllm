@@ -22,9 +22,8 @@ func (b *Budget) CheckBudgetUsage() bool {
 	if bc == nil || !bc.Enforce || bc.BudgetLimit == 0 {
 		return true
 	}
-	if bc.BudgetParseDuration > 0 && time.Since(bc.LastBudgetRefreshAt) >= bc.BudgetParseDuration {
-		return true
-	}
+	// A stale window is not a free window. TrackBudgetWindow does the reset;
+	// until it lands we stay strict rather than letting spend through.
 	effectiveCost := b.TotalCost.Load() + b.PendingCost.Load()
 	return effectiveCost < bc.BudgetLimit
 }

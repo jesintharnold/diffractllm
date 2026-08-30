@@ -47,6 +47,12 @@ func (LB LBKind) String() string {
 	}
 }
 
+// Implemented reports whether a selector actually backs this algorithm. The
+// other two wait on the metrics engine - update this when one lands.
+func (LB LBKind) Implemented() bool {
+	return LB == LBRoundRobin
+}
+
 func ParseLBKind(value string) (LBKind, error) {
 	switch value {
 	case LBRoundRobinName:

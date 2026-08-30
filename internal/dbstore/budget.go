@@ -13,7 +13,7 @@ type StoreBudget struct {
 	ID                  string        `gorm:"primaryKey;type:text"`
 	Name                string        `gorm:"uniqueIndex;not null;type:text"`
 	BudgetLimit         int64         `gorm:"not null"`
-	BudgetUnit          string        `gorm:"not null;default:'microdollars'"`
+	BudgetUnit          string        `gorm:"not null;default:'nanodollars'"`
 	BudgetDuration      string        `gorm:"not null;type:varchar(10)"`
 	Enforce             bool          `gorm:"not null;default:true"`
 	TotalCost           int64         `gorm:"not null;default:0"`
@@ -60,7 +60,7 @@ func (b *StoreBudget) ToCore() *core.Budget {
 func (s *Store) CreateBudget(b core.Budget) (*StoreBudget, error) {
 	unit := b.BudgetUnit
 	if unit == "" {
-		unit = "microdollars"
+		unit = core.BudgetUnitNanoUSD
 	}
 	budget := StoreBudget{
 		ID:                  uuid.Must(uuid.NewV7()).String(),

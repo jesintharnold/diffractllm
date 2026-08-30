@@ -155,6 +155,23 @@ type VirtualKey struct {
 	ProviderConfigs []*ProviderConfig
 }
 
+func (vkconfig *VirtualKey) Validate() error {
+	if vkconfig == nil {
+		return fmt.Errorf("virtual key is required")
+	}
+	if !vkconfig.LoadBalancer.Implemented() {
+		name := vkconfig.LoadBalancer.String()
+		if name == "" {
+			name = "unknown"
+		}
+		return fmt.Errorf("load balancer %q is not implemented yet", name)
+	}
+	if len(vkconfig.ProviderConfigs) == 0 {
+		return fmt.Errorf("at least one provider config is required")
+	}
+	return nil
+}
+
 func (vkconfig *VirtualKey) ProviderConfig(provider Provider) *ProviderConfig {
 	for _, cfg := range vkconfig.ProviderConfigs {
 		if cfg.Provider == provider {

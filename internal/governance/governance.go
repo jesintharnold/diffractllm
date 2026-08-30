@@ -113,6 +113,9 @@ func (g *Governance) SyncVirtualKey() error {
 		if err != nil {
 			return fmt.Errorf("sync virtual key %q: %w", vkeydetail[i].ID, err)
 		}
+		if err := virtualKey.Validate(); err != nil {
+			return fmt.Errorf("sync virtual key %q: %w", vkeydetail[i].ID, err)
+		}
 		tempVkey = append(tempVkey, virtualKey)
 	}
 	g.KeyCache.LoadVirtualKeys(tempVkey)
