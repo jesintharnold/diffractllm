@@ -35,7 +35,7 @@ func (ap *AzureProvider) ChatCompletion(rctx *core.DiffractLLMContext, req *core
 
 	switch protocol := alias.Protocol(req.Model); protocol {
 	case core.ProtocolOpenAI:
-		cfg, derr := ap.openaichatConfig(req, cred, alias, false)
+		cfg, derr := ap.openaichatConfig(rctx, req, cred, alias, false)
 		if derr != nil {
 			return nil, derr
 		}
@@ -54,7 +54,7 @@ func (ap *AzureProvider) ChatCompletionStream(rctx *core.DiffractLLMContext, req
 
 	switch protocol := alias.Protocol(req.Model); protocol {
 	case core.ProtocolOpenAI:
-		cfg, derr := ap.openaichatConfig(req, cred, alias, true)
+		cfg, derr := ap.openaichatConfig(rctx, req, cred, alias, true)
 		if derr != nil {
 			return nil, derr
 		}
@@ -78,3 +78,5 @@ func resolveAlias(req *core.DiffractLLMChatCompletionRequest, cred *core.Credent
 func unsupportedProtocol(protocol core.EndpointProtocol) *core.DiffractLLMError {
 	return core.NewInternalError("azure-provider", fmt.Sprintf("protocol %q is not supported yet", protocol), nil)
 }
+
+

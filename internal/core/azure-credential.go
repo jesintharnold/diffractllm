@@ -7,7 +7,7 @@ type AzureAuthMode string
 const (
 	AzureAuthKeyMode          AzureAuthMode = "azure_api_key"
 	AzureAuthServicePrincipal AzureAuthMode = "azure_service_principal"
-	AzureManagedIdentity      AzureAuthMode = "azure_default_credential"
+	AzureDefaultCredential    AzureAuthMode = "azure_default_credential"
 )
 
 const DefaultAzureScope = "https://cognitiveservices.azure.com/.default"
@@ -42,7 +42,7 @@ func (azure *AzureSettings) Validate() error {
 			return fmt.Errorf("azure provider : service principal requires tenant-id, client-id and client-secret")
 		}
 
-	case AzureManagedIdentity:
+	case AzureDefaultCredential:
 		if azure.ClientSecret != "" {
 			return fmt.Errorf("azure provider : managed_identity takes no client_secret")
 		}

@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-func (ap *AzureProvider) openaichatConfig(req *core.DiffractLLMChatCompletionRequest, cred *core.Credential, alias *core.Alias, stream bool) (*openaiprovider.ChatCompletionConfig, *core.DiffractLLMError) {
+func (ap *AzureProvider) openaichatConfig(rctx *core.DiffractLLMContext, req *core.DiffractLLMChatCompletionRequest, cred *core.Credential, alias *core.Alias, stream bool) (*openaiprovider.ChatCompletionConfig, *core.DiffractLLMError) {
 	var requestURL string
 
 	//https://{your-resource-name}.openai.azure.com/openai/deployments/{your-deployment-name}/chat/completions?api-version={api-version}
@@ -24,6 +24,11 @@ func (ap *AzureProvider) openaichatConfig(req *core.DiffractLLMChatCompletionReq
 		requestURL = fmt.Sprintf("%s/openai/deployments/%s%s?api-version=%s", endpoint, neturl.PathEscape(alias.ModelID), strings.TrimPrefix(path, "/v1"), neturl.QueryEscape(alias.APIVersion))
 	} else {
 		requestURL = fmt.Sprintf("%s/openai%s", endpoint, path)
+	}
+
+	// After the url, so an auth failure can name the endpoint it was for.
+	if err := ap.AuthInjection(rctx, cred, headers); err != nil {
+		return nil, core.NewUpstreamAuth("azure", core.SanitizeBackendURL(requestURL), err.Error())
 	}
 
 	return &openaiprovider.ChatCompletionConfig{
