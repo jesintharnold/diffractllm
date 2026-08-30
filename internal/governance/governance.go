@@ -209,21 +209,19 @@ func (g *Governance) TrackBudgetWindow() {
 	g.BudgetCache.BudgetMap.Range(func(key, value any) bool {
 		b := value.(*Budget)
 		cfg := b.Config.Load()
-		if cfg == nil || cfg.BudgetParseDuration <= 0 {
+		target := budgetResetTarget(cfg, now)
+		if target == nil {
 			return true
 		}
 
-		if now.Sub(cfg.LastBudgetRefreshAt) < cfg.BudgetParseDuration {
-			return true
-		}
-		if err := g.Store.ResetBudgetWindow(cfg.ID, now); err != nil {
+		if err := g.Store.ResetBudgetWindow(cfg.ID, *target); err != nil {
 			g.logger.Error("budget window reset DB write failed, will retry next tick",
 				zap.String("budget_id", cfg.ID), zap.Error(err))
 			return true
 		}
 
 		newCfg := *cfg
-		newCfg.LastBudgetRefreshAt = now
+		newCfg.LastBudgetRefreshAt = *target
 		newCfg.TotalSpend = 0
 		newCfg.RequestCount = 0
 		b.Config.Store(&newCfg)
