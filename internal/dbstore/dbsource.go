@@ -1,4 +1,4 @@
-﻿package dbstore
+package dbstore
 
 import (
 	config "diffractllm/configs"
@@ -15,9 +15,13 @@ type DBSource struct {
 }
 
 func NewDBSource(logger *zap.Logger) (*DBSource, error) {
-	dbpath := config.GlobalConfig().ServerConfig.DBPath
-	AesPassKey := config.GlobalConfig().ServerConfig.AesPasskey
-	store, err := NewStore(dbpath, AesPassKey, logger)
+	cfg, err := config.Load()
+	if err != nil {
+		return nil, fmt.Errorf("db source config: %w", err)
+	}
+
+	dbpath := cfg.ServerConfig.DBPath
+	store, err := NewStore(dbpath, cfg.ServerConfig.AesPasskey, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new db store : %w", err)
 	}
@@ -37,80 +41,42 @@ func (s *DBSource) Init() error {
 		return fmt.Errorf("db source migrate: %w", err)
 	}
 
-	mockEnabled := config.GlobalConfig().ServerConfig.MockEnabled
-	if err := s.store.Seed(mockEnabled); err != nil {
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("db source config: %w", err)
+	}
+	if err := s.store.Seed(cfg.ServerConfig.MockEnabled); err != nil {
 		return fmt.Errorf("db source seed: %w", err)
 	}
 
 	return nil
 }
 
-func (s *DBSource) Load() (*core.ModelPlaneSnapshot, error) {
+func (s *DBSource) Load() ([]*core.Upstream, []*core.Credential, error) {
 	if s.store == nil {
-		return nil, fmt.Errorf("db source store is not initialized")
+		return nil, nil, fmt.Errorf("db source store is not initialized")
 	}
 
-	registries, err := s.store.ListModelAPIRegistries()
+	providers, err := s.store.ListProviders()
 	if err != nil {
-		return nil, fmt.Errorf("db source list api registries: %w", err)
+		return nil, nil, fmt.Errorf("db source list providers: %w", err)
 	}
-	// catalog, err := s.store.ListCatalogModels(true)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("db source list catalog models: %w", err)
-	// }
-	pools, err := s.store.ListModelPools()
+	credentials, err := s.store.ListCredentials()
 	if err != nil {
-		return nil, fmt.Errorf("db source list model pools: %w", err)
+		return nil, nil, fmt.Errorf("db source list credentials: %w", err)
 	}
 
-	snap := &core.ModelPlaneSnapshot{
-		APIRegistries: make([]core.ModelAPIRegistry, 0, len(registries)),
-		// Catalog:       make([]core.ModelCatalog, 0, len(catalog)),
-		Pools: make([]core.ModelPool, 0, len(pools)),
+	providerconfigs := make([]*core.Upstream, 0, len(providers))
+	for i := range providers {
+		providerconfigs = append(providerconfigs, providers[i].ToUpstream())
 	}
 
-	for i := range registries {
-		k := &registries[i]
-		snap.APIRegistries = append(snap.APIRegistries, core.ModelAPIRegistry{
-			ID:                 k.ID,
-			Provider:           core.Provider(k.Provider.Name),
-			BaseURL:            k.BaseURL,
-			APIkey:             deref(k.APIKey),
-			EnableCustomHeader: k.EnableCustomHeader,
-			CustomHeader:       k.CustomHeader,
-			ExpiryAt:           k.ExpiryAt,
-			AllowedModels:      k.AllowedModels,
-		})
+	creds := make([]*core.Credential, 0, len(credentials))
+	for i := range credentials {
+		creds = append(creds, credentials[i].ToCore())
 	}
 
-	// for i := range catalog {
-	// 	c := &catalog[i]
-	// 	snap.Catalog = append(snap.Catalog, core.ModelCatalog{
-	// 		ID:         c.ID,
-	// 		ModelName:  c.ModelName,
-	// 		Kind:       c.Kind,
-	// 		IsActive:   c.IsActive,
-	// 		CreatedAt:  c.CreatedAt,
-	// 		UpdatedAt:  c.UpdatedAt,
-	// 		ProviderID: c.ProviderID,
-	// 		Provider:   core.Provider(c.Provider.Name),
-	// 	})
-	// }
-
-	for i := range pools {
-		p := &pools[i]
-		snap.Pools = append(snap.Pools, core.ModelPool{
-			ID:           p.ID,
-			Name:         p.Name,
-			LBType:       p.LBType,
-			AllowedModel: p.AllowedModels,
-			IsActive:     p.IsActive,
-			CreatedAt:    p.CreatedAt,
-			UpdatedAt:    p.UpdatedAt,
-		})
-	}
-
-	return snap, nil
+	return providerconfigs, creds, nil
 }
 
 func (s *DBSource) GetStore() *Store { return s.store }

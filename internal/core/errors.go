@@ -1,4 +1,4 @@
-﻿package core
+package core
 
 import (
 	"fmt"
@@ -81,25 +81,9 @@ func (r *DiffractLLMError) IsClient() bool {
 	return r.ErrorCategory == ErrorCategoryClient
 }
 
-// Marshal is only needed here that too for the uploading the native logs directly
-// Unmarshal is not needed for now
-
 func (r *DiffractLLMError) MarshalJSON() ([]byte, error) {
 	type Alias DiffractLLMError
-	aux := &struct {
-		*Alias
-	}{
-		Alias: (*Alias)(r),
-	}
-
-	if r.Internal != nil {
-		if r.Details == nil {
-			r.Details = make(ExtraDetails)
-		}
-		r.Details["raw_error"] = r.Internal.Error()
-	}
-
-	return sonic.Marshal(aux)
+	return sonic.Marshal((*Alias)(r))
 }
 
 func NewNoHealthyBackends(backendName string) *DiffractLLMError {

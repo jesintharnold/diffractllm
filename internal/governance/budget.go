@@ -22,9 +22,8 @@ func (b *Budget) CheckBudgetUsage() bool {
 	if bc == nil || !bc.Enforce || bc.BudgetLimit == 0 {
 		return true
 	}
-	if bc.BudgetParseDuration > 0 && time.Since(bc.LastBudgetRefreshAt) >= bc.BudgetParseDuration {
-		return true
-	}
+	// A stale window is not a free window. TrackBudgetWindow does the reset;
+	// until it lands we stay strict rather than letting spend through.
 	effectiveCost := b.TotalCost.Load() + b.PendingCost.Load()
 	return effectiveCost < bc.BudgetLimit
 }
@@ -41,6 +40,26 @@ func (b *Budget) RecordUsage(spend int64) {
 	b.PendingCost.Add(spend)
 	b.PendingRequests.Add(1)
 }
+
+func budgetResetTarget(cfg *core.Budget, now time.Time) *time.Time {
+	if cfg == nil || cfg.BudgetParseDuration <= 0 {
+		return nil
+	}
+	elapsed := now.Sub(cfg.LastBudgetRefreshAt)
+	if elapsed < cfg.BudgetParseDuration {
+		return nil
+	}
+
+	// A gap of many windows collapses to one reset at the current boundary
+	// rather than replaying one reset per window that went by.
+	windows := int64(elapsed / cfg.BudgetParseDuration)
+	target := cfg.LastBudgetRefreshAt.Add(time.Duration(windows) * cfg.BudgetParseDuration)
+	return &target
+}
+
+
+
+
 
 type BudgetCache struct {
 	BudgetMap sync.Map
@@ -59,18 +78,7 @@ func (bc *BudgetCache) LoadBudgets(budgetData []*core.Budget) {
 	tempactiveIDs := make(map[string]struct{}, len(budgetData))
 	for _, dbBudget := range budgetData {
 		tempactiveIDs[dbBudget.ID] = struct{}{}
-		if existing, ok := bc.BudgetMap.Load(dbBudget.ID); ok {
-			b := existing.(*Budget)
-			b.Config.Store(dbBudget)
-			b.RequestCount.Store(dbBudget.RequestCount)
-			b.TotalCost.Store(dbBudget.TotalSpend)
-		} else {
-			newtempBudget := &Budget{}
-			newtempBudget.Config.Store(dbBudget)
-			newtempBudget.TotalCost.Store(dbBudget.TotalSpend)
-			newtempBudget.RequestCount.Store(dbBudget.RequestCount)
-			bc.BudgetMap.Store(dbBudget.ID, newtempBudget)
-		}
+		bc.UpsertBudget(dbBudget)
 	}
 
 	bc.BudgetMap.Range(func(key, value any) bool {
@@ -88,23 +96,16 @@ func (bc *BudgetCache) LoadBudgets(budgetData []*core.Budget) {
 }
 
 func (bc *BudgetCache) UpsertBudget(budget *core.Budget) {
-	if existing, ok := bc.BudgetMap.Load(budget.ID); ok {
-		b := existing.(*Budget)
-		b.Config.Store(budget)
-		b.RequestCount.Store(budget.RequestCount)
-		b.TotalCost.Store(budget.TotalSpend)
-	} else {
-		newBudget := &Budget{}
-		newBudget.Config.Store(budget)
-		newBudget.TotalCost.Store(budget.TotalSpend)
-		newBudget.RequestCount.Store(budget.RequestCount)
-		actual, loaded := bc.BudgetMap.LoadOrStore(budget.ID, newBudget)
-		if loaded {
-			b := actual.(*Budget)
-			b.Config.Store(budget)
-			b.RequestCount.Store(budget.RequestCount)
-			b.TotalCost.Store(budget.TotalSpend)
-		}
+	if budget == nil {
+		return
+	}
+
+	seeded := &Budget{}
+	seeded.Config.Store(budget)
+	seeded.TotalCost.Store(budget.TotalSpend)
+	seeded.RequestCount.Store(budget.RequestCount)
+	if actual, loaded := bc.BudgetMap.LoadOrStore(budget.ID, seeded); loaded {
+		actual.(*Budget).Config.Store(budget)
 	}
 }
 

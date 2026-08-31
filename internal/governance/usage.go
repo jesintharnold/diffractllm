@@ -20,7 +20,7 @@ type UsageRecord struct {
 	OutputTokens   int64
 	ResponseBytes  int
 	ResponseStatus int
-	Cost           int64 // Per request cost
+	Cost           int64 // Per request cost, nano-USD via core.ToNanoUSD
 	RequestedAt    time.Time
 }
 

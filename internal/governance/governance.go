@@ -11,26 +11,23 @@ import (
 )
 
 type Governance struct {
-	Store        *dbstore.Store
-	KeyCache     *VirtualkeyCache
-	BudgetCache  *BudgetCache
-	UsageBuffer  *UsageBuffer
-	PricingCache *PricingCache
-	logger       *zap.Logger
+	Store       *dbstore.Store
+	KeyCache    *VirtualkeyCache
+	BudgetCache *BudgetCache
+	UsageBuffer *UsageBuffer
+	logger      *zap.Logger
 }
 
 func NewGovernance(store *dbstore.Store, logger *zap.Logger) (*Governance, error) {
 	keyCache := &VirtualkeyCache{logger: logger}
 	budgetCache := &BudgetCache{logger: logger}
 	usageBuffer := NewUsageBuffer(0, logger)
-	priceCache := NewPricingCache(logger)
 	g := &Governance{
-		Store:        store,
-		KeyCache:     keyCache,
-		BudgetCache:  budgetCache,
-		UsageBuffer:  usageBuffer,
-		PricingCache: priceCache,
-		logger:       logger,
+		Store:       store,
+		KeyCache:    keyCache,
+		BudgetCache: budgetCache,
+		UsageBuffer: usageBuffer,
+		logger:      logger,
 	}
 	return g, nil
 }
@@ -42,51 +39,65 @@ func (g *Governance) InitGovernance() error {
 	if err := g.SyncBudget(); err != nil {
 		return fmt.Errorf("init governance: %w", err)
 	}
-	if err := g.SyncBasePrice(); err != nil {
-		return fmt.Errorf("init governance: %w", err)
-	}
-	if err := g.SyncCustomPrice(); err != nil {
-		return fmt.Errorf("init governance: %w", err)
-	}
 	g.logger.Info("governance caches initialized")
 	return nil
 }
 
-func (g *Governance) SyncCustomPrice() error {
-	start := time.Now()
-	g.logger.Debug("custom pricing sync started")
+// func (g *Governance) SyncCustomPrice() error {
+// 	start := time.Now()
+// 	g.logger.Debug("custom pricing sync started")
 
-	customprice, err := g.Store.ListCustomPricing()
-	if err != nil {
-		return fmt.Errorf("sync custom pricing: %w", err)
-	}
-	tempCustomprice := make([]*core.CustomPricing, 0, len(customprice))
-	for i := range customprice {
-		tempCustomprice = append(tempCustomprice, customprice[i].ToCore())
-	}
-	g.PricingCache.LoadCustomPricing(tempCustomprice)
+// 	customprice, err := g.Store.ListCustomPricing()
+// 	if err != nil {
+// 		return fmt.Errorf("sync custom pricing: %w", err)
+// 	}
+// 	tempCustomprice := make([]*core.CustomPricing, 0, len(customprice))
+// 	for i := range customprice {
+// 		tempCustomprice = append(tempCustomprice, customprice[i].ToCore())
+// 	}
+// 	g.Catalog.LoadCustomPricing(tempCustomprice)
 
-	g.logger.Debug("custom pricing sync finished", zap.Int("rows_loaded", len(tempCustomprice)), zap.Duration("took", time.Since(start)))
-	return nil
-}
+// 	g.logger.Debug("custom pricing sync finished", zap.Int("rows_loaded", len(tempCustomprice)), zap.Duration("took", time.Since(start)))
+// 	return nil
+// }
 
-func (g *Governance) SyncBasePrice() error {
-	start := time.Now()
-	g.logger.Debug("base pricing sync started")
+// func (g *Governance) SyncModelMetadata() error {
+// 	start := time.Now()
+// 	g.logger.Debug("model metadata sync started")
 
-	baseprice, err := g.Store.ListBasePricing()
-	if err != nil {
-		return fmt.Errorf("sync base pricing: %w", err)
-	}
-	tempBaseprice := make([]*core.BasePricing, 0, len(baseprice))
-	for i := range baseprice {
-		tempBaseprice = append(tempBaseprice, baseprice[i].ToCore())
-	}
-	g.PricingCache.LoadBasePricing(tempBaseprice)
+// 	rows, err := g.Store.ListModelMetadata()
+// 	if err != nil {
+// 		return fmt.Errorf("sync model metadata: %w", err)
+// 	}
+// 	// Built as one contiguous slice - the catalog's lookup map points into it.
+// 	models := make([]core.ModelMetaData, 0, len(rows))
+// 	for i := range rows {
+// 		models = append(models, rows[i].ToCore())
+// 	}
+// 	g.Catalog.LoadModels(models)
 
-	g.logger.Debug("base pricing sync finished", zap.Int("rows_loaded", len(tempBaseprice)), zap.Duration("took", time.Since(start)))
-	return nil
-}
+// 	g.logger.Debug("model metadata sync finished",
+// 		zap.Int("rows_loaded", len(models)), zap.Duration("took", time.Since(start)))
+// 	return nil
+// }
+
+// func (g *Governance) SyncBasePrice() error {
+// 	start := time.Now()
+// 	g.logger.Debug("base pricing sync started")
+
+// 	baseprice, err := g.Store.ListBasePricing()
+// 	if err != nil {
+// 		return fmt.Errorf("sync base pricing: %w", err)
+// 	}
+// 	tempBaseprice := make([]*core.BasePricing, 0, len(baseprice))
+// 	for i := range baseprice {
+// 		tempBaseprice = append(tempBaseprice, baseprice[i].ToCore())
+// 	}
+// 	g.Catalog.LoadBasePricing(tempBaseprice)
+
+// 	g.logger.Debug("base pricing sync finished", zap.Int("rows_loaded", len(tempBaseprice)), zap.Duration("took", time.Since(start)))
+// 	return nil
+// }
 
 func (g *Governance) SyncVirtualKey() error {
 	start := time.Now()
@@ -98,7 +109,14 @@ func (g *Governance) SyncVirtualKey() error {
 
 	tempVkey := make([]*core.VirtualKey, 0, len(vkeydetail))
 	for i := range vkeydetail {
-		tempVkey = append(tempVkey, vkeydetail[i].ToCore())
+		virtualKey, err := vkeydetail[i].ToCore()
+		if err != nil {
+			return fmt.Errorf("sync virtual key %q: %w", vkeydetail[i].ID, err)
+		}
+		if err := virtualKey.Validate(); err != nil {
+			return fmt.Errorf("sync virtual key %q: %w", vkeydetail[i].ID, err)
+		}
+		tempVkey = append(tempVkey, virtualKey)
 	}
 	g.KeyCache.LoadVirtualKeys(tempVkey)
 
@@ -166,21 +184,21 @@ func (g *Governance) FlushUsageHistory() {
 func (g *Governance) FlushBudgetUsage() {
 	g.BudgetCache.BudgetMap.Range(func(key, value any) bool {
 		b := value.(*Budget)
+		cfg := b.Config.Load()
+		if cfg == nil {
+			return true
+		}
 		pendingCost := b.PendingCost.Swap(0)
 		pendingReq := b.PendingRequests.Swap(0)
-		cfg := b.Config.Load()
+		if pendingCost == 0 && pendingReq == 0 {
+			return true
+		}
 
-		if pendingCost > 0 || pendingReq > 0 {
-			err := g.Store.FlushBudgetUsage(cfg.ID, pendingCost, pendingReq)
+		totalCost := b.TotalCost.Add(pendingCost)
+		totalReq := b.RequestCount.Add(pendingReq)
 
-			if err != nil {
-				g.logger.Error("Failed to flush budget usage", zap.Error(err), zap.String("budget_id", cfg.ID))
-				b.PendingCost.Add(pendingCost)
-				b.PendingRequests.Add(pendingReq)
-			} else {
-				b.TotalCost.Add(pendingCost)
-				b.RequestCount.Add(pendingReq)
-			}
+		if err := g.Store.FlushBudgetUsage(cfg.ID, totalCost, totalReq); err != nil {
+			g.logger.Error("Failed to flush budget usage", zap.Error(err), zap.String("budget_id", cfg.ID))
 		}
 		return true
 	})
@@ -191,21 +209,19 @@ func (g *Governance) TrackBudgetWindow() {
 	g.BudgetCache.BudgetMap.Range(func(key, value any) bool {
 		b := value.(*Budget)
 		cfg := b.Config.Load()
-		if cfg == nil || cfg.BudgetParseDuration <= 0 {
+		target := budgetResetTarget(cfg, now)
+		if target == nil {
 			return true
 		}
 
-		if now.Sub(cfg.LastBudgetRefreshAt) < cfg.BudgetParseDuration {
-			return true
-		}
-		if err := g.Store.ResetBudgetWindow(cfg.ID, now); err != nil {
+		if err := g.Store.ResetBudgetWindow(cfg.ID, *target); err != nil {
 			g.logger.Error("budget window reset DB write failed, will retry next tick",
 				zap.String("budget_id", cfg.ID), zap.Error(err))
 			return true
 		}
 
 		newCfg := *cfg
-		newCfg.LastBudgetRefreshAt = now
+		newCfg.LastBudgetRefreshAt = *target
 		newCfg.TotalSpend = 0
 		newCfg.RequestCount = 0
 		b.Config.Store(&newCfg)

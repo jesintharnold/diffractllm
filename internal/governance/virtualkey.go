@@ -8,7 +8,6 @@ import (
 	"hash/crc32"
 	"io"
 	"math/big"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -90,23 +89,6 @@ func ValidateKeySignature(apiKey string) bool {
 	var n big.Int
 	n.SetUint64(uint64(chksumcal))
 	return apiKey[len(rkPrefix)+rkPayloadLen:] == base62Encode(&n, rkChecksumLen)
-}
-
-func ToModelKeySet(refs []string) map[core.ModelKey]struct{} {
-	if len(refs) == 0 {
-		return nil
-	}
-	s := make(map[core.ModelKey]struct{}, len(refs))
-	for _, r := range refs {
-
-		idx := strings.IndexByte(r, '/')
-		if idx <= 0 || idx == len(r)-1 {
-			continue
-		}
-
-		s[core.ModelKey{Provider: core.Provider(r[:idx]), ModelName: r[idx+1:]}] = struct{}{}
-	}
-	return s
 }
 
 type VirtualKeyMap map[string]*core.VirtualKey

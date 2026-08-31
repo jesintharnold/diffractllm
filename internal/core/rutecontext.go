@@ -16,7 +16,7 @@ type DiffractLLMContext struct {
 	Request     *http.Request
 	BodyBytes   []byte
 	SDKProvider Provider
-	Modelkey    ModelKey
+	Modelkey    CatalogKey
 	RequestKind RequestKind
 	Writer      http.ResponseWriter
 	metadata    map[DiffractLLMContextKey]any
@@ -24,17 +24,16 @@ type DiffractLLMContext struct {
 	HookLog     HookLog
 
 	// === GOVERNANCE FIELDS ===
-	ClientID      string
-	Mode          VKMode
-	AllowedModels map[ModelKey]struct{}
-	ModelPools    map[string]struct{}
-	BudgetRef     string
-	VirtualKeyID  string
-	VirtualKey    string
-	AuthFrozen    bool
+	ClientID         string
+	BudgetRef        string
+	VirtualKeyID     string
+	VirtualKeyPolicy *VirtualKey
+	AuthFrozen       bool
 
 	// === LOAD BALANCER ====
-	// TargetModel      *Model
+	RequestedProvider  Provider
+	RequestedModel     string
+	SelectedCredential *Credential
 
 	// === PROXY OUTCOME FIELDS ===
 	UpstreamStatus int
@@ -44,6 +43,13 @@ type DiffractLLMContext struct {
 	RequestCompleted bool
 	ResponseStatus   int
 	ResponseBytes    int
+
+	Usage *Usage
+
+	Cost               float64
+	StreamChunks       int32
+	StreamFinishReason FinishReason
+	StreamAborted      bool
 }
 
 func (rc *DiffractLLMContext) Context() context.Context { return rc.ctx }
@@ -59,6 +65,19 @@ func (rc *DiffractLLMContext) Set(key DiffractLLMContextKey, value any) error {
 func (rc *DiffractLLMContext) Get(key DiffractLLMContextKey) (any, bool) {
 	val, ok := rc.metadata[key]
 	return val, ok
+}
+
+func (rc *DiffractLLMContext) Overwrite(key DiffractLLMContextKey, value any) {
+	rc.metadata[key] = value
+}
+
+// Write appends raw bytes to the response after headers are sent. SSE needs
+// this: JSON below sets a status and cannot be called per chunk. Keeping the
+// write behind this method also keeps ResponseBytes accurate for streams.
+func (rc *DiffractLLMContext) Write(p []byte) (int, error) {
+	n, err := rc.Writer.Write(p)
+	rc.ResponseBytes += n
+	return n, err
 }
 func (rc *DiffractLLMContext) SetHeader(key, value string) {
 	rc.Writer.Header().Set(key, value)
@@ -94,19 +113,19 @@ func (rc *DiffractLLMContext) reset() {
 	rc.Request = nil
 	rc.BodyBytes = nil
 	rc.SDKProvider = ""
-	rc.Modelkey = ModelKey{}
+	rc.Modelkey = CatalogKey{}
 	rc.RequestKind = ""
 	rc.Writer = nil
 	rc.aborted.Store(false)
 
 	// === GOVERNANCE ===
 	rc.ClientID = ""
-	rc.Mode = VKAllowedModel
-	rc.AllowedModels = nil
-	rc.ModelPools = nil
 	rc.BudgetRef = ""
 	rc.VirtualKeyID = ""
-	rc.VirtualKey = ""
+	rc.VirtualKeyPolicy = nil
+	rc.RequestedProvider = ""
+	rc.RequestedModel = ""
+	rc.SelectedCredential = nil
 
 	rc.AuthFrozen = false
 	rc.UpstreamStatus = 0
@@ -115,6 +134,11 @@ func (rc *DiffractLLMContext) reset() {
 	rc.RequestCompleted = false
 	rc.ResponseStatus = 0
 	rc.ResponseBytes = 0
+	rc.Usage = nil
+	rc.Cost = 0
+	rc.StreamChunks = 0
+	rc.StreamFinishReason = ""
+	rc.StreamAborted = false
 
 	// Hook logs we are performing a reset - Important for flush
 	rc.HookLog.reset()

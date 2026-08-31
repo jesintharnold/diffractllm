@@ -1,4 +1,4 @@
-﻿package dbstore
+package dbstore
 
 import (
 	"diffractllm/internal/core"
@@ -13,7 +13,7 @@ type StoreBudget struct {
 	ID                  string        `gorm:"primaryKey;type:text"`
 	Name                string        `gorm:"uniqueIndex;not null;type:text"`
 	BudgetLimit         int64         `gorm:"not null"`
-	BudgetUnit          string        `gorm:"not null;default:'microdollars'"`
+	BudgetUnit          string        `gorm:"not null;default:'nanodollars'"`
 	BudgetDuration      string        `gorm:"not null;type:varchar(10)"`
 	Enforce             bool          `gorm:"not null;default:true"`
 	TotalCost           int64         `gorm:"not null;default:0"`
@@ -60,7 +60,7 @@ func (b *StoreBudget) ToCore() *core.Budget {
 func (s *Store) CreateBudget(b core.Budget) (*StoreBudget, error) {
 	unit := b.BudgetUnit
 	if unit == "" {
-		unit = "microdollars"
+		unit = core.BudgetUnitNanoUSD
 	}
 	budget := StoreBudget{
 		ID:                  uuid.Must(uuid.NewV7()).String(),
@@ -145,10 +145,10 @@ func (s *Store) DeleteBudget(budgetID string) error {
 	return s.DB.Where("id = ?", budgetID).Delete(&StoreBudget{}).Error
 }
 
-func (s *Store) FlushBudgetUsage(budgetID string, spend, requests int64) error {
+func (s *Store) FlushBudgetUsage(budgetID string, totalCost, totalRequests int64) error {
 	updates := map[string]any{
-		"total_cost":      gorm.Expr("total_cost + ?", spend),
-		"request_count":   gorm.Expr("request_count + ?", requests),
+		"total_cost":      totalCost,
+		"request_count":   totalRequests,
 		"last_flushed_at": time.Now(),
 	}
 	return s.DB.Model(&StoreBudget{}).Where("id = ?", budgetID).UpdateColumns(updates).Error

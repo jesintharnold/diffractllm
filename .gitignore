@@ -1,2 +1,10 @@
-*.md
 **/**.yaml
+**/refactor-plan/*.md
+**.html
+**/reference
+**.md
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+graft/
+.claude
+.mcp.json
+.ignore
