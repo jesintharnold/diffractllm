@@ -184,21 +184,21 @@ func (g *Governance) FlushUsageHistory() {
 func (g *Governance) FlushBudgetUsage() {
 	g.BudgetCache.BudgetMap.Range(func(key, value any) bool {
 		b := value.(*Budget)
+		cfg := b.Config.Load()
+		if cfg == nil {
+			return true
+		}
 		pendingCost := b.PendingCost.Swap(0)
 		pendingReq := b.PendingRequests.Swap(0)
-		cfg := b.Config.Load()
+		if pendingCost == 0 && pendingReq == 0 {
+			return true
+		}
 
-		if pendingCost > 0 || pendingReq > 0 {
-			err := g.Store.FlushBudgetUsage(cfg.ID, pendingCost, pendingReq)
+		totalCost := b.TotalCost.Add(pendingCost)
+		totalReq := b.RequestCount.Add(pendingReq)
 
-			if err != nil {
-				g.logger.Error("Failed to flush budget usage", zap.Error(err), zap.String("budget_id", cfg.ID))
-				b.PendingCost.Add(pendingCost)
-				b.PendingRequests.Add(pendingReq)
-			} else {
-				b.TotalCost.Add(pendingCost)
-				b.RequestCount.Add(pendingReq)
-			}
+		if err := g.Store.FlushBudgetUsage(cfg.ID, totalCost, totalReq); err != nil {
+			g.logger.Error("Failed to flush budget usage", zap.Error(err), zap.String("budget_id", cfg.ID))
 		}
 		return true
 	})

@@ -145,10 +145,10 @@ func (s *Store) DeleteBudget(budgetID string) error {
 	return s.DB.Where("id = ?", budgetID).Delete(&StoreBudget{}).Error
 }
 
-func (s *Store) FlushBudgetUsage(budgetID string, spend, requests int64) error {
+func (s *Store) FlushBudgetUsage(budgetID string, totalCost, totalRequests int64) error {
 	updates := map[string]any{
-		"total_cost":      gorm.Expr("total_cost + ?", spend),
-		"request_count":   gorm.Expr("request_count + ?", requests),
+		"total_cost":      totalCost,
+		"request_count":   totalRequests,
 		"last_flushed_at": time.Now(),
 	}
 	return s.DB.Model(&StoreBudget{}).Where("id = ?", budgetID).UpdateColumns(updates).Error
