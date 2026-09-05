@@ -1,6 +1,7 @@
-﻿package governance
+package governance
 
 import (
+	"context"
 	"diffractllm/internal/core"
 	"diffractllm/internal/dbstore"
 	"diffractllm/internal/worker"
@@ -11,6 +12,13 @@ import (
 	"go.uber.org/zap"
 )
 
+type jobsIntervalconfig struct {
+	vkeySyncInterval        time.Duration
+	budgetSyncInterval      time.Duration
+	usageFlushInterval      time.Duration
+	budgetFlushRollInterval time.Duration
+}
+
 type Governance struct {
 	Store       *dbstore.Store
 	KeyCache    *VirtualkeyCache
@@ -18,6 +26,7 @@ type Governance struct {
 	UsageBuffer *UsageBuffer
 	logger      *zap.Logger
 	workers     *worker.Group
+	config      jobsIntervalconfig
 }
 
 func NewGovernance(store *dbstore.Store, logger *zap.Logger) (*Governance, error) {
@@ -30,56 +39,108 @@ func NewGovernance(store *dbstore.Store, logger *zap.Logger) (*Governance, error
 		BudgetCache: budgetCache,
 		UsageBuffer: usageBuffer,
 		logger:      logger,
+		config: jobsIntervalconfig{
+			vkeySyncInterval:        10 * time.Second,
+			budgetSyncInterval:      10 * time.Second,
+			usageFlushInterval:      10 * time.Second,
+			budgetFlushRollInterval: 10 * time.Second,
+		},
 	}
 	return g, nil
 }
 
-func (g *Governance) InitGovernance() error {
-	if err := g.SyncVirtualKey(); err != nil {
-		return fmt.Errorf("init governance: %w", err)
+func (g *Governance) Start(ctx context.Context) error {
+	g.workers = worker.NewGroup("governance", g.logger)
+	err := g.workers.Add(
+		&worker.Job{
+			Name:       "budget_sync",
+			Interval:   g.config.budgetSyncInterval,
+			RunAtStart: true,
+			Run: func(ctx context.Context) (worker.Detail, error) {
+				loaded, err := g.syncBudget()
+				if err != nil {
+					return nil, err
+				}
+				return worker.Detail{"budgets_loaded": loaded}, nil
+			},
+		},
+
+		&worker.Job{
+			Name:       "virtual_keys_sync",
+			Interval:   g.config.vkeySyncInterval,
+			RunAtStart: true,
+			Run: func(ctx context.Context) (worker.Detail, error) {
+				loaded, err := g.syncVirtualKey()
+				if err != nil {
+					return nil, err
+				}
+				return worker.Detail{"virtual_keys_loaded": loaded}, nil
+			},
+		},
+
+		&worker.Job{
+			Name:      "usage_flush",
+			Interval:  g.config.usageFlushInterval,
+			RunAtStop: true,
+			Run: func(ctx context.Context) (worker.Detail, error) {
+				written, err := g.flushUsageHistory()
+				return worker.Detail{
+					"records_written": written,
+					"records_pending": g.UsageBuffer.Len(),
+					"records_dropped": g.UsageBuffer.DroppedCount(),
+				}, err
+			},
+		},
+
+		&worker.Job{
+			Name:      "budget_flush_roll",
+			Interval:  g.config.budgetFlushRollInterval,
+			RunAtStop: true,
+			Run: func(ctx context.Context) (worker.Detail, error) {
+				flushed := g.flushBudgetUsage()
+				rolled := g.trackBudgetWindow()
+				return worker.Detail{"budgets_flushed": flushed, "windows_rolled": rolled}, nil
+			},
+		},
+	)
+	if err != nil {
+		return err
 	}
-	if err := g.SyncBudget(); err != nil {
-		return fmt.Errorf("init governance: %w", err)
-	}
-	g.logger.Info("governance caches initialized")
-	return nil
+	return g.workers.Start(ctx)
 }
 
-func (g *Governance) SyncVirtualKey() error {
+func (g *Governance) syncVirtualKey() (int, error) {
 	start := time.Now()
 	g.logger.Debug("virtual key sync started")
 	vkeydetail, err := g.Store.ListVirtualKeys()
 	if err != nil {
-		return fmt.Errorf("sync virtual keys: %w", err)
+		return 0, fmt.Errorf("sync virtual keys: %w", err)
 	}
 
 	tempVkey := make([]*core.VirtualKey, 0, len(vkeydetail))
 	for i := range vkeydetail {
 		virtualKey, err := vkeydetail[i].ToCore()
 		if err != nil {
-			return fmt.Errorf("sync virtual key %q: %w", vkeydetail[i].ID, err)
+			return 0, fmt.Errorf("sync virtual key %q: %w", vkeydetail[i].ID, err)
 		}
 		if err := virtualKey.Validate(); err != nil {
-			return fmt.Errorf("sync virtual key %q: %w", vkeydetail[i].ID, err)
+			return 0, fmt.Errorf("sync virtual key %q: %w", vkeydetail[i].ID, err)
 		}
 		tempVkey = append(tempVkey, virtualKey)
 	}
 	g.KeyCache.LoadVirtualKeys(tempVkey)
 
-	g.logger.Debug("virtual key sync finished",
-		zap.Int("rows_loaded", len(tempVkey)),
-		zap.Duration("took", time.Since(start)),
-	)
-	return nil
+	g.logger.Debug("virtual key sync finished", zap.Int("rows_loaded", len(tempVkey)), zap.Duration("took", time.Since(start)))
+	return len(tempVkey), nil
 }
 
-func (g *Governance) SyncBudget() error {
+func (g *Governance) syncBudget() (int, error) {
 	start := time.Now()
 	g.logger.Debug("budget sync started")
 
 	db_budget, err := g.Store.ListBudgets()
 	if err != nil {
-		return fmt.Errorf("sync budget : %w", err)
+		return 0, fmt.Errorf("sync budget : %w", err)
 	}
 	tempBudget := make([]*core.Budget, 0, len(db_budget))
 	for i := range db_budget {
@@ -88,14 +149,14 @@ func (g *Governance) SyncBudget() error {
 	g.BudgetCache.LoadBudgets(tempBudget)
 
 	g.logger.Debug("budget sync finished", zap.Int("rows_loaded", len(db_budget)), zap.Duration("took", time.Since(start)))
-	return nil
+	return len(tempBudget), nil
 }
 
 // Responsible for hisory drain to the DB
-func (g *Governance) FlushUsageHistory() {
+func (g *Governance) flushUsageHistory() (int, error) {
 	records := g.UsageBuffer.Drain()
 	if len(records) == 0 {
-		return
+		return 0, nil
 	}
 	storeRecords := make([]dbstore.StoreUsageRecord, len(records))
 	for index, record := range records {
@@ -121,13 +182,15 @@ func (g *Governance) FlushUsageHistory() {
 		for _, r := range records {
 			g.UsageBuffer.Append(r)
 		}
-		return
+		return 0, err
 	}
 	g.logger.Debug("usage flushed", zap.Int("count", len(records)))
+	return len(records), nil
 }
 
 // Responsible for Budget windows for all
-func (g *Governance) FlushBudgetUsage() {
+func (g *Governance) flushBudgetUsage() int64 {
+	var flushed int64
 	g.BudgetCache.BudgetMap.Range(func(key, value any) bool {
 		b := value.(*Budget)
 		cfg := b.Config.Load()
@@ -147,12 +210,15 @@ func (g *Governance) FlushBudgetUsage() {
 		}
 		b.LastFlushed.Store(cost)
 		b.LastReqs.Store(reqs)
+		flushed++
 		return true
 	})
+	return flushed
 }
 
-func (g *Governance) TrackBudgetWindow() {
+func (g *Governance) trackBudgetWindow() int64 {
 	now := time.Now()
+	var rolled int64
 	g.BudgetCache.BudgetMap.Range(func(key, value any) bool {
 		b := value.(*Budget)
 		cfg := b.Config.Load()
@@ -186,7 +252,8 @@ func (g *Governance) TrackBudgetWindow() {
 		b.WindowReqs.Add(-reqs)
 		b.LastFlushed.Store(0)
 		b.LastReqs.Store(0)
+		rolled++
 		return true
 	})
-
+	return rolled
 }

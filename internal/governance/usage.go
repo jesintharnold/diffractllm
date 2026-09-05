@@ -1,4 +1,4 @@
-﻿package governance
+package governance
 
 import (
 	"sync"
@@ -63,6 +63,12 @@ func (ub *UsageBuffer) Drain() []UsageRecord {
 	ub.records = make([]UsageRecord, 0, cap(out))
 	ub.lock.Unlock()
 	return out
+}
+
+func (ub *UsageBuffer) Len() int {
+	ub.lock.Lock()
+	defer ub.lock.Unlock()
+	return len(ub.records)
 }
 
 func (ub *UsageBuffer) DroppedCount() int64 {
