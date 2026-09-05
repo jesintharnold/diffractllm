@@ -3,6 +3,7 @@
 import (
 	"diffractllm/internal/core"
 	"diffractllm/internal/dbstore"
+	"diffractllm/internal/worker"
 	"fmt"
 	"time"
 
@@ -16,6 +17,7 @@ type Governance struct {
 	BudgetCache *BudgetCache
 	UsageBuffer *UsageBuffer
 	logger      *zap.Logger
+	workers     *worker.Group
 }
 
 func NewGovernance(store *dbstore.Store, logger *zap.Logger) (*Governance, error) {
@@ -42,62 +44,6 @@ func (g *Governance) InitGovernance() error {
 	g.logger.Info("governance caches initialized")
 	return nil
 }
-
-// func (g *Governance) SyncCustomPrice() error {
-// 	start := time.Now()
-// 	g.logger.Debug("custom pricing sync started")
-
-// 	customprice, err := g.Store.ListCustomPricing()
-// 	if err != nil {
-// 		return fmt.Errorf("sync custom pricing: %w", err)
-// 	}
-// 	tempCustomprice := make([]*core.CustomPricing, 0, len(customprice))
-// 	for i := range customprice {
-// 		tempCustomprice = append(tempCustomprice, customprice[i].ToCore())
-// 	}
-// 	g.Catalog.LoadCustomPricing(tempCustomprice)
-
-// 	g.logger.Debug("custom pricing sync finished", zap.Int("rows_loaded", len(tempCustomprice)), zap.Duration("took", time.Since(start)))
-// 	return nil
-// }
-
-// func (g *Governance) SyncModelMetadata() error {
-// 	start := time.Now()
-// 	g.logger.Debug("model metadata sync started")
-
-// 	rows, err := g.Store.ListModelMetadata()
-// 	if err != nil {
-// 		return fmt.Errorf("sync model metadata: %w", err)
-// 	}
-// 	// Built as one contiguous slice - the catalog's lookup map points into it.
-// 	models := make([]core.ModelMetaData, 0, len(rows))
-// 	for i := range rows {
-// 		models = append(models, rows[i].ToCore())
-// 	}
-// 	g.Catalog.LoadModels(models)
-
-// 	g.logger.Debug("model metadata sync finished",
-// 		zap.Int("rows_loaded", len(models)), zap.Duration("took", time.Since(start)))
-// 	return nil
-// }
-
-// func (g *Governance) SyncBasePrice() error {
-// 	start := time.Now()
-// 	g.logger.Debug("base pricing sync started")
-
-// 	baseprice, err := g.Store.ListBasePricing()
-// 	if err != nil {
-// 		return fmt.Errorf("sync base pricing: %w", err)
-// 	}
-// 	tempBaseprice := make([]*core.BasePricing, 0, len(baseprice))
-// 	for i := range baseprice {
-// 		tempBaseprice = append(tempBaseprice, baseprice[i].ToCore())
-// 	}
-// 	g.Catalog.LoadBasePricing(tempBaseprice)
-
-// 	g.logger.Debug("base pricing sync finished", zap.Int("rows_loaded", len(tempBaseprice)), zap.Duration("took", time.Since(start)))
-// 	return nil
-// }
 
 func (g *Governance) SyncVirtualKey() error {
 	start := time.Now()
@@ -188,18 +134,19 @@ func (g *Governance) FlushBudgetUsage() {
 		if cfg == nil {
 			return true
 		}
-		pendingCost := b.PendingCost.Swap(0)
-		pendingReq := b.PendingRequests.Swap(0)
-		if pendingCost == 0 && pendingReq == 0 {
+		cost := b.WindowCost.Load()
+		reqs := b.WindowReqs.Load()
+		if cost == b.LastFlushed.Load() && reqs == b.LastReqs.Load() {
 			return true
 		}
 
-		totalCost := b.TotalCost.Add(pendingCost)
-		totalReq := b.RequestCount.Add(pendingReq)
-
-		if err := g.Store.FlushBudgetUsage(cfg.ID, totalCost, totalReq); err != nil {
+		if err := g.Store.FlushBudgetUsage(cfg.ID, cost, reqs); err != nil {
+			// LastFlushed stays behind, so the next tick rewrites the same value.
 			g.logger.Error("Failed to flush budget usage", zap.Error(err), zap.String("budget_id", cfg.ID))
+			return true
 		}
+		b.LastFlushed.Store(cost)
+		b.LastReqs.Store(reqs)
 		return true
 	})
 }
@@ -214,6 +161,15 @@ func (g *Governance) TrackBudgetWindow() {
 			return true
 		}
 
+		// Close the old window at its final total before resetting.
+		cost := b.WindowCost.Load()
+		reqs := b.WindowReqs.Load()
+		if err := g.Store.FlushBudgetUsage(cfg.ID, cost, reqs); err != nil {
+			g.logger.Error("closing window flush failed, will retry next tick",
+				zap.String("budget_id", cfg.ID), zap.Error(err))
+			return true
+		}
+
 		if err := g.Store.ResetBudgetWindow(cfg.ID, *target); err != nil {
 			g.logger.Error("budget window reset DB write failed, will retry next tick",
 				zap.String("budget_id", cfg.ID), zap.Error(err))
@@ -225,8 +181,11 @@ func (g *Governance) TrackBudgetWindow() {
 		newCfg.TotalSpend = 0
 		newCfg.RequestCount = 0
 		b.Config.Store(&newCfg)
-		b.TotalCost.Store(0)
-		b.RequestCount.Store(0)
+
+		b.WindowCost.Add(-cost)
+		b.WindowReqs.Add(-reqs)
+		b.LastFlushed.Store(0)
+		b.LastReqs.Store(0)
 		return true
 	})
 

@@ -10,11 +10,16 @@ import (
 )
 
 type Budget struct {
-	Config          atomic.Pointer[core.Budget]
-	TotalCost       atomic.Int64
-	RequestCount    atomic.Int64
-	PendingCost     atomic.Int64 // This stores the total budget amount which are not written to the DB yet
-	PendingRequests atomic.Int64 // This stores the request count which are not written to the DB yet
+	Config atomic.Pointer[core.Budget]
+
+	// Everything spent this window, flushed or not. One counter, so a reader
+	// cannot catch spend mid-move between two fields.
+	WindowCost atomic.Int64
+	WindowReqs atomic.Int64
+
+	// What the database last accepted. Written by the settle goroutine only.
+	LastFlushed atomic.Int64
+	LastReqs    atomic.Int64
 }
 
 func (b *Budget) CheckBudgetUsage() bool {
@@ -24,8 +29,7 @@ func (b *Budget) CheckBudgetUsage() bool {
 	}
 	// A stale window is not a free window. TrackBudgetWindow does the reset;
 	// until it lands we stay strict rather than letting spend through.
-	effectiveCost := b.TotalCost.Load() + b.PendingCost.Load()
-	return effectiveCost < bc.BudgetLimit
+	return b.WindowCost.Load() < bc.BudgetLimit
 }
 
 func (b *Budget) CheckBudgetWindow() bool {
@@ -37,8 +41,8 @@ func (b *Budget) CheckBudgetWindow() bool {
 }
 
 func (b *Budget) RecordUsage(spend int64) {
-	b.PendingCost.Add(spend)
-	b.PendingRequests.Add(1)
+	b.WindowCost.Add(spend)
+	b.WindowReqs.Add(1)
 }
 
 func budgetResetTarget(cfg *core.Budget, now time.Time) *time.Time {
@@ -102,8 +106,10 @@ func (bc *BudgetCache) UpsertBudget(budget *core.Budget) {
 
 	seeded := &Budget{}
 	seeded.Config.Store(budget)
-	seeded.TotalCost.Store(budget.TotalSpend)
-	seeded.RequestCount.Store(budget.RequestCount)
+	seeded.WindowCost.Store(budget.TotalSpend)
+	seeded.WindowReqs.Store(budget.RequestCount)
+	seeded.LastFlushed.Store(budget.TotalSpend)
+	seeded.LastReqs.Store(budget.RequestCount)
 	if actual, loaded := bc.BudgetMap.LoadOrStore(budget.ID, seeded); loaded {
 		actual.(*Budget).Config.Store(budget)
 	}
