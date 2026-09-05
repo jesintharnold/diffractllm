@@ -11,12 +11,10 @@ type Provider interface {
 	ChatCompletionStream(rctx *core.DiffractLLMContext, req *core.DiffractLLMChatCompletionRequest, cred *core.Credential) (<-chan *core.DiffractLLMChatCompletionStreamResponse, *core.DiffractLLMError)
 }
 
+// ProviderInstance is written once at boot and read-only afterwards, so the
+// map needs no lock - but only if nothing outside can reach it.
 type ProviderInstance struct {
-	ProviderMap map[core.Provider]Provider
-}
-
-type ProviderRequest interface {
-	IsStreaming() bool
+	providers map[core.Provider]Provider
 }
 
 func NewUnsupportedOperation(kind core.RequestKind, provider core.Provider) *core.DiffractLLMError {
@@ -25,17 +23,17 @@ func NewUnsupportedOperation(kind core.RequestKind, provider core.Provider) *cor
 
 func NewProviderInstance() *ProviderInstance {
 	p := ProviderInstance{
-		ProviderMap: make(map[core.Provider]Provider),
+		providers: make(map[core.Provider]Provider),
 	}
 	return &p
 }
 
 func (pi *ProviderInstance) Register(p Provider) {
-	pi.ProviderMap[p.ProviderName()] = p
+	pi.providers[p.ProviderName()] = p
 }
 
-func (pi *ProviderInstance) Get(provider core.Provider) (Provider, error) {
-	p, ok := pi.ProviderMap[provider]
+func (pi *ProviderInstance) Get(provider core.Provider) (Provider, *core.DiffractLLMError) {
+	p, ok := pi.providers[provider]
 	if !ok {
 		return nil, core.NewInternalError("provider", fmt.Sprintf("provider %s is not registered", string(provider)), nil)
 	}

@@ -9,9 +9,10 @@ import (
 )
 
 type DBSource struct {
-	store  *Store
-	logger *zap.Logger
-	path   string
+	store       *Store
+	logger      *zap.Logger
+	path        string
+	mockEnabled bool
 }
 
 func NewDBSource(logger *zap.Logger) (*DBSource, error) {
@@ -26,9 +27,10 @@ func NewDBSource(logger *zap.Logger) (*DBSource, error) {
 		return nil, fmt.Errorf("failed to create new db store : %w", err)
 	}
 	return &DBSource{
-		store:  store,
-		logger: logger,
-		path:   dbpath,
+		store:       store,
+		logger:      logger,
+		path:        dbpath,
+		mockEnabled: cfg.ServerConfig.MockEnabled,
 	}, nil
 }
 
@@ -40,15 +42,9 @@ func (s *DBSource) Init() error {
 	if err := s.store.Migrate(); err != nil {
 		return fmt.Errorf("db source migrate: %w", err)
 	}
-
-	cfg, err := config.Load()
-	if err != nil {
-		return fmt.Errorf("db source config: %w", err)
-	}
-	if err := s.store.Seed(cfg.ServerConfig.MockEnabled); err != nil {
+	if err := s.store.Seed(s.mockEnabled); err != nil {
 		return fmt.Errorf("db source seed: %w", err)
 	}
-
 	return nil
 }
 
