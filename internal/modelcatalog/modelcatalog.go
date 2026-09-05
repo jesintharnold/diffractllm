@@ -1,9 +1,11 @@
 package modelcatalog
 
 import (
+	"context"
 	config "diffractllm/configs"
 	"diffractllm/internal/core"
 	"diffractllm/internal/dbstore"
+	"diffractllm/internal/worker"
 	"fmt"
 	"net/http"
 	"sync"
@@ -12,6 +14,8 @@ import (
 
 	"go.uber.org/zap"
 )
+
+const JobCatalogSync = "catalog_sync"
 
 type ModelSnapshot struct {
 	entries    []core.ModelMetadata
@@ -68,23 +72,14 @@ type ModelCatalog struct {
 	basePricing   atomic.Pointer[BasePricingSnapshot]
 	customPricing atomic.Pointer[CustomPriceSnapshot]
 
-	lastModelSync  atomic.Int64
-	lastBaseSync   atomic.Int64
-	lastCustomSync atomic.Int64
-
 	store  *dbstore.Store
 	logger *zap.Logger
-
-	mu      sync.Mutex
-	cfg     config.ModelCatalogConfig
-	started bool
+	cfg    config.ModelCatalogConfig
 
 	customMu sync.Mutex
+	client   *http.Client
 
-	client *http.Client
-
-	done chan struct{}
-	wg   sync.WaitGroup
+	workers *worker.Group
 }
 
 func NewModelCatalog(store *dbstore.Store, cfg config.ModelCatalogConfig, logger *zap.Logger) *ModelCatalog {
@@ -96,7 +91,65 @@ func NewModelCatalog(store *dbstore.Store, cfg config.ModelCatalogConfig, logger
 	}
 }
 
-func (c *ModelCatalog) LoadModels() error {
+func (c *ModelCatalog) Start(ctx context.Context) error {
+	c.workers = worker.NewGroup("catalog", c.logger)
+	err := c.workers.Add(
+		&worker.Job{
+			Name:       JobCatalogSync,
+			Interval:   c.cfg.SyncInterval,
+			RunAtStart: true,
+			Run:        c.syncCatalog,
+		},
+	)
+	if err != nil {
+		return err
+	}
+	return c.workers.Start(ctx)
+}
+
+func (c *ModelCatalog) Shutdown(ctx context.Context) error { return c.workers.Shutdown(ctx) }
+
+func (c *ModelCatalog) Stats() []worker.JobStats {
+	return c.workers.Stats()
+}
+
+func (c *ModelCatalog) SyncNow() error {
+	return c.workers.Trigger(JobCatalogSync)
+}
+
+func (c *ModelCatalog) syncCatalog(ctx context.Context) (worker.Detail, error) {
+	src := &CatalogSource{}
+	models, variants, err := src.Fetch(ctx, c.client)
+	if err != nil {
+		return nil, fmt.Errorf("fetch catalog feed: %w", err)
+	}
+
+	if err := c.store.BulkSyncModelMetadata(*models); err != nil {
+		return nil, fmt.Errorf("write model metadata: %w", err)
+	}
+	if err := c.store.BulkSyncModelPricing(*variants); err != nil {
+		return nil, fmt.Errorf("write model pricing: %w", err)
+	}
+
+	if err := c.loadModels(); err != nil {
+		return nil, err
+	}
+	if err := c.loadBasePricing(); err != nil {
+		return nil, err
+	}
+	if err := c.loadCustomPricing(); err != nil {
+		return nil, err
+	}
+
+	return worker.Detail{
+		"models_fetched":   len(*models),
+		"variants_fetched": len(*variants),
+		"models_unknown":   src.TotalUnknown,
+		"digest":           src.Digest,
+	}, nil
+}
+
+func (c *ModelCatalog) loadModels() error {
 	start := time.Now()
 
 	rows, err := c.store.ListModelMetadata()
@@ -123,13 +176,12 @@ func (c *ModelCatalog) LoadModels() error {
 	}
 
 	c.models.Store(&ModelSnapshot{entries: models, metadata: metadata, byProvider: byProvider})
-	c.lastModelSync.Store(time.Now().UnixNano())
 	c.logger.Debug("model metadata hot-swapped",
 		zap.Int("models", len(models)), zap.Duration("took", time.Since(start)))
 	return nil
 }
 
-func (c *ModelCatalog) LoadBasePricing() error {
+func (c *ModelCatalog) loadBasePricing() error {
 	start := time.Now()
 
 	rows, err := c.store.ListModelPricing()
@@ -144,14 +196,13 @@ func (c *ModelCatalog) LoadBasePricing() error {
 
 	snapshot := newBasePricingSnapshot(variants)
 	c.basePricing.Store(snapshot)
-	c.lastBaseSync.Store(time.Now().UnixNano())
 	c.logger.Debug("base pricing hot-swapped",
 		zap.Int("rows", len(variants)), zap.Int("models", snapshot.Len()),
 		zap.Duration("took", time.Since(start)))
 	return nil
 }
 
-func (c *ModelCatalog) LoadCustomPricing() error {
+func (c *ModelCatalog) loadCustomPricing() error {
 	start := time.Now()
 
 	c.customMu.Lock()
@@ -189,7 +240,6 @@ func (c *ModelCatalog) LoadCustomPricing() error {
 	}
 
 	c.customPricing.Store(&tempCustom)
-	c.lastCustomSync.Store(time.Now().UnixNano())
 	c.logger.Debug("custom pricing hot-swapped",
 		zap.Int("models", len(tempCustom)), zap.Duration("took", time.Since(start)))
 	return nil
@@ -265,7 +315,3 @@ func (c *ModelCatalog) ResolvePrice(virtualKeyID string, key core.CatalogKey, se
 	}
 	return &bp.Pricing
 }
-
-func (c *ModelCatalog) LastModelSync() time.Time  { return time.Unix(0, c.lastModelSync.Load()) }
-func (c *ModelCatalog) LastBaseSync() time.Time   { return time.Unix(0, c.lastBaseSync.Load()) }
-func (c *ModelCatalog) LastCustomSync() time.Time { return time.Unix(0, c.lastCustomSync.Load()) }

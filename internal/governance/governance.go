@@ -109,6 +109,10 @@ func (g *Governance) Start(ctx context.Context) error {
 	return g.workers.Start(ctx)
 }
 
+func (g *Governance) Shutdown(ctx context.Context) error { return g.workers.Shutdown(ctx) }
+
+func (g *Governance) Stats() []worker.JobStats { return g.workers.Stats() }
+
 func (g *Governance) syncVirtualKey() (int, error) {
 	start := time.Now()
 	g.logger.Debug("virtual key sync started")
