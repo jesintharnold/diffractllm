@@ -88,20 +88,22 @@ func (rc *DiffractLLMContext) Flush() {
 	}
 }
 func (rc *DiffractLLMContext) JSON(code int, obj any) {
-	rc.Writer.Header().Set("Content-Type", "application/json; charset=utf-8")
-	rc.Writer.WriteHeader(code)
+
 	data, err := sonic.Marshal(obj)
 	if err != nil {
 		return
 	}
-	rc.Writer.Write(data)
+
+	rc.Writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+	rc.Writer.WriteHeader(code)
+	rc.Write(data)
 	rc.aborted.Store(true)
 }
 
 func (rc *DiffractLLMContext) WriteData(code int, contentType string, data []byte) {
 	rc.Writer.Header().Set("Content-Type", contentType)
 	rc.Writer.WriteHeader(code)
-	rc.Writer.Write(data)
+	rc.Write(data)
 }
 
 func (rc *DiffractLLMContext) Abort() {

@@ -159,6 +159,7 @@ func (s *SourceSchema) UnmarshalJSON(data []byte) error {
 }
 
 type CatalogSource struct {
+	URL              string
 	ModelsCatalog    []core.ModelMetadata
 	PricingCatalog   []core.PricingVariant
 	TotalModels      int
@@ -168,23 +169,28 @@ type CatalogSource struct {
 }
 
 func (c *CatalogSource) Fetch(ctx context.Context, client *http.Client) (*[]core.ModelMetadata, *[]core.PricingVariant, error) {
+	url := c.URL
+	if url == "" {
+		url = pricingURL
+	}
+
 	if client == nil {
 		client = http.DefaultClient
 	}
 
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, pricingURL, nil)
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, nil, fmt.Errorf("build request for %s: %w", pricingURL, err)
+		return nil, nil, fmt.Errorf("build request for %s: %w", url, err)
 	}
 
 	response, err := client.Do(request)
 	if err != nil {
-		return nil, nil, fmt.Errorf("fetch %s: %w", pricingURL, err)
+		return nil, nil, fmt.Errorf("fetch %s: %w", url, err)
 	}
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusOK {
-		return nil, nil, fmt.Errorf("fetch %s: status %s", pricingURL, response.Status)
+		return nil, nil, fmt.Errorf("fetch %s: status %s", url, response.Status)
 	}
 
 	limited := io.LimitReader(response.Body, maxFeedInBytes+1)
@@ -194,7 +200,7 @@ func (c *CatalogSource) Fetch(ctx context.Context, client *http.Client) (*[]core
 	parsedSchema, err := c.modelParser(counter)
 
 	if counter.count > maxFeedInBytes {
-		return nil, nil, fmt.Errorf("%s exceeds %d bytes", pricingURL, maxFeedInBytes)
+		return nil, nil, fmt.Errorf("%s exceeds %d bytes", url, maxFeedInBytes)
 	}
 	if err != nil {
 		return nil, nil, err

@@ -92,12 +92,17 @@ func NewModelCatalog(store *dbstore.Store, cfg config.ModelCatalogConfig, logger
 }
 
 func (c *ModelCatalog) Start(ctx context.Context) error {
+	if err := c.loadAll(); err != nil {
+		return fmt.Errorf("catalog load: %w", err)
+	}
+	firstBoot := !c.Ready()
+
 	c.workers = worker.NewGroup("catalog", c.logger)
 	err := c.workers.Add(
 		&worker.Job{
 			Name:       JobCatalogSync,
 			Interval:   c.cfg.SyncInterval,
-			RunAtStart: true,
+			RunAtStart: firstBoot,
 			Run:        c.syncCatalog,
 		},
 	)
@@ -105,6 +110,16 @@ func (c *ModelCatalog) Start(ctx context.Context) error {
 		return err
 	}
 	return c.workers.Start(ctx)
+}
+
+func (c *ModelCatalog) loadAll() error {
+	if err := c.loadModels(); err != nil {
+		return err
+	}
+	if err := c.loadBasePricing(); err != nil {
+		return err
+	}
+	return c.loadCustomPricing()
 }
 
 func (c *ModelCatalog) Shutdown(ctx context.Context) error { return c.workers.Shutdown(ctx) }
@@ -118,7 +133,7 @@ func (c *ModelCatalog) SyncNow() error {
 }
 
 func (c *ModelCatalog) syncCatalog(ctx context.Context) (worker.Detail, error) {
-	src := &CatalogSource{}
+	src := &CatalogSource{URL: c.cfg.SourceURL}
 	models, variants, err := src.Fetch(ctx, c.client)
 	if err != nil {
 		return nil, fmt.Errorf("fetch catalog feed: %w", err)
@@ -254,7 +269,11 @@ func (c *ModelCatalog) Lookup(key core.CatalogKey) (*core.ModelMetadata, bool) {
 	return md, ok
 }
 
-func (c *ModelCatalog) Ready() bool { return c.models.Load() != nil }
+func (c *ModelCatalog) Ready() bool {
+	snap := c.models.Load()
+	base := c.basePricing.Load()
+	return snap != nil && len(snap.entries) > 0 && base != nil && base.Len() > 0
+}
 func (c *ModelCatalog) HasModel(provider core.Provider, modelName string) bool {
 	snap := c.models.Load()
 	if snap == nil {

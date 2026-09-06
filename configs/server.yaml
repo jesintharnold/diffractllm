@@ -6,12 +6,6 @@ server:
   mock_enabled: true
   aes_pass_key: "12345678901234567890123456789012"
 
-# Defaults for outbound calls to providers. This section is the FLOOR - a
-# provider's own core.NetworkConfig is the only thing that overrides it, and
-# only for the few settings it declares. Nothing sits underneath, so a value
-# removed here is a zero handed to net/http, not a fallback.
-#
-# Durations take a unit ("5s", "2m"); a bare number means seconds.
 upstream:
   max_idle_conns: 1000
   max_conns_per_host: 256
@@ -32,5 +26,5 @@ observability:
   log_level: "debug"
 
 modelcatalog:
-  source_url: "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json"
+  source_url: "https://getbifrost.ai/datasheet"
   sync_interval: 5m

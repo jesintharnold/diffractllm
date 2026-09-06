@@ -12,6 +12,8 @@ import (
 	"go.uber.org/zap"
 )
 
+const drainTimeout = 10 * time.Second
+
 type Detail map[string]any
 
 type JobStats struct {
@@ -122,7 +124,9 @@ func (j *Job) loop(ctx context.Context, stop <-chan struct{}, log *zap.Logger) {
 			ticker.Reset(j.Interval)
 		case <-stop:
 			if j.RunAtStop {
-				_ = j.exec(ctx, log)
+				drainCtx, cancel := context.WithTimeout(context.Background(), drainTimeout)
+				_ = j.exec(drainCtx, log)
+				cancel()
 			}
 			return
 		}
@@ -139,8 +143,9 @@ type Group struct {
 	jobs    map[string]*Job
 	started bool
 
-	stop chan struct{}
-	wg   sync.WaitGroup
+	stop     chan struct{}
+	stopOnce sync.Once
+	wg       sync.WaitGroup
 }
 
 func NewGroup(name string, logger *zap.Logger) *Group {
@@ -193,6 +198,11 @@ func (g *Group) Start(ctx context.Context) error {
 	for _, job := range jobs {
 		if job.RunAtStart {
 			if err := job.exec(ctx, g.logger); err != nil {
+				g.mu.Lock()
+				g.started = false
+				g.stop = nil
+				g.mu.Unlock()
+
 				return fmt.Errorf("worker %s: job %q failed at start: %w", g.name, job.Name, err)
 			}
 		}
