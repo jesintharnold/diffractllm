@@ -5,6 +5,7 @@ server:
   db_path: "./data/diffractllm.db"
   mock_enabled: true
   aes_pass_key: "12345678901234567890123456789012"
+  trusted_proxies: []
 
 upstream:
   max_idle_conns: 1000

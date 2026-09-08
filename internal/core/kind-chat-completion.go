@@ -292,6 +292,10 @@ type DiffractLLMChatCompletionRequest struct {
 	Raw        json.RawMessage            `json:"-"`
 }
 
+func (r *DiffractLLMChatCompletionRequest) IsStreaming() bool {
+	return r.Parameters != nil && r.Parameters.Stream != nil && *r.Parameters.Stream
+}
+
 type ChatLogProb struct {
 	Token   string  `json:"token"`
 	LogProb float64 `json:"logprob"`

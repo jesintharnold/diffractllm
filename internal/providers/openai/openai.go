@@ -45,7 +45,7 @@ func (op *OpenAIProvider) ProviderName() core.Provider {
 }
 
 func (op *OpenAIProvider) ChatCompletion(rctx *core.DiffractLLMContext, req *core.DiffractLLMChatCompletionRequest, cred *core.Credential) (*core.DiffractLLMChatCompletionResponse, *core.DiffractLLMError) {
-	cfg, derr := op.chatConfig(req, cred, false)
+	cfg, derr := op.chatConfig(rctx, req, cred, false)
 	if derr != nil {
 		return nil, derr
 	}
@@ -54,14 +54,14 @@ func (op *OpenAIProvider) ChatCompletion(rctx *core.DiffractLLMContext, req *cor
 }
 
 func (op *OpenAIProvider) ChatCompletionStream(rctx *core.DiffractLLMContext, req *core.DiffractLLMChatCompletionRequest, cred *core.Credential) (<-chan *core.DiffractLLMChatCompletionStreamResponse, *core.DiffractLLMError) {
-	cfg, derr := op.chatConfig(req, cred, true)
+	cfg, derr := op.chatConfig(rctx, req, cred, true)
 	if derr != nil {
 		return nil, derr
 	}
 	return HandleChatCompletionStream(rctx, op.Transport, cfg)
 }
 
-func (op *OpenAIProvider) chatConfig(req *core.DiffractLLMChatCompletionRequest, cred *core.Credential, stream bool) (*ChatCompletionConfig, *core.DiffractLLMError) {
+func (op *OpenAIProvider) chatConfig(rctx *core.DiffractLLMContext, req *core.DiffractLLMChatCompletionRequest, cred *core.Credential, stream bool) (*ChatCompletionConfig, *core.DiffractLLMError) {
 	if req == nil {
 		return nil, core.NewInvalidRequestBody("chat request is required", nil)
 	}
@@ -80,7 +80,7 @@ func (op *OpenAIProvider) chatConfig(req *core.DiffractLLMChatCompletionRequest,
 	if err := op.AuthInjection(cred, headers); err != nil {
 		return nil, core.NewUpstreamAuth("openai", core.SanitizeBackendURL(url), err.Error())
 	}
-
+	rctx.UpstreamModel = model.ModelID
 	return &ChatCompletionConfig{
 		Provider: core.ProviderOpenAI,
 		URL:      url,

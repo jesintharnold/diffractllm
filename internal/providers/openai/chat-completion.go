@@ -66,6 +66,7 @@ func ToOpenAIChatCompletionUsage(u *core.Usage) *OpenAIChatCompletionUsage {
 
 func (r *OpenAIChatCompletionRequest) ToDMChatCompletionRequest(rctx *core.DiffractLLMContext) *core.DiffractLLMChatCompletionRequest {
 	params := r.DiffractLLMChatParameters
+	rctx.RequestedModel = r.Model
 	return &core.DiffractLLMChatCompletionRequest{
 		Model:      r.Model,
 		Messages:   r.Messages,

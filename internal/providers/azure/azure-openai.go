@@ -26,11 +26,10 @@ func (ap *AzureProvider) openaichatConfig(rctx *core.DiffractLLMContext, req *co
 		requestURL = fmt.Sprintf("%s/openai%s", endpoint, path)
 	}
 
-	// After the url, so an auth failure can name the endpoint it was for.
 	if err := ap.AuthInjection(rctx, cred, headers); err != nil {
 		return nil, core.NewUpstreamAuth("azure", core.SanitizeBackendURL(requestURL), err.Error())
 	}
-
+	rctx.UpstreamModel = alias.ModelID
 	return &openaiprovider.ChatCompletionConfig{
 		Provider: core.ProviderAzure,
 		URL:      requestURL,

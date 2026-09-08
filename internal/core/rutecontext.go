@@ -38,6 +38,7 @@ type DiffractLLMContext struct {
 	// === PROXY OUTCOME FIELDS ===
 	UpstreamStatus int
 	TTFB           time.Duration
+	UpstreamModel  string
 
 	// === RESPONSE OUTCOME FIELDS ===
 	RequestCompleted bool
@@ -50,6 +51,7 @@ type DiffractLLMContext struct {
 	StreamChunks       int32
 	StreamFinishReason FinishReason
 	StreamAborted      bool
+	StartedAt          time.Time
 }
 
 func (rc *DiffractLLMContext) Context() context.Context { return rc.ctx }
@@ -71,9 +73,6 @@ func (rc *DiffractLLMContext) Overwrite(key DiffractLLMContextKey, value any) {
 	rc.metadata[key] = value
 }
 
-// Write appends raw bytes to the response after headers are sent. SSE needs
-// this: JSON below sets a status and cannot be called per chunk. Keeping the
-// write behind this method also keeps ResponseBytes accurate for streams.
 func (rc *DiffractLLMContext) Write(p []byte) (int, error) {
 	n, err := rc.Writer.Write(p)
 	rc.ResponseBytes += n
@@ -132,6 +131,7 @@ func (rc *DiffractLLMContext) reset() {
 	rc.AuthFrozen = false
 	rc.UpstreamStatus = 0
 	rc.TTFB = 0
+	rc.UpstreamModel = ""
 
 	rc.RequestCompleted = false
 	rc.ResponseStatus = 0
@@ -141,6 +141,7 @@ func (rc *DiffractLLMContext) reset() {
 	rc.StreamChunks = 0
 	rc.StreamFinishReason = ""
 	rc.StreamAborted = false
+	rc.StartedAt = time.Time{}
 
 	// Hook logs we are performing a reset - Important for flush
 	rc.HookLog.reset()

@@ -18,28 +18,16 @@ var (
 	loadOnce sync.Once
 )
 
-// ServerConfig covers the inbound edge: what this gateway accepts and where it
-// keeps its own state. MaxBodySize is the cap on client request bodies; the
-// outbound mirror of it is UpstreamConfig.MaxResponseBytes.
 type ServerConfig struct {
-	Port         int    `mapstructure:"port"`
-	MaxBodySize  int    `mapstructure:"max_body_size"`
-	ConfigSource string `mapstructure:"config_source"`
-	DBPath       string `mapstructure:"db_path"`
-	MockEnabled  bool   `mapstructure:"mock_enabled"`
-	AesPasskey   string `mapstructure:"aes_pass_key"`
+	Port           int      `mapstructure:"port"`
+	MaxBodySize    int      `mapstructure:"max_body_size"`
+	ConfigSource   string   `mapstructure:"config_source"`
+	DBPath         string   `mapstructure:"db_path"`
+	MockEnabled    bool     `mapstructure:"mock_enabled"`
+	AesPasskey     string   `mapstructure:"aes_pass_key"`
+	TrustedProxies []string `mapstructure:"trusted_proxies"`
 }
 
-// UpstreamConfig is the deployment-wide policy for outbound provider calls, and
-// it is the FLOOR: every key here carries a viper default, so a field is never
-// meaningfully unset. A provider's core.NetworkConfig is the only thing that
-// overrides it, and only for the handful of settings it declares.
-//
-// There is deliberately no third level of compiled-in constants. An earlier
-// draft had one, which meant every default existed twice - once here, once as a
-// const in the transport - free to drift apart with nothing to catch it.
-//
-// Durations are real time.Duration: write "5s", or a bare 5 meaning seconds.
 type UpstreamConfig struct {
 	MaxIdleConns        int `mapstructure:"max_idle_conns"`
 	MaxConnsPerHost     int `mapstructure:"max_conns_per_host"`
@@ -59,10 +47,6 @@ type UpstreamConfig struct {
 	DisableCompression bool `mapstructure:"disable_compression"`
 }
 
-// MaxResponseBytes returns the cap in bytes. The yaml key is in KB so it reads
-// beside server.max_body_size, which is also KB; the shift belongs here rather
-// than at the call site, where a missing "<< 10" is a 1000x error that nothing
-// downstream would catch.
 func (u UpstreamConfig) MaxResponseBytes() int64 {
 	return int64(u.MaxResponseBytesKB) << 10
 }
@@ -77,13 +61,8 @@ type ModelCatalogConfig struct {
 }
 
 type GatewayConfig struct {
-	ServerConfig *ServerConfig `mapstructure:"server"`
-
-	// Upstream is a value, not a pointer: it is the fallback layer, so an
-	// absent section must still yield a fully populated policy. A pointer would
-	// make "no yaml section" indistinguishable from "all zeros" at every call
-	// site, and every call site would need the same nil guard.
-	Upstream UpstreamConfig `mapstructure:"upstream"`
+	ServerConfig *ServerConfig  `mapstructure:"server"`
+	Upstream     UpstreamConfig `mapstructure:"upstream"`
 
 	Observability *Observability      `mapstructure:"observability"`
 	ModelCatalog  *ModelCatalogConfig `mapstructure:"modelcatalog"`
@@ -101,14 +80,6 @@ func GlobalConfig() *GatewayConfig {
 	return cfg
 }
 
-// durationHook accepts either an explicit unit (dial_timeout: 5s) or a bare
-// number meaning seconds (dial_timeout: 5).
-//
-// It is not optional. time.Duration is an int64 of NANOseconds, so plain
-// mapstructure decodes "dial_timeout: 5" as five nanoseconds - a config that is
-// syntactically perfect, passes validation, and takes the gateway down. Seconds
-// is the right implied unit because every duration in this file is a network
-// timeout.
 func durationHook(from reflect.Type, to reflect.Type, data any) (any, error) {
 	if to != reflect.TypeOf(time.Duration(0)) {
 		return data, nil
@@ -140,10 +111,9 @@ func read() (*GatewayConfig, error) {
 	viper.SetDefault("server.port", 8080)
 	viper.SetDefault("server.config_source", "yaml")
 	viper.SetDefault("server.db_path", "./data/diffractllm.db")
-	viper.SetDefault("server.max_body_size", 32768) // KB -> 32MB
+	viper.SetDefault("server.max_body_size", 32768)        // KB -> 32MB
+	viper.SetDefault("server.trusted_proxies", []string{}) // trust nobody by default
 
-	// Every upstream key carries a default: this section is the fallback layer,
-	// so a gap here is a zero reaching net/http, not a harmless omission.
 	viper.SetDefault("upstream.max_idle_conns", 1000)
 	viper.SetDefault("upstream.max_conns_per_host", 256)
 	viper.SetDefault("upstream.max_idle_conns_per_host", 256)
@@ -162,8 +132,7 @@ func read() (*GatewayConfig, error) {
 	viper.SetDefault("observability.log_level", "info")
 
 	viper.SetDefault("modelcatalog.sync_interval", "5m")
-	viper.SetDefault("modelcatalog.source_url",
-		"https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json")
+	viper.SetDefault("modelcatalog.source_url", "https://getbifrost.ai/datasheet")
 
 	if err := viper.ReadInConfig(); err != nil {
 		if _, notFound := err.(viper.ConfigFileNotFoundError); !notFound {
@@ -173,8 +142,7 @@ func read() (*GatewayConfig, error) {
 	}
 
 	cfg := &GatewayConfig{}
-	// viper.DecodeHook REPLACES viper's built-in hook set, so the slice hook is
-	// re-composed here; durationHook subsumes the string-to-duration one.
+
 	if err := viper.Unmarshal(cfg, viper.DecodeHook(mapstructure.ComposeDecodeHookFunc(
 		mapstructure.DecodeHookFuncType(durationHook),
 		mapstructure.StringToSliceHookFunc(","),
@@ -218,10 +186,6 @@ func (s *ServerConfig) Validate() error {
 	return nil
 }
 
-// Validate is stricter than it was when compiled constants sat underneath this
-// struct. Now that this IS the floor, a zero no longer means "fall through to
-// the default" - it is the value net/http receives, and net/http reads most
-// zeros as "unlimited" or "2". So every field is required to be positive.
 func (u UpstreamConfig) Validate() error {
 	if u.MaxConnsPerHost > 0 && u.MaxIdleConnsPerHost > u.MaxConnsPerHost {
 		return fmt.Errorf(

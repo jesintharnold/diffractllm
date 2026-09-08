@@ -18,7 +18,6 @@ func NewVirutalkeyAuthHook(keyCache *VirtualkeyCache, logger *zap.Logger) *Virut
 }
 
 func (a *VirutalkeyHook) Name() string { return "auth" }
-
 func (a *VirutalkeyHook) Execute(rctx *core.DiffractLLMContext) *core.DiffractLLMError {
 	key := extractKey(rctx)
 	if key == "" {
@@ -43,8 +42,7 @@ func (a *VirutalkeyHook) Execute(rctx *core.DiffractLLMContext) *core.DiffractLL
 	rctx.VirtualKeyPolicy = vk // pointer to the shared immutable policy
 	rctx.BudgetRef = vk.BudgetID
 	rctx.AuthFrozen = true
-
-	a.logger.Info("auth ok", zap.String("client", vk.ClientID), zap.String("RUTE API key prefix", vk.Key[:11]))
+	a.logger.Debug("auth ok", zap.String("client", vk.ClientID), zap.String("virtual_key_id", vk.ID))
 	return nil
 }
 
