@@ -362,3 +362,27 @@ func NewBudgetExceeded(message string) *DiffractLLMError {
 		},
 	}
 }
+
+func NewPayloadTooLarge(limit int64) *DiffractLLMError {
+	return &DiffractLLMError{
+		ErrorCategory: ErrorCategoryClient,
+		Code:          CodeInvalidRequestBody,
+		Message:       "request body exceeds max_body_size",
+		Type:          "invalid_request_error",
+		StatusCode:    http.StatusRequestEntityTooLarge,
+		Component:     "validator",
+		Details:       map[string]any{"internal_detail": fmt.Sprintf("body limit is %d bytes", limit)},
+	}
+}
+
+func NewUnpricedModel(key CatalogKey) *DiffractLLMError {
+	return &DiffractLLMError{
+		ErrorCategory: ErrorCategoryClient,
+		Code:          CodeInvalidRequestBody,
+		Message:       "model has no pricing configured",
+		Type:          "invalid_request_error",
+		StatusCode:    http.StatusBadRequest,
+		Component:     "pricing",
+		Details:       map[string]any{"model": key.SlashKey()},
+	}
+}

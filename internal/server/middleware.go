@@ -15,7 +15,6 @@ func RequestIDMiddleware() gin.HandlerFunc {
 		if requestID == "" {
 			requestID = uuid.Must(uuid.NewV7()).String()
 		}
-		c.Set("request_id", requestID)
 		c.Header("X-Request-ID", requestID)
 		c.Next()
 	}

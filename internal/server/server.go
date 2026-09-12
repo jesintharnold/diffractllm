@@ -9,6 +9,7 @@ import (
 	"diffractllm/internal/governance"
 	"diffractllm/internal/modelcatalog"
 	"diffractllm/internal/providerplane"
+	"diffractllm/internal/providers"
 	"fmt"
 	"net"
 	"net/http"
@@ -30,29 +31,32 @@ type DiffractLLMServer struct {
 	startOnce sync.Once
 	serveErr  chan error
 
-	HookEngine      *core.HookEngine
-	governance      *governance.Governance
-	selectionEngine *dataplane.SelectionEngine
-	CredentialPlane *providerplane.ProviderPlane
-	ModelCatalog    *modelcatalog.ModelCatalog
-	dbStore         *dbstore.Store
+	HookEngine       *core.HookEngine
+	governance       *governance.Governance
+	selectionEngine  *dataplane.SelectionEngine
+	CredentialPlane  *providerplane.ProviderPlane
+	ModelCatalog     *modelcatalog.ModelCatalog
+	ProviderRegistry *providers.ProviderInstance
+
+	dbStore *dbstore.Store
 }
 
 func NewDiffractLLMServer(logger *zap.Logger, config *config.ServerConfig, gov *governance.Governance, selectionEngine *dataplane.SelectionEngine, credentialPlane *providerplane.ProviderPlane, catalog *modelcatalog.ModelCatalog,
-	store *dbstore.Store) *DiffractLLMServer {
+	registry *providers.ProviderInstance, store *dbstore.Store) *DiffractLLMServer {
 	hookEngine := core.NewHookEngine(logger)
 	governance.RegisterHooks(hookEngine, logger, gov, catalog)
 	return &DiffractLLMServer{
-		logger:          logger,
-		CtxPool:         core.NewDiffractLLMContextPool(),
-		config:          config,
-		serveErr:        make(chan error, 1),
-		HookEngine:      hookEngine,
-		governance:      gov,
-		selectionEngine: selectionEngine,
-		CredentialPlane: credentialPlane,
-		ModelCatalog:    catalog,
-		dbStore:         store,
+		logger:           logger,
+		CtxPool:          core.NewDiffractLLMContextPool(),
+		config:           config,
+		serveErr:         make(chan error, 1),
+		HookEngine:       hookEngine,
+		governance:       gov,
+		selectionEngine:  selectionEngine,
+		CredentialPlane:  credentialPlane,
+		ModelCatalog:     catalog,
+		ProviderRegistry: registry,
+		dbStore:          store,
 	}
 }
 

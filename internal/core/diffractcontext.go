@@ -14,6 +14,7 @@ import (
 type DiffractLLMContext struct {
 	ctx         context.Context
 	Request     *http.Request
+	RequestID   string
 	BodyBytes   []byte
 	SDKProvider Provider
 	Modelkey    CatalogKey
@@ -44,6 +45,7 @@ type DiffractLLMContext struct {
 	RequestCompleted bool
 	ResponseStatus   int
 	ResponseBytes    int
+	Error            *DiffractLLMError
 
 	Usage *Usage
 
@@ -112,6 +114,7 @@ func (rc *DiffractLLMContext) Abort() {
 func (rc *DiffractLLMContext) reset() {
 	rc.ctx = nil
 	rc.Request = nil
+	rc.RequestID = ""
 	rc.BodyBytes = nil
 	rc.SDKProvider = ""
 	rc.Modelkey = CatalogKey{}
@@ -136,6 +139,7 @@ func (rc *DiffractLLMContext) reset() {
 	rc.RequestCompleted = false
 	rc.ResponseStatus = 0
 	rc.ResponseBytes = 0
+	rc.Error = nil
 	rc.Usage = nil
 	rc.Cost = 0
 	rc.StreamChunks = 0
