@@ -802,6 +802,10 @@ func (v PricingVariant) CatalogKey() CatalogKey {
 	return CatalogKey{Provider: v.Provider, ModelName: v.ModelName, ModelType: v.ModelType}
 }
 
+func (cp CustomPricing) CustomPricingKey() CatalogKey {
+	return CatalogKey{ModelName: cp.ModelName, ModelType: cp.ModelType}
+}
+
 var (
 	ErrVariantRequired    = errors.New("model requires variant parameters")
 	ErrUnsupportedVariant = errors.New("no price for the requested variant")

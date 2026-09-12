@@ -306,6 +306,24 @@ func buildProviders(defaultConfig config.UpstreamConfig, upstreamProviderConfig 
 	return &providerClientMaps
 }
 
+func (t *DiffractLLMTransport) Replace(upstreamProviderConfig map[core.Provider]*core.Upstream) {
+	next := *buildProviders(t.defaultConfig, upstreamProviderConfig, t.logger)
+	old := t.providers.Load()
+	if old != nil {
+		for provider := range upstreamProviderConfig {
+			if _, built := next[provider]; built {
+				continue
+			}
+			if existing, ok := (*old)[provider]; ok {
+				t.logger.Warn("keeping previous client, new config failed to build",
+					zap.String("provider", string(provider)))
+				next[provider] = existing
+			}
+		}
+	}
+	t.providers.Store(&next)
+}
+
 func (t *DiffractLLMTransport) ServeHTTP(rctx *core.DiffractLLMContext, req *DiffractLLMTransportRequest) (*DiffractLLMTransportResult, *core.DiffractLLMError) {
 	provider := rctx.Modelkey.Provider
 	pt := t.providers.Load()
@@ -350,7 +368,6 @@ func (t *DiffractLLMTransport) ServeHTTP(rctx *core.DiffractLLMContext, req *Dif
 		}
 
 		httpReq.ContentLength = int64(len(req.Body))
-
 
 		for k, v := range upstream.Network.Headers {
 			if reservedHeader(k) {

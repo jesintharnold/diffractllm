@@ -21,6 +21,11 @@ func (c CatalogKey) RouteKey() CatalogKey {
 	return c
 }
 
+func (c CatalogKey) CustomPricingKey() CatalogKey {
+	c.Provider = ""
+	return c
+}
+
 type ModelLimits struct {
 	ContextWindow        int32 `json:"context_window,omitempty"`
 	MaxInputTokens       int32 `json:"max_input_tokens,omitempty"`

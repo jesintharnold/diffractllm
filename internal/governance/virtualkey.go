@@ -1,4 +1,4 @@
-﻿package governance
+package governance
 
 import (
 	"crypto/rand"
@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"hash/crc32"
 	"io"
+	"maps"
 	"math/big"
 	"sync"
 	"sync/atomic"
@@ -119,4 +120,38 @@ func (vk *VirtualkeyCache) LoadVirtualKeys(vdata []*core.VirtualKey) {
 	vk.virtual.Store(&tempVkey)
 	vk.LastSync = time.Now()
 	vk.logger.Debug("virtual key cache hot-swapped", zap.Int("keys", len(tempVkey)))
+}
+
+func (vk *VirtualkeyCache) UpsertVirtualKey(key *core.VirtualKey) {
+	if key == nil {
+		return
+	}
+	vk.mu.Lock()
+	defer vk.mu.Unlock()
+	next := vk.clone()
+	next[key.Key] = key
+	vk.virtual.Store(&next)
+}
+
+
+func (vk *VirtualkeyCache) DeleteVirtualKeyByID(id string) bool {
+	vk.mu.Lock()
+	defer vk.mu.Unlock()
+	next := vk.clone()
+	for key, entry := range next {
+		if entry.ID == id {
+			delete(next, key)
+			vk.virtual.Store(&next)
+			return true
+		}
+	}
+	return false
+}
+
+func (vk *VirtualkeyCache) clone() VirtualKeyMap {
+	old := vk.virtual.Load()
+	if old == nil {
+		return make(VirtualKeyMap)
+	}
+	return maps.Clone(*old)
 }

@@ -65,7 +65,7 @@ func (s *BasePricingSnapshot) find(key core.CatalogKey, selectorKey string) *cor
 
 func (s *BasePricingSnapshot) Len() int { return len(s.base) }
 
-type CustomPriceSnapshot map[string]*core.CustomScopePricing
+type CustomPriceSnapshot map[core.CatalogKey]*core.CustomScopePricing
 
 type ModelCatalog struct {
 	models        atomic.Pointer[ModelSnapshot]
@@ -130,6 +130,10 @@ func (c *ModelCatalog) Stats() []worker.JobStats {
 
 func (c *ModelCatalog) SyncNow() error {
 	return c.workers.Trigger(JobCatalogSync)
+}
+
+func (c *ModelCatalog) ReloadCustomPricing() error {
+	return c.loadCustomPricing()
 }
 
 func (c *ModelCatalog) syncCatalog(ctx context.Context) (worker.Detail, error) {
@@ -231,13 +235,14 @@ func (c *ModelCatalog) loadCustomPricing() error {
 	tempCustom := make(CustomPriceSnapshot, len(rows))
 	for i := range rows {
 		cp := rows[i].ToCore()
-		scoped, exists := tempCustom[cp.ModelName]
+		ck := cp.CustomPricingKey()
+		scoped, exists := tempCustom[ck]
 		if !exists {
 			scoped = &core.CustomScopePricing{
 				Provider:   make(map[core.Provider]*core.CustomPricing),
 				VirtualKey: make(map[string]*core.CustomPricing),
 			}
-			tempCustom[cp.ModelName] = scoped
+			tempCustom[ck] = scoped
 		}
 
 		switch cp.ScopeType {
@@ -315,7 +320,7 @@ func (c *ModelCatalog) ResolvePrice(virtualKeyID string, key core.CatalogKey, se
 	if customPtr == nil {
 		return &bp.Pricing
 	}
-	scoped, ok := (*customPtr)[key.ModelName]
+	scoped, ok := (*customPtr)[key.CustomPricingKey()]
 	if !ok {
 		return &bp.Pricing
 	}

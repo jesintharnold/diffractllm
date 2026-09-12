@@ -11,18 +11,12 @@ import (
 var ErrNoCredential = errors.New("providerplane: no credential serves this model")
 
 type snapshot struct {
-	providerConfigs     map[core.Provider]*core.Upstream
 	providerCredentials map[core.Provider][]*core.Credential
 }
 
-func buildCredSnapshot(settings []*core.Upstream, credentials []*core.Credential) *snapshot {
+func buildCredSnapshot(credentials []*core.Credential) *snapshot {
 	tempSnap := snapshot{
-		providerConfigs:     make(map[core.Provider]*core.Upstream, len(settings)),
 		providerCredentials: make(map[core.Provider][]*core.Credential),
-	}
-
-	for _, setting := range settings {
-		tempSnap.providerConfigs[setting.Provider] = setting
 	}
 
 	for _, cred := range credentials {
@@ -36,9 +30,9 @@ type ProviderPlane struct {
 	mu           sync.Mutex
 }
 
-func NewProviderPlane(settings []*core.Upstream, cred []*core.Credential) *ProviderPlane {
+func NewProviderPlane(cred []*core.Credential) *ProviderPlane {
 	temp := ProviderPlane{}
-	tempsnapshot := buildCredSnapshot(settings, cred)
+	tempsnapshot := buildCredSnapshot(cred)
 	temp.credSnapshot.Store(tempsnapshot)
 	return &temp
 }
@@ -66,25 +60,14 @@ func (plane *ProviderPlane) Credentials(provider core.Provider) []*core.Credenti
 	return snap.providerCredentials[provider]
 }
 
-func (plane *ProviderPlane) ProviderConfig(provider core.Provider) (*core.Upstream, bool) {
-	snap := plane.credSnapshot.Load()
-	if snap == nil {
-		return nil, false
-	}
-	settings, ok := snap.providerConfigs[provider]
-	return settings, ok
-}
-
 func (plane *ProviderPlane) clone() *snapshot {
 	old := plane.credSnapshot.Load()
 	if old == nil {
 		return &snapshot{
-			providerConfigs:     make(map[core.Provider]*core.Upstream),
 			providerCredentials: make(map[core.Provider][]*core.Credential),
 		}
 	}
 	return &snapshot{
-		providerConfigs:     maps.Clone(old.providerConfigs),
 		providerCredentials: maps.Clone(old.providerCredentials),
 	}
 }
@@ -147,20 +130,8 @@ func (plane *ProviderPlane) RemoveCredential(provider core.Provider, id string) 
 	return nil
 }
 
-func (plane *ProviderPlane) UpsertProviderConfigs(config *core.Upstream) error {
-	if !core.IsKnownProvider(string(config.Provider)) {
-		return errors.New("providerplane: unsupported provider")
-	}
+func (plane *ProviderPlane) Replace(credentials []*core.Credential) {
 	plane.mu.Lock()
 	defer plane.mu.Unlock()
-	next := plane.clone()
-	next.providerConfigs[config.Provider] = config
-	plane.credSnapshot.Store(next)
-	return nil
-}
-
-func (plane *ProviderPlane) Replace(upstreams []*core.Upstream, credentials []*core.Credential) {
-	plane.mu.Lock()
-	defer plane.mu.Unlock()
-	plane.credSnapshot.Store(buildCredSnapshot(upstreams, credentials))
+	plane.credSnapshot.Store(buildCredSnapshot(credentials))
 }
