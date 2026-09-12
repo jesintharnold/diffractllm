@@ -29,10 +29,6 @@ type Governance struct {
 	config      jobsIntervalconfig
 }
 
-func (g *Governance) VirtualKeyAuthenticator() *VirutalkeyHook {
-	return NewVirutalkeyAuthHook(g.KeyCache, g.logger)
-}
-
 func NewGovernance(store *dbstore.Store, logger *zap.Logger) (*Governance, error) {
 	keyCache := &VirtualkeyCache{logger: logger}
 	budgetCache := &BudgetCache{logger: logger}

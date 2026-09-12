@@ -1,7 +1,7 @@
 package governance
 
 // dummyhooks.go — temporary hooks for validating the 4-stage pipeline.
-// Every hook logs what it sees on RuteContext and passes through.
+// Every hook logs what it sees on DiffractLLMContext and passes through.
 // Delete this file once real hook implementations (auth, budget, usage) are wired.
 
 import (

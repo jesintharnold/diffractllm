@@ -7,7 +7,6 @@ import (
 )
 
 func RegisterHooks(engine *core.HookEngine, logger *zap.Logger, governance *Governance, catalog ModelLookup) {
-	engine.AddPreCallHook(NewVirutalkeyAuthHook(governance.KeyCache, logger))
 	engine.AddPreCallHook(NewModelAccessHook(catalog, logger))
 	engine.AddPreCallHook(NewBudgetCheckHook(governance.BudgetCache, logger))
 	engine.AddPreProviderHook(&dummyBudgetHook{logger: logger})

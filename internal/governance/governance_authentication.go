@@ -8,33 +8,23 @@ import (
 	"go.uber.org/zap"
 )
 
-type VirutalkeyHook struct {
-	keyCache *VirtualkeyCache
-	logger   *zap.Logger
-}
-
-func NewVirutalkeyAuthHook(keyCache *VirtualkeyCache, logger *zap.Logger) *VirutalkeyHook {
-	return &VirutalkeyHook{keyCache: keyCache, logger: logger}
-}
-
-func (a *VirutalkeyHook) Name() string { return "auth" }
-func (a *VirutalkeyHook) Execute(rctx *core.DiffractLLMContext) *core.DiffractLLMError {
+func (g *Governance) ValidatevKeyAuth(rctx *core.DiffractLLMContext) *core.DiffractLLMError {
 	key := extractKey(rctx)
 	if key == "" {
-		return core.NewAuthFailed("missing api key — provide x-rute-key or Authorization: Bearer <key> or x-api-key or x-goog-api-key")
+		return core.NewAuthFailed("missing api key — provide x-diffract-key or Authorization: Bearer <key> or x-api-key or x-goog-api-key")
 	}
 
 	if !ValidateKeySignature(key) {
-		return core.NewAuthFailed("Invalid RUTE API key format")
+		return core.NewAuthFailed("Invalid DiffractLLM API key format")
 	}
 
-	vk, found := a.keyCache.LookupVkey(key)
+	vk, found := g.KeyCache.LookupVkey(key)
 	if !found {
-		return core.NewAuthFailed("RUTE API key not recognised")
+		return core.NewAuthFailed("DiffractLLM API key not recognised")
 	}
 
 	if !vk.IsActive || (vk.ExpiresAt != nil && time.Now().After(*vk.ExpiresAt)) {
-		return core.NewAuthFailed("Invalid RUTE API key")
+		return core.NewAuthFailed("Invalid DiffractLLM API key")
 	}
 
 	rctx.ClientID = vk.ClientID
@@ -42,12 +32,12 @@ func (a *VirutalkeyHook) Execute(rctx *core.DiffractLLMContext) *core.DiffractLL
 	rctx.VirtualKeyPolicy = vk // pointer to the shared immutable policy
 	rctx.BudgetRef = vk.BudgetID
 	rctx.AuthFrozen = true
-	a.logger.Debug("auth ok", zap.String("client", vk.ClientID), zap.String("virtual_key_id", vk.ID))
+	g.logger.Debug("auth ok", zap.String("client", vk.ClientID), zap.String("virtual_key_id", vk.ID))
 	return nil
 }
 
 func extractKey(rctx *core.DiffractLLMContext) string {
-	if v := strings.TrimSpace(rctx.Request.Header.Get("x-rute-key")); v != "" {
+	if v := strings.TrimSpace(rctx.Request.Header.Get("x-diffract-key")); v != "" {
 		return v
 	}
 	auth := rctx.Request.Header.Get("Authorization")

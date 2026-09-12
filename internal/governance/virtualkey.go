@@ -17,11 +17,11 @@ import (
 )
 
 const (
-	rkPrefix      = "rk-"
-	rkTotalLen    = 25
-	rkPayloadLen  = 18
-	rkChecksumLen = 4
-	rkChecksumMod = uint32(62 * 62 * 62 * 62)
+	dkPrefix      = "dk-"
+	dkTotalLen    = 25
+	dkPayloadLen  = 18
+	dkChecksumLen = 4
+	dkChecksumMod = uint32(62 * 62 * 62 * 62)
 )
 
 const base62Chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
@@ -51,12 +51,12 @@ func GenerateVirtualKey() (apikey, hash, prefix string, err error) {
 	var n big.Int
 	n.SetBytes(raw)
 
-	payload := base62Encode(&n, rkPayloadLen)
-	prefixPart := rkPrefix + payload
-	chksumDigits := crc32.ChecksumIEEE([]byte(prefixPart)) % rkChecksumMod
+	payload := base62Encode(&n, dkPayloadLen)
+	prefixPart := dkPrefix + payload
+	chksumDigits := crc32.ChecksumIEEE([]byte(prefixPart)) % dkChecksumMod
 
 	n.SetUint64(uint64(chksumDigits))
-	checksum := base62Encode(&n, rkChecksumLen)
+	checksum := base62Encode(&n, dkChecksumLen)
 	apikey = prefixPart + checksum
 	prefix = apikey[:11]
 
@@ -71,25 +71,25 @@ func isBase62Char(c byte) bool {
 
 func ValidateKeySignature(apiKey string) bool {
 
-	if len(apiKey) != rkTotalLen {
+	if len(apiKey) != dkTotalLen {
 		return false
 	}
 
-	if apiKey[:len(rkPrefix)] != rkPrefix {
+	if apiKey[:len(dkPrefix)] != dkPrefix {
 		return false
 	}
 
-	for i := len(rkPrefix); i < rkTotalLen; i++ {
+	for i := len(dkPrefix); i < dkTotalLen; i++ {
 		if !isBase62Char(apiKey[i]) {
 			return false
 		}
 	}
 
-	payload := apiKey[:len(rkPrefix)+rkPayloadLen]
-	chksumcal := crc32.ChecksumIEEE([]byte(payload)) % rkChecksumMod
+	payload := apiKey[:len(dkPrefix)+dkPayloadLen]
+	chksumcal := crc32.ChecksumIEEE([]byte(payload)) % dkChecksumMod
 	var n big.Int
 	n.SetUint64(uint64(chksumcal))
-	return apiKey[len(rkPrefix)+rkPayloadLen:] == base62Encode(&n, rkChecksumLen)
+	return apiKey[len(dkPrefix)+dkPayloadLen:] == base62Encode(&n, dkChecksumLen)
 }
 
 type VirtualKeyMap map[string]*core.VirtualKey
@@ -132,7 +132,6 @@ func (vk *VirtualkeyCache) UpsertVirtualKey(key *core.VirtualKey) {
 	next[key.Key] = key
 	vk.virtual.Store(&next)
 }
-
 
 func (vk *VirtualkeyCache) DeleteVirtualKeyByID(id string) bool {
 	vk.mu.Lock()

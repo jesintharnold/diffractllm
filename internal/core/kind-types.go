@@ -43,10 +43,10 @@ func (k RequestKind) ModelType() ModelType {
 type DiffractLLMContextKey string
 
 const (
-	DiffractLLMSDKProvider      DiffractLLMContextKey = "rute-sdk-provider"
-	DiffractLLMProvider         DiffractLLMContextKey = "rute-provider"
-	DiffractLLMResponseProvider DiffractLLMContextKey = "rute-res-provider"
-	DiffractLLMRequestKind      DiffractLLMContextKey = "rute-req-type"
-	DiffractLLMRouteParams      DiffractLLMContextKey = "rute-route-params"
-	DiffractLLMBodyBytes        DiffractLLMContextKey = "rute-body-bytes"
+	DiffractLLMSDKProvider      DiffractLLMContextKey = "diffract-sdk-provider"
+	DiffractLLMProvider         DiffractLLMContextKey = "diffract-provider"
+	DiffractLLMResponseProvider DiffractLLMContextKey = "diffract-res-provider"
+	DiffractLLMRequestKind      DiffractLLMContextKey = "diffract-req-type"
+	DiffractLLMRouteParams      DiffractLLMContextKey = "diffract-route-params"
+	DiffractLLMBodyBytes        DiffractLLMContextKey = "diffract-body-bytes"
 )

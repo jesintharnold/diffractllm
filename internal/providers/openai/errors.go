@@ -8,13 +8,37 @@ import (
 	"github.com/bytedance/sonic"
 )
 
+type OpenAIErrorBody struct {
+	Message string `json:"message"`
+	Type    string `json:"type"`
+	Code    string `json:"code"`
+	Param   string `json:"param"`
+}
+
 type OpenAIErrorResponse struct {
-	Error *struct {
-		Message string `json:"message"`
-		Type    string `json:"type"`
-		Code    string `json:"code"`
-		Param   string `json:"param"`
-	} `json:"error"`
+	Error *OpenAIErrorBody `json:"error"`
+}
+
+func ToOpenAIError(e *core.DiffractLLMError) *OpenAIErrorResponse {
+	if e == nil {
+		return nil
+	}
+	body := &OpenAIErrorBody{
+		Message: e.Message,
+		Type:    e.Type,
+		Code:    string(e.Code),
+	}
+
+	if e.ProviderErrorType != "" {
+		body.Type = e.ProviderErrorType
+	}
+	if e.ProviderErrorCode != "" {
+		body.Code = e.ProviderErrorCode
+	}
+	if e.Parameter != nil {
+		body.Param = *e.Parameter
+	}
+	return &OpenAIErrorResponse{Error: body}
 }
 
 func ParseError(provider core.Provider, safeURL string, status int, body []byte) *core.DiffractLLMError {
