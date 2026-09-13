@@ -16,6 +16,7 @@ type RouteDescriptor struct {
 	FromDiffract       func(res any) any
 	FromDiffractStream func(chunk any) (event string, payload any)
 	FromDiffractError  func(err *core.DiffractLLMError) (event string, payload any)
+	StreamDone         func() (event string, payload []byte)
 	AddToRoute         bool
 }
 
@@ -39,6 +40,9 @@ var OpenAIDescriptors = []RouteDescriptor{
 		},
 		FromDiffractError: func(err *core.DiffractLLMError) (event string, payload any) {
 			return "", openaiprovider.ToOpenAIError(err)
+		},
+		StreamDone: func() (event string, payload []byte) {
+			return "", []byte("[DONE]")
 		},
 		AddToRoute: true,
 	},

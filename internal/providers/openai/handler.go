@@ -40,7 +40,7 @@ func HandleChatCompletion(rctx *core.DiffractLLMContext, transport *dataplane.Di
 	respBody, err := io.ReadAll(result.Body)
 	result.Body.Close()
 	if err != nil {
-		return nil, core.NewUpstreamError(string(cfg.Provider), safeURL, result.Status, "reading response", err)
+		return nil, core.NewUpstreamError(string(cfg.Provider), safeURL, http.StatusBadGateway, "reading response", err)
 	}
 	if result.Status != http.StatusOK {
 		return nil, ParseError(cfg.Provider, safeURL, result.Status, respBody)
@@ -48,7 +48,7 @@ func HandleChatCompletion(rctx *core.DiffractLLMContext, transport *dataplane.Di
 
 	var wire OpenAIChatCompletionResponse
 	if err := sonic.Unmarshal(respBody, &wire); err != nil {
-		return nil, core.NewUpstreamError(string(cfg.Provider), safeURL, result.Status, "unmarshalling response", err)
+		return nil, core.NewUpstreamError(string(cfg.Provider), safeURL, http.StatusBadGateway, "unmarshalling response", err)
 	}
 	wire.Raw = respBody
 	return wire.ToDMChatCompletionResponse(), nil

@@ -101,6 +101,31 @@ func (rc *DiffractLLMContext) JSON(code int, obj any) {
 	rc.aborted.Store(true)
 }
 
+func (rc *DiffractLLMContext) WriteSSE(event string, body []byte) error {
+	size := len(body) + 8
+	if event != "" {
+		size += len(event) + 8
+	}
+
+	buf := make([]byte, 0, size)
+	if event != "" {
+		buf = append(buf, "event: "...)
+		buf = append(buf, event...)
+		buf = append(buf, '\n')
+	}
+	buf = append(buf, "data: "...)
+	buf = append(buf, body...)
+	buf = append(buf, '\n', '\n')
+
+	n, err := rc.Writer.Write(buf)
+	rc.ResponseBytes += n
+	if err != nil {
+		return err
+	}
+	rc.Flush()
+	return nil
+}
+
 func (rc *DiffractLLMContext) WriteData(code int, contentType string, data []byte) {
 	rc.Writer.Header().Set("Content-Type", contentType)
 	rc.Writer.WriteHeader(code)

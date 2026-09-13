@@ -1,6 +1,7 @@
 package core
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -44,22 +45,23 @@ const (
 type ExtraDetails map[string]interface{}
 
 type DiffractLLMError struct {
-	ErrorCategory     ErrorCategory `json:"error_category"`
-	Code              ErrorCode     `json:"error_code"`
-	Internal          error         `json:"-"`
-	StatusCode        int           `json:"-"`
-	Message           string        `json:"message"`
-	Type              string        `json:"type"`
-	Component         string        `json:"component,omitempty"`
-	Provider          string        `json:"provider,omitempty"`
-	Backend           string        `json:"backend,omitempty"`
-	BackendURL        string        `json:"backend_url,omitempty"`
-	RequestID         string        `json:"request_id,omitempty"`
-	Parameter         *string       `json:"parameter,omitempty"`
-	Details           ExtraDetails  `json:"extra_details,omitempty"`
-	RetryAfter        int           `json:"retry_after,omitempty"`
-	ProviderErrorCode string        `json:"provider_error_code,omitempty"`
-	ProviderErrorType string        `json:"provider_error_type,omitempty"`
+	ErrorCategory       ErrorCategory   `json:"error_category"`
+	Code                ErrorCode       `json:"error_code"`
+	Internal            error           `json:"-"`
+	StatusCode          int             `json:"-"`
+	Message             string          `json:"message"`
+	Type                string          `json:"type"`
+	Component           string          `json:"component,omitempty"`
+	Provider            string          `json:"provider,omitempty"`
+	Backend             string          `json:"backend,omitempty"`
+	BackendURL          string          `json:"backend_url,omitempty"`
+	RequestID           string          `json:"request_id,omitempty"`
+	Parameter           *string         `json:"parameter,omitempty"`
+	Details             ExtraDetails    `json:"extra_details,omitempty"`
+	RetryAfter          int             `json:"retry_after,omitempty"`
+	ProviderErrorCode   string          `json:"provider_error_code,omitempty"`
+	ProviderErrorType   string          `json:"provider_error_type,omitempty"`
+	ProviderErrorDetail json.RawMessage `json:"provider_error_detail,omitempty"`
 }
 
 func (r *DiffractLLMError) Error() string {
