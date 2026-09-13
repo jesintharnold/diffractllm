@@ -208,7 +208,6 @@ func (g *Governance) flushBudgetUsage() int64 {
 		}
 
 		if err := g.Store.FlushBudgetUsage(cfg.ID, cost, reqs); err != nil {
-			// LastFlushed stays behind, so the next tick rewrites the same value.
 			g.logger.Error("Failed to flush budget usage", zap.Error(err), zap.String("budget_id", cfg.ID))
 			return true
 		}
