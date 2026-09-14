@@ -92,6 +92,10 @@ func (key *StoreVirtualKey) BeforeSave(tx *gorm.DB) error {
 }
 
 func (key *StoreVirtualKey) AfterFind(tx *gorm.DB) error {
+
+	if key.APIKey == "" {
+		return nil
+	}
 	decKey := tx.Statement.Context.Value(aesKeyPass{}).([]byte)
 	apiKey, err := decryptKey(&key.APIKey, decKey)
 	if err != nil {
@@ -105,6 +109,14 @@ func (s *Store) ListActiveVirtualKeys() ([]StoreVirtualKey, error) {
 	var keys []StoreVirtualKey
 	if err := s.DB.Where("is_active = ?", true).Find(&keys).Error; err != nil {
 		return nil, fmt.Errorf("failed to list active virtual keys: %w", err)
+	}
+	return keys, nil
+}
+
+func (s *Store) ListVirtualKeysWithoutKeys() ([]StoreVirtualKey, error) {
+	var keys []StoreVirtualKey
+	if err := s.DB.Select([]string{"id", "key_hash", "display_prefix", "client_id", "budget_id", "mode", "provider_configs", "load_balancer", "is_active", "created_at", "updated_at", "expires_at"}).Order("is_active DESC").Find(&keys).Error; err != nil {
+		return nil, fmt.Errorf("failed to list virtual keys: %w", err)
 	}
 	return keys, nil
 }
@@ -136,6 +148,35 @@ func (s *Store) RevokeVirtualKey(id string) error {
 		}
 		return tx.Model(&StoreBudget{}).Where("id = ?", key.BudgetID).Update("status", "released").Error
 	})
+}
+func (s *Store) RotateVirtualKey(id string) (*StoreVirtualKey, string, error) {
+	apiKey, hash, prefix, err := core.GenerateVirtualKey()
+	if err != nil {
+		return nil, "", fmt.Errorf("generate virtual key: %w", err)
+	}
+
+	err = s.DB.Transaction(func(tx *gorm.DB) error {
+		var key StoreVirtualKey
+		if err := tx.Where("id = ?", id).First(&key).Error; err != nil {
+			return fmt.Errorf("virtual key %q not found: %w", id, err)
+		}
+		if !key.IsActive {
+			return fmt.Errorf("virtual key %q is revoked", id)
+		}
+		key.APIKey = apiKey
+		key.KeyHash = hash
+		key.DisplayPrefix = prefix
+		return tx.Save(&key).Error
+	})
+	if err != nil {
+		return nil, "", err
+	}
+
+	row, err := s.GetVirtualKey(id)
+	if err != nil {
+		return nil, "", err
+	}
+	return row, apiKey, nil
 }
 
 type UpdateVirtualKeyRoutingRequest struct {
@@ -182,18 +223,23 @@ type CreateVirtualKeyResult struct {
 	Budget     *StoreBudget
 }
 
-func (s *Store) CreateVirtualKeyTx(payload *core.VirtualKeyRequest, apiKey, hash, prefix string) (*CreateVirtualKeyResult, error) {
+func (s *Store) CreateVirtualKeyTx(payload *core.VirtualKeyRequest) (*CreateVirtualKeyResult, string, error) {
 	if payload.Mode == nil {
-		return nil, fmt.Errorf("mode is required")
+		return nil, "", fmt.Errorf("mode is required")
 	}
 	if payload.LoadBalancer == nil {
-		return nil, fmt.Errorf("load balancer is required")
+		return nil, "", fmt.Errorf("load balancer is required")
 	}
 	if _, err := core.CompileProviderConfigs(*payload.Mode, payload.ProviderConfigs); err != nil {
-		return nil, err
+		return nil, "", err
+	}
+
+	apiKey, hash, prefix, err := core.GenerateVirtualKey()
+	if err != nil {
+		return nil, "", fmt.Errorf("generate virtual key: %w", err)
 	}
 	var result CreateVirtualKeyResult
-	err := s.DB.Transaction(func(tx *gorm.DB) error {
+	err = s.DB.Transaction(func(tx *gorm.DB) error {
 		var budget StoreBudget
 		if err := tx.Where("id = ?", payload.BudgetID).First(&budget).Error; err != nil {
 			return fmt.Errorf("budget %q not found: %w", payload.BudgetID, err)
@@ -226,9 +272,15 @@ func (s *Store) CreateVirtualKeyTx(payload *core.VirtualKeyRequest, apiKey, hash
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	return &result, nil
+
+	row, err := s.GetVirtualKey(result.VirtualKey.ID)
+	if err != nil {
+		return nil, "", err
+	}
+	result.VirtualKey = row
+	return &result, apiKey, nil
 }
 
 func (s *Store) DeleteVirtualKey(id string) error {

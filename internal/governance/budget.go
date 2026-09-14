@@ -24,11 +24,13 @@ type Budget struct {
 
 func (b *Budget) CheckBudgetUsage() bool {
 	bc := b.Config.Load()
-	if bc == nil || !bc.Enforce || bc.BudgetLimit == 0 {
+	if bc == nil || bc.BudgetLimit == 0 {
 		return true
 	}
-	// A stale window is not a free window. TrackBudgetWindow does the reset;
-	// until it lands we stay strict rather than letting spend through.
+	if bc.Enforce != nil && !*bc.Enforce {
+		return true
+	}
+
 	return b.WindowCost.Load() < bc.BudgetLimit
 }
 
@@ -54,16 +56,10 @@ func budgetResetTarget(cfg *core.Budget, now time.Time) *time.Time {
 		return nil
 	}
 
-	// A gap of many windows collapses to one reset at the current boundary
-	// rather than replaying one reset per window that went by.
 	windows := int64(elapsed / cfg.BudgetParseDuration)
 	target := cfg.LastBudgetRefreshAt.Add(time.Duration(windows) * cfg.BudgetParseDuration)
 	return &target
 }
-
-
-
-
 
 type BudgetCache struct {
 	BudgetMap sync.Map

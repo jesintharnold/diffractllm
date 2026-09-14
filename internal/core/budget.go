@@ -10,7 +10,7 @@ type Budget struct {
 	BudgetUnit          string    `json:"budget_unit"`
 	BudgetDuration      string    `json:"budget_duration"` // i.e 1D , 1M , 1Y etc...
 	LastBudgetRefreshAt time.Time `json:"last_budget_refresh_at"`
-	Enforce             bool      `json:"enforce"`
+	Enforce             *bool     `json:"enforce,omitempty"`
 
 	TotalSpend   int64  `json:"total_spend,omitempty"` // Nano-USD
 	RequestCount int64  `json:"request_count,omitempty"`

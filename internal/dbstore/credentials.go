@@ -22,7 +22,6 @@ type StoreCredential struct {
 	Endpoint      string                `gorm:"type:text" json:"endpoint"`
 	Aliases       map[string]core.Alias `gorm:"serializer:json;type:text" json:"aliases"`
 
-	AzureAPIVersion   *string  `gorm:"type:text" json:"azure_api_version,omitempty"`
 	AzureAuthMode     *string  `gorm:"type:text" json:"azure_auth_mode,omitempty"`
 	AzureTenantID     *string  `gorm:"type:text" json:"azure_tenant_id,omitempty"`
 	AzureClientID     *string  `gorm:"type:text" json:"azure_client_id,omitempty"`

@@ -14,7 +14,7 @@ func (g *Governance) ValidatevKeyAuth(rctx *core.DiffractLLMContext) *core.Diffr
 		return core.NewAuthFailed("missing api key — provide x-diffract-key or Authorization: Bearer <key> or x-api-key or x-goog-api-key")
 	}
 
-	if !ValidateKeySignature(key) {
+	if !core.ValidateKeySignature(key) {
 		return core.NewAuthFailed("Invalid DiffractLLM API key format")
 	}
 
