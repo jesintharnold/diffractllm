@@ -340,7 +340,6 @@ func (c *ModelCatalog) ResolvePrice(virtualKeyID string, key core.CatalogKey, se
 	return &bp.Pricing
 }
 
-
 func (c *ModelCatalog) Models(provider core.Provider) []core.ModelMetadata {
 	snap := c.models.Load()
 	if snap == nil {

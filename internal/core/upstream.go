@@ -11,8 +11,9 @@ type NetworkConfig struct {
 	MaxConnsPerHost     *int              `json:"max_conns_per_host,omitempty"`
 	InsecureSkipVerify  bool              `json:"insecure_skip_verify,omitempty"`
 	AllowPrivateNetwork bool              `json:"allow_private_network,omitempty"`
-	MaxResponseBytes    int64             `json:"max_response_bytes,omitempty"`
-	StreamIdleTimeout   *time.Duration    `json:"stream_idle_timeout,omitempty"`
+	RetryAmbiguousStatus *bool          `json:"retry_ambiguous_status,omitempty"`
+	MaxResponseBytes     int64          `json:"max_response_bytes,omitempty"`
+	StreamIdleTimeout    *time.Duration `json:"stream_idle_timeout,omitempty"`
 }
 
 type ProxyType string
@@ -40,7 +41,7 @@ func (n NetworkConfig) IsZero() bool {
 	return n.BaseURL == "" && len(n.Headers) == 0 &&
 		n.RequestTimeout == nil && n.MaxRetries == nil &&
 		n.RetryBackoff == nil && n.MaxConnsPerHost == nil &&
-		n.StreamIdleTimeout == nil &&
+		n.StreamIdleTimeout == nil && n.RetryAmbiguousStatus == nil &&
 		!n.InsecureSkipVerify && !n.AllowPrivateNetwork &&
 		n.MaxResponseBytes == 0
 }

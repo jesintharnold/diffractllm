@@ -105,9 +105,14 @@ func applyProxy(transport *http.Transport, dialer *net.Dialer, proxyConfig *core
 		return nil
 	}
 
+	// Every branch dials the proxy, not the upstream, so the unguarded hop
+	// dialer replaces the guarded one. An http or environment proxy resolves
+	// the target itself, so those two have no dial-time target guard at all -
+	// only socks5 keeps one, through guardedProxyDial.
 	switch proxyConfig.Type {
 	case core.ProxyEnvironment:
 		transport.Proxy = http.ProxyFromEnvironment
+		transport.DialContext = dialer.DialContext
 		return nil
 	case core.ProxyHTTP:
 		urlConfig, err := url.Parse(proxyConfig.URL)
@@ -120,6 +125,7 @@ func applyProxy(transport *http.Transport, dialer *net.Dialer, proxyConfig *core
 		}
 
 		transport.Proxy = http.ProxyURL(urlConfig)
+		transport.DialContext = dialer.DialContext
 	case core.ProxySOCKS5:
 		var auth *proxy.Auth
 		if proxyConfig.Username != "" {
@@ -168,8 +174,16 @@ func newClient(defaultConfig config.UpstreamConfig, upstreamProviderConfig *core
 		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 
-	if err := applyProxy(transport, dialer, upstreamProviderConfig.Proxy, upstreamProviderConfig.Network.AllowPrivateNetwork); err != nil {
-		return nil, err
+	// The proxy address is operator config, never request-derived, so reaching
+	// it is not an SSRF vector and must not go through guardedControl.
+	if upstreamProviderConfig.Proxy != nil {
+		hop := &net.Dialer{
+			Timeout:   defaultConfig.DialTimeout,
+			KeepAlive: defaultConfig.KeepAlive,
+		}
+		if err := applyProxy(transport, hop, upstreamProviderConfig.Proxy, providerNetwork.AllowPrivateNetwork); err != nil {
+			return nil, err
+		}
 	}
 
 	return &http.Client{
@@ -306,7 +320,6 @@ func buildProviders(defaultConfig config.UpstreamConfig, upstreamProviderConfig 
 	return &providerClientMaps
 }
 
-
 func (t *DiffractLLMTransport) Replace(upstreamProviderConfig map[core.Provider]*core.Upstream) []core.Provider {
 	next := *buildProviders(t.defaultConfig, upstreamProviderConfig, t.logger)
 	var failed []core.Provider
@@ -326,7 +339,22 @@ func (t *DiffractLLMTransport) Replace(upstreamProviderConfig map[core.Provider]
 		}
 	}
 	t.providers.Store(&next)
+	t.closeDropped(old, next)
 	return failed
+}
+
+func (t *DiffractLLMTransport) closeDropped(old *providerClientMap, next providerClientMap) {
+	if old == nil {
+		return
+	}
+	for provider, previous := range *old {
+		if next[provider] == previous {
+			continue
+		}
+		if transport, ok := previous.client.Transport.(*http.Transport); ok {
+			transport.CloseIdleConnections()
+		}
+	}
 }
 
 func (t *DiffractLLMTransport) ServeHTTP(rctx *core.DiffractLLMContext, req *DiffractLLMTransportRequest) (*DiffractLLMTransportResult, *core.DiffractLLMError) {
@@ -354,7 +382,6 @@ func (t *DiffractLLMTransport) ServeHTTP(rctx *core.DiffractLLMContext, req *Dif
 		}
 	}
 
-	// Add a Retry architecture to the Provider calls
 	maxAttempts := 1
 	if upstream.Network.MaxRetries != nil && *upstream.Network.MaxRetries > 0 {
 		maxAttempts += *upstream.Network.MaxRetries
@@ -364,6 +391,8 @@ func (t *DiffractLLMTransport) ServeHTTP(rctx *core.DiffractLLMContext, req *Dif
 	if upstream.Network.RetryBackoff != nil && *upstream.Network.RetryBackoff > 0 {
 		backoff = *upstream.Network.RetryBackoff
 	}
+
+	allowAmbiguous := upstream.Network.RetryAmbiguousStatus != nil && *upstream.Network.RetryAmbiguousStatus
 
 	var lastErr *core.DiffractLLMError
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
@@ -405,13 +434,8 @@ func (t *DiffractLLMTransport) ServeHTTP(rctx *core.DiffractLLMContext, req *Dif
 			return nil, lastErr
 		}
 
-		if retryable(resp.StatusCode) && attempt < maxAttempts {
+		if retryable(resp.StatusCode, allowAmbiguous) && attempt < maxAttempts {
 			wait := retryAfter(resp.Header, backoff, attempt)
-			// Drain a bounded amount before closing: net/http can only reuse a
-			// connection whose body was read to completion, so a bare Close
-			// here would burn the connection and force a fresh TLS handshake
-			// on every retry. Bounded, because the point is to not read a
-			// hostile error body into memory.
 			io.Copy(io.Discard, io.LimitReader(resp.Body, 4<<10))
 			resp.Body.Close()
 			if !sleepBackoff(ctx, wait) {
@@ -447,16 +471,25 @@ func (t *DiffractLLMTransport) ServeHTTP(rctx *core.DiffractLLMContext, req *Dif
 	return nil, lastErr
 }
 
-func retryable(status int) bool {
+
+func retrySafe(status int) bool {
 	switch status {
-	case http.StatusRequestTimeout,
-		http.StatusTooManyRequests,
-		http.StatusBadGateway,
-		http.StatusServiceUnavailable,
-		http.StatusGatewayTimeout:
+	case http.StatusRequestTimeout, http.StatusTooManyRequests:
 		return true
 	}
 	return false
+}
+
+func retryAmbiguous(status int) bool {
+	switch status {
+	case http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+		return true
+	}
+	return false
+}
+
+func retryable(status int, allowAmbiguous bool) bool {
+	return retrySafe(status) || (allowAmbiguous && retryAmbiguous(status))
 }
 
 func retryAfter(h http.Header, base time.Duration, attempt int) time.Duration {
