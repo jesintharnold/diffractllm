@@ -57,6 +57,17 @@ func (s *StoreCredential) BeforeSave(tx *gorm.DB) error {
 }
 
 func (s *StoreCredential) AfterFind(tx *gorm.DB) error {
+	if mask, _ := tx.Statement.Context.Value(maskSecrets{}).(bool); mask {
+		for _, field := range s.secrets() {
+			if *field == nil {
+				continue
+			}
+			masked := SecretMask
+			*field = &masked
+		}
+		return nil
+	}
+
 	decKey := tx.Statement.Context.Value(aesKeyPass{}).([]byte)
 	for _, field := range s.secrets() {
 		if *field == nil {
@@ -150,6 +161,25 @@ func (s *Store) CreateCredential(cred *core.Credential) (*StoreCredential, error
 func (s *Store) GetCredential(id string) (*StoreCredential, error) {
 	var row StoreCredential
 	if err := s.DB.Preload("Provider").Where("id = ?", id).First(&row).Error; err != nil {
+		return nil, fmt.Errorf("credential %q not found: %w", id, err)
+	}
+	return &row, nil
+}
+
+func (s *Store) ListCredentialsByProviderRedacted(provider core.Provider) ([]StoreCredential, error) {
+	var rows []StoreCredential
+	if err := s.redacted().Preload("Provider").
+		Joins("JOIN providers ON providers.id = credentials.provider_id").
+		Where("providers.name = ?", string(provider)).
+		Find(&rows).Error; err != nil {
+		return nil, fmt.Errorf("failed to list credentials for %q: %w", provider, err)
+	}
+	return rows, nil
+}
+
+func (s *Store) GetCredentialRedacted(id string) (*StoreCredential, error) {
+	var row StoreCredential
+	if err := s.redacted().Preload("Provider").Where("id = ?", id).First(&row).Error; err != nil {
 		return nil, fmt.Errorf("credential %q not found: %w", id, err)
 	}
 	return &row, nil

@@ -24,6 +24,13 @@ var (
 )
 
 type aesKeyPass struct{}
+type maskSecrets struct{}
+
+const SecretMask = "*********"
+
+func (s *Store) redacted() *gorm.DB {
+	return s.DB.WithContext(context.WithValue(s.DB.Statement.Context, maskSecrets{}, true))
+}
 
 func NewStore(dbPath string, aespasskey string, logger *zap.Logger) (*Store, error) {
 	storeOnce.Do(func() {

@@ -60,13 +60,18 @@ func ParseVKMode(value string) (VKMode, error) {
 type ProviderConfig struct {
 	Provider             Provider            `json:"provider"`
 	AllowedModels        []string            `json:"allowed_models"`
+	BlockedModels        []string            `json:"blocked_models,omitempty"`
 	Weight               float32             `json:"weight,omitempty"`
 	runtimeAllowedModels map[string]struct{} `json:"-"`
+	runtimeBlockedModels map[string]struct{} `json:"-"`
 	allowAll             bool                `json:"-"`
 }
 
 func (config *ProviderConfig) IsModelAllowed(key CatalogKey) bool {
 	if config == nil || key.Provider != config.Provider || key.ModelName == "" {
+		return false
+	}
+	if _, blocked := config.runtimeBlockedModels[key.ModelName]; blocked {
 		return false
 	}
 	if config.allowAll {
@@ -105,7 +110,24 @@ func CompileProviderConfigs(mode VKMode, configs []ProviderConfig) ([]*ProviderC
 			Provider:             provider,
 			Weight:               stored.Weight,
 			AllowedModels:        make([]string, 0, len(stored.AllowedModels)),
+			BlockedModels:        make([]string, 0, len(stored.BlockedModels)),
 			runtimeAllowedModels: make(map[string]struct{}, len(stored.AllowedModels)),
+			runtimeBlockedModels: make(map[string]struct{}, len(stored.BlockedModels)),
+		}
+
+		for _, rawModel := range stored.BlockedModels {
+			model := strings.TrimSpace(rawModel)
+			if model == "" {
+				return nil, fmt.Errorf("provider %q contains an empty blocked model", provider)
+			}
+			if model == "*" {
+				return nil, fmt.Errorf("provider %q cannot block every model; remove the provider config instead", provider)
+			}
+			if _, duplicate := config.runtimeBlockedModels[model]; duplicate {
+				continue
+			}
+			config.runtimeBlockedModels[model] = struct{}{}
+			config.BlockedModels = append(config.BlockedModels, model)
 		}
 
 		for _, rawModel := range stored.AllowedModels {

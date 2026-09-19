@@ -92,8 +92,11 @@ func (key *StoreVirtualKey) BeforeSave(tx *gorm.DB) error {
 }
 
 func (key *StoreVirtualKey) AfterFind(tx *gorm.DB) error {
-
 	if key.APIKey == "" {
+		return nil
+	}
+	if mask, _ := tx.Statement.Context.Value(maskSecrets{}).(bool); mask {
+		key.APIKey = SecretMask
 		return nil
 	}
 	decKey := tx.Statement.Context.Value(aesKeyPass{}).([]byte)
@@ -124,6 +127,14 @@ func (s *Store) ListVirtualKeysWithoutKeys() ([]StoreVirtualKey, error) {
 func (s *Store) GetVirtualKey(id string) (*StoreVirtualKey, error) {
 	var key StoreVirtualKey
 	if err := s.DB.Where("id = ?", id).First(&key).Error; err != nil {
+		return nil, fmt.Errorf("virtual key %q not found: %w", id, err)
+	}
+	return &key, nil
+}
+
+func (s *Store) GetVirtualKeyRedacted(id string) (*StoreVirtualKey, error) {
+	var key StoreVirtualKey
+	if err := s.redacted().Where("id = ?", id).First(&key).Error; err != nil {
 		return nil, fmt.Errorf("virtual key %q not found: %w", id, err)
 	}
 	return &key, nil
@@ -180,9 +191,9 @@ func (s *Store) RotateVirtualKey(id string) (*StoreVirtualKey, string, error) {
 }
 
 type UpdateVirtualKeyRoutingRequest struct {
-	Mode            *core.VKMode
-	ProviderConfigs []core.ProviderConfig
-	LoadBalancer    *core.LBKind
+	Mode            *core.VKMode          `json:"mode,omitempty"`
+	ProviderConfigs []core.ProviderConfig `json:"provider_configs,omitempty"`
+	LoadBalancer    *core.LBKind          `json:"load_balancer,omitempty"`
 }
 
 func (s *Store) UpdateVirtualKeyRouting(keyID string, request UpdateVirtualKeyRoutingRequest) (*StoreVirtualKey, error) {

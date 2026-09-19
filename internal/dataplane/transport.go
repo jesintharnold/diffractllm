@@ -306,22 +306,27 @@ func buildProviders(defaultConfig config.UpstreamConfig, upstreamProviderConfig 
 	return &providerClientMaps
 }
 
-func (t *DiffractLLMTransport) Replace(upstreamProviderConfig map[core.Provider]*core.Upstream) {
+
+func (t *DiffractLLMTransport) Replace(upstreamProviderConfig map[core.Provider]*core.Upstream) []core.Provider {
 	next := *buildProviders(t.defaultConfig, upstreamProviderConfig, t.logger)
+	var failed []core.Provider
 	old := t.providers.Load()
-	if old != nil {
-		for provider := range upstreamProviderConfig {
-			if _, built := next[provider]; built {
-				continue
-			}
-			if existing, ok := (*old)[provider]; ok {
-				t.logger.Warn("keeping previous client, new config failed to build",
-					zap.String("provider", string(provider)))
-				next[provider] = existing
-			}
+	for provider := range upstreamProviderConfig {
+		if _, built := next[provider]; built {
+			continue
+		}
+		failed = append(failed, provider)
+		if old == nil {
+			continue
+		}
+		if existing, ok := (*old)[provider]; ok {
+			t.logger.Warn("keeping previous client, new config failed to build",
+				zap.String("provider", string(provider)))
+			next[provider] = existing
 		}
 	}
 	t.providers.Store(&next)
+	return failed
 }
 
 func (t *DiffractLLMTransport) ServeHTTP(rctx *core.DiffractLLMContext, req *DiffractLLMTransportRequest) (*DiffractLLMTransportResult, *core.DiffractLLMError) {

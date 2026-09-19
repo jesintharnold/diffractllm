@@ -339,3 +339,38 @@ func (c *ModelCatalog) ResolvePrice(virtualKeyID string, key core.CatalogKey, se
 	}
 	return &bp.Pricing
 }
+
+
+func (c *ModelCatalog) Models(provider core.Provider) []core.ModelMetadata {
+	snap := c.models.Load()
+	if snap == nil {
+		return nil
+	}
+	out := make([]core.ModelMetadata, 0, len(snap.entries))
+	for i := range snap.entries {
+		if provider == "" || snap.entries[i].Provider == provider {
+			out = append(out, snap.entries[i])
+		}
+	}
+	return out
+}
+
+func (c *ModelCatalog) ModelCount(provider core.Provider) int {
+	snap := c.models.Load()
+	if snap == nil {
+		return 0
+	}
+	return len(snap.byProvider[provider])
+}
+
+func (c *ModelCatalog) BasePrice(key core.CatalogKey) *core.Pricing {
+	snap := c.basePricing.Load()
+	if snap == nil {
+		return nil
+	}
+	variant := snap.find(key, core.EmptySelectorKey)
+	if variant == nil {
+		return nil
+	}
+	return &variant.Pricing
+}

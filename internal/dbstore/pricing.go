@@ -235,9 +235,34 @@ func (o *StoreCustomModelPricing) ToCore() *core.CustomPricing {
 	return &out
 }
 
+func (s *Store) hasBasePricing(modelName, modelType string, provider *core.Provider) (bool, error) {
+	query := s.DB.Model(&StoreModelPricing{}).Where("model_name = ? AND model_type = ?", modelName, modelType)
+	if provider != nil {
+		query = query.Joins("JOIN providers ON providers.id = model_pricing.provider_id").Where("providers.name = ?", string(*provider))
+	}
+
+	var count int64
+	if err := query.Count(&count).Error; err != nil {
+		return false, fmt.Errorf("checking base pricing for %q: %w", modelName, err)
+	}
+	return count > 0, nil
+}
+
 func (s *Store) CreateCustomPricing(b core.CustomPricingRequest) (*StoreCustomModelPricing, error) {
 	if core.ParseModelType(b.ModelType) == core.ModelTypeUnknown {
 		return nil, fmt.Errorf("invalid model_type %q", b.ModelType)
+	}
+
+	var scopedProvider *core.Provider
+	if b.ScopeType == core.ScopeProvider {
+		scopedProvider = b.ScopeProvider
+	}
+	hasBase, err := s.hasBasePricing(b.ModelName, b.ModelType, scopedProvider)
+	if err != nil {
+		return nil, err
+	}
+	if !hasBase {
+		return nil, fmt.Errorf("no base price for %q (%s): custom pricing overrides a price, it cannot create one", b.ModelName, b.ModelType)
 	}
 
 	payload := StoreCustomModelPricing{
@@ -321,4 +346,46 @@ func (s *Store) UpdateCustomPricing(pricingID string, pricing core.Pricing) (*St
 		return nil, err
 	}
 	return &result, nil
+}
+
+func (s *Store) DeleteCustomPricing(pricingID string) error {
+	res := s.DB.Where("id = ?", pricingID).Delete(&StoreCustomModelPricing{})
+	if res.Error != nil {
+		return fmt.Errorf("delete override pricing %q: %w", pricingID, res.Error)
+	}
+	if res.RowsAffected == 0 {
+		return fmt.Errorf("override pricing %q not found", pricingID)
+	}
+	return nil
+}
+
+type CustomPricingFilters struct {
+	ScopeType    string
+	VirtualKeyID string
+	Provider     string
+	ModelName    string
+}
+
+func (s *Store) ListCustomPricingFiltered(filters CustomPricingFilters) ([]StoreCustomModelPricing, error) {
+	query := s.DB.Preload("ScopeProvider").Model(&StoreCustomModelPricing{})
+
+	if filters.ScopeType != "" {
+		query = query.Where("scope_type = ?", filters.ScopeType)
+	}
+	if filters.VirtualKeyID != "" {
+		query = query.Where("scope_virtual_key_id = ?", filters.VirtualKeyID)
+	}
+	if filters.ModelName != "" {
+		query = query.Where("model_name = ?", filters.ModelName)
+	}
+	if filters.Provider != "" {
+		query = query.Joins("JOIN providers ON providers.id = model_pricing_override.scope_provider_id").
+			Where("providers.name = ?", filters.Provider)
+	}
+
+	var result []StoreCustomModelPricing
+	if err := query.Find(&result).Error; err != nil {
+		return nil, fmt.Errorf("failed to list override pricing: %w", err)
+	}
+	return result, nil
 }

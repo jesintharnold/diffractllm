@@ -44,6 +44,56 @@ func (ds *DiffractLLMServer) routeHandlers() (http.Handler, error) {
 	}
 
 	// ---- START OF ADMIN HANDLERS ----
+	admin := router.Group("/v1/admin")
+
+	admin.GET("/stats", ds.handleStats)
+	admin.POST("/sync/catalog", ds.handleModelCatalog)
+
+	budgets := admin.Group("/budgets")
+	{
+		budgets.GET("", ds.listBudgets)
+		budgets.POST("", ds.createBudget)
+		budgets.GET("/:id", ds.getBudget)
+		budgets.PUT("/:id", ds.updateBudget)
+		budgets.DELETE("/:id", ds.deleteBudget)
+	}
+
+	keys := admin.Group("/virtual-keys")
+	{
+		keys.GET("", ds.listVirtualKeys)
+		keys.POST("", ds.createVirtualKey)
+		keys.GET("/:id", ds.getVirtualKey)
+		keys.PUT("/:id/routing", ds.updateVirtualKeyRouting)
+		keys.POST("/:id/rotate", ds.rotateVirtualKey)
+		keys.DELETE("/:id", ds.revokeVirtualKey)
+	}
+
+	providers := admin.Group("/providers")
+	{
+		providers.GET("", ds.listProviders)
+		providers.GET("/:providername", ds.getProvider)
+		providers.GET("/:providername/settings", ds.getProviderSettings)
+		providers.PUT("/:providername/settings", ds.updateProvider)
+
+		providers.GET("/:providername/credentials", ds.listCredentials)
+		providers.POST("/:providername/credentials", ds.createCredential)
+		providers.PUT("/:providername/credentials/:id", ds.updateCredential)
+		providers.DELETE("/:providername/credentials/:id", ds.deleteCredential)
+	}
+
+	models := admin.Group("/models")
+	{
+		models.GET("", ds.listModels)
+		models.GET("/catalog", ds.listModelCatalog)
+	}
+
+	pricing := admin.Group("/pricing/custom")
+	{
+		pricing.GET("", ds.listCustomPricing)
+		pricing.POST("", ds.createCustomPricing)
+		pricing.PUT("/:id", ds.updateCustomPricing)
+		pricing.DELETE("/:id", ds.deleteCustomPricing)
+	}
 
 	// ----- END OF ADMIN HANDLERS ------
 

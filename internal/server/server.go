@@ -37,12 +37,13 @@ type DiffractLLMServer struct {
 	CredentialPlane  *providerplane.ProviderPlane
 	ModelCatalog     *modelcatalog.ModelCatalog
 	ProviderRegistry *providers.ProviderInstance
+	Transport        *dataplane.DiffractLLMTransport
 
 	dbStore *dbstore.Store
 }
 
 func NewDiffractLLMServer(logger *zap.Logger, config *config.ServerConfig, gov *governance.Governance, selectionEngine *dataplane.SelectionEngine, credentialPlane *providerplane.ProviderPlane, catalog *modelcatalog.ModelCatalog,
-	registry *providers.ProviderInstance, store *dbstore.Store) *DiffractLLMServer {
+	registry *providers.ProviderInstance, transport *dataplane.DiffractLLMTransport, store *dbstore.Store) *DiffractLLMServer {
 	hookEngine := core.NewHookEngine(logger)
 	governance.RegisterHooks(hookEngine, logger, gov, catalog)
 	return &DiffractLLMServer{
@@ -56,6 +57,7 @@ func NewDiffractLLMServer(logger *zap.Logger, config *config.ServerConfig, gov *
 		CredentialPlane:  credentialPlane,
 		ModelCatalog:     catalog,
 		ProviderRegistry: registry,
+		Transport:        transport,
 		dbStore:          store,
 	}
 }

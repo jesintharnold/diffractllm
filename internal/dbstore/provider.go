@@ -15,9 +15,59 @@ type StoreProvider struct {
 	IsConfigured bool               `gorm:"not null;default:false"                         json:"is_configured"`
 	Network      core.NetworkConfig `gorm:"serializer:json;type:text" json:"network_config"`
 	Proxy        *core.ProxyConfig  `gorm:"serializer:json;type:text" json:"proxy_config,omitempty"`
+
+	AdapterEnabled bool `gorm:"-" json:"adapter_enabled"`
+	ModelCount     int  `gorm:"-" json:"model_count"`
 }
 
 func (StoreProvider) TableName() string { return "providers" }
+
+func (s *StoreProvider) secrets() []*string {
+	if s.Proxy == nil {
+		return nil
+	}
+	return []*string{&s.Proxy.Username, &s.Proxy.Password}
+}
+
+func (s *StoreProvider) BeforeSave(tx *gorm.DB) error {
+	encKey := tx.Statement.Context.Value(aesKeyPass{}).([]byte)
+	for _, field := range s.secrets() {
+		if *field == "" {
+			continue
+		}
+		encrypted, err := encryptKey(field, encKey)
+		if err != nil {
+			return fmt.Errorf("error while encrypting proxy secret: %w", err)
+		}
+		*field = *encrypted
+	}
+	return nil
+}
+
+func (s *StoreProvider) AfterFind(tx *gorm.DB) error {
+	if mask, _ := tx.Statement.Context.Value(maskSecrets{}).(bool); mask {
+		for _, field := range s.secrets() {
+			if *field == "" {
+				continue
+			}
+			*field = SecretMask
+		}
+		return nil
+	}
+
+	decKey := tx.Statement.Context.Value(aesKeyPass{}).([]byte)
+	for _, field := range s.secrets() {
+		if *field == "" {
+			continue
+		}
+		decrypted, err := decryptKey(field, decKey)
+		if err != nil {
+			return fmt.Errorf("error while decrypting proxy secret: %w", err)
+		}
+		*field = *decrypted
+	}
+	return nil
+}
 
 func (s *StoreProvider) ToUpstream() *core.Upstream {
 	return &core.Upstream{
@@ -35,22 +85,47 @@ func (s *Store) ListProviders() ([]StoreProvider, error) {
 	return rows, nil
 }
 
+func (s *Store) ListProvidersRedacted() ([]StoreProvider, error) {
+	var rows []StoreProvider
+	if err := s.redacted().Find(&rows).Error; err != nil {
+		return nil, fmt.Errorf("failed to list providers: %w", err)
+	}
+	return rows, nil
+}
+
+func (s *Store) GetProvider(name core.Provider) (*StoreProvider, error) {
+	var row StoreProvider
+	if err := s.DB.Where("name = ?", string(name)).First(&row).Error; err != nil {
+		return nil, fmt.Errorf("provider %q not found: %w", name, err)
+	}
+	return &row, nil
+}
+
+func (s *Store) GetProviderRedacted(name core.Provider) (*StoreProvider, error) {
+	var row StoreProvider
+	if err := s.redacted().Where("name = ?", string(name)).First(&row).Error; err != nil {
+		return nil, fmt.Errorf("provider %q not found: %w", name, err)
+	}
+	return &row, nil
+}
+
 func (s *Store) UpdateProviderConfig(provider core.Provider, network core.NetworkConfig, proxy *core.ProxyConfig) error {
-	res := s.DB.Model(&StoreProvider{}).
-		Where("name = ?", string(provider)).
-		Select("network", "proxy", "is_configured").
-		Updates(&StoreProvider{
-			Network:      network,
-			Proxy:        proxy,
-			IsConfigured: true,
-		})
-	if res.Error != nil {
-		return fmt.Errorf("update provider %q config: %w", provider, res.Error)
-	}
-	if res.RowsAffected == 0 {
-		return fmt.Errorf("provider %q not found", provider)
-	}
-	return nil
+	return s.DB.Transaction(func(tx *gorm.DB) error {
+		row, err := s.resolveProvider(tx, provider)
+		if err != nil {
+			return err
+		}
+		row.Network = network
+		row.Proxy = proxy
+		row.IsConfigured = true
+
+		if err := tx.Model(&row).
+			Select("network", "proxy", "is_configured").
+			Updates(&row).Error; err != nil {
+			return fmt.Errorf("update provider %q config: %w", provider, err)
+		}
+		return nil
+	})
 }
 
 func (s *Store) resolveProvider(tx *gorm.DB, provider core.Provider) (StoreProvider, error) {

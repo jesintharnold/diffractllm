@@ -35,3 +35,12 @@ type Upstream struct {
 	Network  NetworkConfig `json:"network_config"`
 	Proxy    *ProxyConfig  `json:"proxy_config,omitempty"`
 }
+
+func (n NetworkConfig) IsZero() bool {
+	return n.BaseURL == "" && len(n.Headers) == 0 &&
+		n.RequestTimeout == nil && n.MaxRetries == nil &&
+		n.RetryBackoff == nil && n.MaxConnsPerHost == nil &&
+		n.StreamIdleTimeout == nil &&
+		!n.InsecureSkipVerify && !n.AllowPrivateNetwork &&
+		n.MaxResponseBytes == 0
+}
