@@ -160,6 +160,7 @@ func (s *Store) RevokeVirtualKey(id string) error {
 		return tx.Model(&StoreBudget{}).Where("id = ?", key.BudgetID).Update("status", "released").Error
 	})
 }
+
 func (s *Store) RotateVirtualKey(id string) (*StoreVirtualKey, string, error) {
 	apiKey, hash, prefix, err := core.GenerateVirtualKey()
 	if err != nil {

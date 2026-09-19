@@ -1007,3 +1007,138 @@ func TestSyncCatalogFetchError(t *testing.T) {
 	assert.Nil(t, detail)
 	assert.Contains(t, err.Error(), "fetch catalog feed")
 }
+
+// CustomPricingKey is (ModelName, ModelType), so the same name under two
+// endpoints is two override slots. A chat override must not reprice embeddings.
+func TestResolvePriceCustomKeySeparatesModelTypes(t *testing.T) {
+	embedKey := core.CatalogKey{
+		Provider: core.ProviderOpenAI, ModelName: gpt4o, ModelType: core.ModelTypeEmbedding,
+	}
+
+	embedVariant := variant(core.ProviderOpenAI, gpt4o, "", 3, 4)
+	embedVariant.ModelType = core.ModelTypeEmbedding
+	embedVariant.RawKey = gpt4o + "-embed"
+
+	chatOverride := custom(core.ScopeGlobal, gpt4o, "", 50)
+
+	c := newCatalog(t, nil, []core.PricingVariant{
+		variant(core.ProviderOpenAI, gpt4o, "", 1, 2),
+		embedVariant,
+	}, chatOverride)
+
+	chat := c.ResolvePrice("", chatKey(core.ProviderOpenAI, gpt4o), core.EmptySelectorKey)
+	require.NotNil(t, chat)
+	assert.Equal(t, 50.0, *chat.InputCostPerToken, "the chat override applies to chat")
+
+	embed := c.ResolvePrice("", embedKey, core.EmptySelectorKey)
+	require.NotNil(t, embed)
+	assert.Equal(t, 3.0, *embed.InputCostPerToken,
+		"the embedding price must be untouched by a chat override")
+}
+
+// An override on one model type does not create a slot for the other, so a
+// missing base price on that type still resolves to nil.
+func TestResolvePriceOverrideDoesNotInventAModelType(t *testing.T) {
+	c := newCatalog(t, nil,
+		[]core.PricingVariant{variant(core.ProviderOpenAI, gpt4o, "", 1, 2)},
+		custom(core.ScopeGlobal, gpt4o, "", 50))
+
+	assert.Nil(t, c.ResolvePrice("", core.CatalogKey{
+		Provider: core.ProviderOpenAI, ModelName: gpt4o, ModelType: core.ModelTypeEmbedding,
+	}, core.EmptySelectorKey))
+}
+
+// ReloadCustomPricing is a store read only. It must never touch the feed, or an
+// admin write to custom pricing would depend on the network being up.
+func TestReloadCustomPricingMakesNoNetworkCall(t *testing.T) {
+	var hits atomic.Int64
+	feed := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		_, _ = w.Write([]byte(feedOneChat))
+	}))
+	defer feed.Close()
+
+	store := testStore(t)
+	c := NewModelCatalog(store, config.ModelCatalogConfig{SourceURL: feed.URL}, zap.NewNop())
+	require.NoError(t, c.loadAll())
+
+	require.NoError(t, c.ReloadCustomPricing())
+	require.NoError(t, c.ReloadCustomPricing())
+
+	assert.Zero(t, hits.Load(), "reloading overrides must not fetch the catalog feed")
+
+	// Contrast: a sync does fetch.
+	_, err := c.syncCatalog(context.Background())
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, hits.Load())
+}
+
+// The store refuses an override for a model with no base price, so a typo in the
+// model name cannot create a price that resolves to nothing.
+func TestCreateCustomPricingRequiresABasePrice(t *testing.T) {
+	store := testStore(t)
+
+	_, err := store.CreateCustomPricing(core.CustomPricingRequest{
+		Name: "typo", ModelName: "gpt-4o-typo", ModelType: "chat",
+		ScopeType: core.ScopeGlobal,
+		Pricing:   core.Pricing{InputCostPerToken: ptr(1.0)},
+	})
+	require.Error(t, err)
+
+	require.NoError(t, store.BulkSyncModelPricing([]core.PricingVariant{
+		variant(core.ProviderOpenAI, gpt4o, "", 1, 2),
+	}))
+	_, err = store.CreateCustomPricing(core.CustomPricingRequest{
+		Name: "real", ModelName: gpt4o, ModelType: "chat",
+		ScopeType: core.ScopeGlobal,
+		Pricing:   core.Pricing{InputCostPerToken: ptr(1.0)},
+	})
+	assert.NoError(t, err, "a model with a base price is accepted")
+}
+
+// One row per (model, type, scope, ref). A second global override on the same
+// model is a duplicate, not an update.
+func TestCreateCustomPricingRejectsDuplicateScopes(t *testing.T) {
+	store := testStore(t)
+	require.NoError(t, store.BulkSyncModelPricing([]core.PricingVariant{
+		variant(core.ProviderOpenAI, gpt4o, "", 1, 2),
+	}))
+
+	req := func(scope core.ScopeType, opts ...func(*core.CustomPricingRequest)) core.CustomPricingRequest {
+		r := core.CustomPricingRequest{
+			Name: "override", ModelName: gpt4o, ModelType: "chat", ScopeType: scope,
+			Pricing: core.Pricing{InputCostPerToken: ptr(9.0)},
+		}
+		for _, opt := range opts {
+			opt(&r)
+		}
+		return r
+	}
+	forProvider := func(r *core.CustomPricingRequest) { r.ScopeProvider = ptr(core.ProviderOpenAI) }
+	forKey := func(r *core.CustomPricingRequest) { r.ScopeVirtualkeyID = ptr(vkID) }
+
+	tests := []struct {
+		name string
+		give core.CustomPricingRequest
+	}{
+		{name: "global", give: req(core.ScopeGlobal)},
+		{name: "provider", give: req(core.ScopeProvider, forProvider)},
+		{name: "virtualkey", give: req(core.ScopeVirtualKey, forKey)},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			first, err := store.CreateCustomPricing(tc.give)
+			require.NoError(t, err)
+			assert.NotEmpty(t, first.ID)
+
+			_, err = store.CreateCustomPricing(tc.give)
+			assert.Error(t, err, "a second row on the same scope must be refused")
+		})
+	}
+
+	// The three scopes coexist: they differ in scope_type and scope_ref.
+	rows, err := store.ListCustomPricing()
+	require.NoError(t, err)
+	assert.Len(t, rows, 3)
+}

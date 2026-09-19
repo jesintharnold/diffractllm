@@ -15,7 +15,10 @@ type StoreBudget struct {
 	BudgetLimit         int64         `gorm:"not null"`
 	BudgetUnit          string        `gorm:"not null;default:'nanodollars'"`
 	BudgetDuration      string        `gorm:"not null;type:varchar(10)"`
-	Enforce             bool          `gorm:"not null;default:true"`
+	// No column default: gorm omits a false value when the column has one, so
+	// the default would win and an unenforced budget could not be created.
+	// CreateBudget sets this explicitly instead.
+	Enforce bool `gorm:"not null"`
 	TotalCost           int64         `gorm:"not null;default:0"`
 	RequestCount        int64         `gorm:"not null;default:0"`
 	Status              string        `gorm:"not null;default:'unbound';type:text"`

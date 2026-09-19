@@ -43,6 +43,9 @@ func (ds *DiffractLLMServer) routeHandlers() (http.Handler, error) {
 		})
 	}
 
+	router.GET("/health", ds.handleHealth)
+	router.GET("/ready", ds.handleReady)
+
 	// ---- START OF ADMIN HANDLERS ----
 	admin := router.Group("/v1/admin")
 

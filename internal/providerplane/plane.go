@@ -135,3 +135,15 @@ func (plane *ProviderPlane) Replace(credentials []*core.Credential) {
 	defer plane.mu.Unlock()
 	plane.credSnapshot.Store(buildCredSnapshot(credentials))
 }
+
+func (plane *ProviderPlane) Len() int {
+	snap := plane.credSnapshot.Load()
+	if snap == nil {
+		return 0
+	}
+	n := 0
+	for _, bucket := range snap.providerCredentials {
+		n += len(bucket)
+	}
+	return n
+}

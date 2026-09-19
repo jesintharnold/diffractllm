@@ -506,7 +506,6 @@ func (ds *DiffractLLMServer) updateProvider(c *gin.Context) {
 		return
 	}
 
-
 	rows, err := ds.dbStore.ListProviders()
 	if err != nil {
 		adminErr(c, http.StatusInternalServerError, "stored, not yet live")
@@ -577,7 +576,6 @@ type catalogPage struct {
 	Limit  int            `json:"limit"`
 	Offset int            `json:"offset"`
 }
-
 
 func (ds *DiffractLLMServer) runnableProviders() map[core.Provider]struct{} {
 	out := make(map[core.Provider]struct{})
@@ -656,4 +654,25 @@ func (ds *DiffractLLMServer) listModelCatalog(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, catalogPage{Models: models, Total: total, Limit: limit, Offset: offset})
+}
+
+func (ds *DiffractLLMServer) handleHealth(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+func (ds *DiffractLLMServer) handleReady(c *gin.Context) {
+	checks := gin.H{
+		"listening":   ds.Status(),
+		"catalog":     ds.ModelCatalog.Ready(),
+		"credentials": ds.CredentialPlane.Len() > 0,
+		"adapters":    ds.ProviderRegistry.Len() > 0,
+	}
+
+	for _, ok := range checks {
+		if ok != true {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "not ready", "checks": checks})
+			return
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "ready", "checks": checks})
 }

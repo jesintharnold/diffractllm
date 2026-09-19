@@ -373,7 +373,9 @@ func (s *Store) ListCustomPricingFiltered(filters CustomPricingFilters) ([]Store
 		query = query.Where("scope_type = ?", filters.ScopeType)
 	}
 	if filters.VirtualKeyID != "" {
-		query = query.Where("scope_virtual_key_id = ?", filters.VirtualKeyID)
+		// The column follows the Go field ScopeVirtualkeyID, so it has no
+		// underscore before "key" - unlike the json tag.
+		query = query.Where("scope_virtualkey_id = ?", filters.VirtualKeyID)
 	}
 	if filters.ModelName != "" {
 		query = query.Where("model_name = ?", filters.ModelName)

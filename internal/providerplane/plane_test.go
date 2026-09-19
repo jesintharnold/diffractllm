@@ -348,3 +348,34 @@ func TestReplaceSkipsValidation(t *testing.T) {
 
 	assert.Equal(t, []string{"a"}, ids(plane.Credentials(core.ProviderOpenAI)))
 }
+
+// Len counts credentials across every provider. Readiness uses it, so an empty
+// plane must report zero rather than being indistinguishable from an unloaded
+// one.
+func TestLen(t *testing.T) {
+	assert.Zero(t, (&ProviderPlane{}).Len(), "an unloaded plane is empty")
+	assert.Zero(t, NewProviderPlane(nil).Len())
+
+	plane := NewProviderPlane([]*core.Credential{
+		cred("a", core.ProviderOpenAI),
+		cred("b", core.ProviderOpenAI),
+		cred("c", core.ProviderAzure),
+	})
+	assert.Equal(t, 3, plane.Len(), "every provider's bucket counts")
+
+	require.NoError(t, plane.RemoveCredential(core.ProviderAzure, "c"))
+	assert.Equal(t, 2, plane.Len())
+
+	plane.Replace(nil)
+	assert.Zero(t, plane.Len())
+}
+
+// Len does not filter on validity, same as Credentials. Readiness asks "is
+// anything configured", not "is anything usable right now".
+func TestLenCountsDisabledCredentials(t *testing.T) {
+	plane := NewProviderPlane([]*core.Credential{
+		cred("a", core.ProviderOpenAI, disabled),
+		cred("b", core.ProviderOpenAI, expired),
+	})
+	assert.Equal(t, 2, plane.Len())
+}

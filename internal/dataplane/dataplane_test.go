@@ -257,21 +257,82 @@ func TestResolveWeightedRespectsAZeroWeight(t *testing.T) {
 	}
 }
 
-func TestResolveWeightedSpreadsAcrossProviders(t *testing.T) {
+// A 50/50 split over 400 draws must land near the middle. The bounds are wide
+// because selection is random, but they still reject a distribution that
+// ignores weight - 399/1 would pass a "both were seen" assertion.
+func TestResolveWeightedDistributionIsBounded(t *testing.T) {
 	f := source(cred("openai-1", core.ProviderOpenAI), cred("azure-1", core.ProviderAzure))
 	vk := vkey(core.LBRoundRobin, pconfig(core.ProviderOpenAI, 0.5), pconfig(core.ProviderAzure, 0.5))
 	se := engine(t, f)
 
+	const draws = 400
 	seen := make(map[core.Provider]int)
-	for range 400 {
+	for range draws {
 		rc := rctxFor(core.CatalogKey{ModelName: gpt4o, ModelType: core.ModelTypeChat}, vk)
 		got, derr := se.Resolve(rc)
 		require.Nil(t, derr)
 		seen[got.Provider]++
 	}
 
-	assert.Greater(t, seen[core.ProviderOpenAI], 0)
-	assert.Greater(t, seen[core.ProviderAzure], 0)
+	require.Equal(t, draws, seen[core.ProviderOpenAI]+seen[core.ProviderAzure])
+	for _, provider := range []core.Provider{core.ProviderOpenAI, core.ProviderAzure} {
+		assert.Greater(t, seen[provider], 120, "%s is starved: %v", provider, seen)
+		assert.Less(t, seen[provider], 280, "%s is over-selected: %v", provider, seen)
+	}
+}
+
+// A 90/10 split must be visibly skewed, so weight is actually applied rather
+// than the providers being picked uniformly.
+func TestResolveWeightedHonoursTheRatio(t *testing.T) {
+	f := source(cred("openai-1", core.ProviderOpenAI), cred("azure-1", core.ProviderAzure))
+	vk := vkey(core.LBRoundRobin, pconfig(core.ProviderOpenAI, 0.9), pconfig(core.ProviderAzure, 0.1))
+	se := engine(t, f)
+
+	const draws = 400
+	seen := make(map[core.Provider]int)
+	for range draws {
+		rc := rctxFor(core.CatalogKey{ModelName: gpt4o, ModelType: core.ModelTypeChat}, vk)
+		got, derr := se.Resolve(rc)
+		require.Nil(t, derr)
+		seen[got.Provider]++
+	}
+
+	assert.Greater(t, seen[core.ProviderOpenAI], 300, "the 0.9 provider must dominate: %v", seen)
+	assert.Less(t, seen[core.ProviderAzure], 100, "the 0.1 provider must stay rare: %v", seen)
+}
+
+// An explicit provider is a pin, not a preference. If it has no live credential
+// the request fails even though another configured provider could serve it.
+func TestResolveExplicitNeverFallsBack(t *testing.T) {
+	f := source(cred("azure-1", core.ProviderAzure))
+	vk := vkey(core.LBRoundRobin, pconfig(core.ProviderOpenAI, 0.5), pconfig(core.ProviderAzure, 0.5))
+	rc := rctxFor(chatKey(core.ProviderOpenAI, gpt4o), vk)
+
+	_, derr := engine(t, f).Resolve(rc)
+	require.NotNil(t, derr)
+	assert.Equal(t, core.CodeNoHealthyBackends, derr.Code)
+	assert.Equal(t, http.StatusServiceUnavailable, derr.StatusCode)
+	assert.Nil(t, rc.SelectedCredential, "azure must not be substituted for the pinned provider")
+
+	require.Len(t, f.calls, 1, "only the pinned provider is probed")
+	assert.Equal(t, core.ProviderOpenAI, f.calls[0].Provider)
+}
+
+// The error names the model that could not be served, so an operator can tell
+// which key/model pair is dark.
+func TestResolveNoCandidatesNamesTheModel(t *testing.T) {
+	vk := vkey(core.LBRoundRobin, pconfig(core.ProviderOpenAI, 1))
+
+	explicit := rctxFor(chatKey(core.ProviderOpenAI, gpt4o), vk)
+	_, derr := engine(t, source()).Resolve(explicit)
+	require.NotNil(t, derr)
+	assert.Contains(t, derr.Message, gpt4o)
+	assert.Equal(t, "openai/"+gpt4o, derr.Backend, "the explicit path reports provider/model")
+
+	weighted := rctxFor(core.CatalogKey{ModelName: gpt4o, ModelType: core.ModelTypeChat}, vk)
+	_, derr = engine(t, source()).Resolve(weighted)
+	require.NotNil(t, derr)
+	assert.Equal(t, gpt4o, derr.Backend, "the weighted path has no provider yet, so it reports the model")
 }
 
 // ---------- selector fallback ----------
