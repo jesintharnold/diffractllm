@@ -23,7 +23,7 @@ func (ds *DiffractLLMServer) routeHandlers() (http.Handler, error) {
 
 	router.HandleMethodNotAllowed = true
 	router.RedirectTrailingSlash = false
-	router.Use(RequestIDMiddleware(), gin.CustomRecoveryWithWriter(nil, HandleRecovery(ds.logger)))
+	router.Use(RequestIDMiddleware(), AccessLogMiddleware(ds.logger), gin.CustomRecoveryWithWriter(nil, HandleRecovery(ds.logger)))
 
 	// Route Descriptors
 	groups := make(map[core.Provider]*gin.RouterGroup)

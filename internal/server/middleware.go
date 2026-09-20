@@ -3,11 +3,14 @@ package server
 import (
 	"net/http"
 	"runtime/debug"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
+
+const RequestIDKey = "request_id"
 
 func RequestIDMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -16,7 +19,50 @@ func RequestIDMiddleware() gin.HandlerFunc {
 			requestID = uuid.Must(uuid.NewV7()).String()
 		}
 		c.Header("X-Request-ID", requestID)
+		c.Set(RequestIDKey, requestID)
 		c.Next()
+	}
+}
+
+
+func AccessLogMiddleware(logger *zap.Logger) gin.HandlerFunc {
+	log := logger.With(zap.String("component", "http"))
+	return func(c *gin.Context) {
+		start := time.Now()
+		path := c.Request.URL.Path
+		query := c.Request.URL.RawQuery
+
+		c.Next()
+
+		status := c.Writer.Status()
+		fields := []zap.Field{
+			zap.String("method", c.Request.Method),
+			zap.String("path", path),
+			zap.Int("status", status),
+			zap.Duration("took", time.Since(start)),
+			zap.String("client_ip", c.ClientIP()),
+			zap.String(RequestIDKey, c.GetString(RequestIDKey)),
+		}
+		if query != "" {
+			fields = append(fields, zap.String("query", query))
+		}
+		if size := c.Writer.Size(); size > 0 {
+			fields = append(fields, zap.Int("bytes", size))
+		}
+		if errs := c.Errors.ByType(gin.ErrorTypePrivate).String(); errs != "" {
+			fields = append(fields, zap.String("errors", errs))
+		}
+
+		switch {
+		case status >= http.StatusInternalServerError:
+			log.Error("request", fields...)
+		case status >= http.StatusBadRequest:
+			log.Warn("request", fields...)
+		case path == "/health" || path == "/ready":
+			log.Debug("request", fields...)
+		default:
+			log.Info("request", fields...)
+		}
 	}
 }
 
