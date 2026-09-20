@@ -130,9 +130,10 @@ func (s *SourceSchema) UnmarshalJSON(data []byte) error {
 	if strings.TrimSpace(aux.Mode) == "" {
 		return errControlRow
 	}
+
 	modeltype := core.ParseModelType(aux.Mode)
 	if modeltype == core.ModelTypeUnknown {
-		return fmt.Errorf("unknown mode %q", aux.Mode)
+		return fmt.Errorf("%w: unknown mode %q", errControlRow, aux.Mode)
 	}
 	aux.diffracModelType = modeltype
 

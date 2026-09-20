@@ -506,7 +506,6 @@ func TestFetchFailures(t *testing.T) {
 		bodies := map[string]string{
 			"truncated":        `{"gpt-4o": {"mode": "chat", "provider": "openai"`,
 			"not an object":    `[1,2,3]`,
-			"unknown mode":     `{"x": {"mode": "telepathy", "provider": "openai"}}`,
 			"missing provider": `{"x": {"mode": "chat"}}`,
 			"empty body":       ``,
 		}
@@ -515,6 +514,20 @@ func TestFetchFailures(t *testing.T) {
 			_, _, err := src.Fetch(context.Background(), client)
 			assert.Error(t, err, name)
 		}
+	})
+
+	// A mode the IR does not model is skipped and counted, not fatal. The feed
+	// is third-party and gains entities we have never heard of.
+	t.Run("unknown mode is skipped, not fatal", func(t *testing.T) {
+		src, client := serve(t, `{
+		  "bedrock/guardrails": {"mode": "guardrail", "provider": "bedrock"},
+		  "gpt-4o": {"mode": "chat", "provider": "openai"}
+		}`)
+
+		models, _, err := src.Fetch(context.Background(), client)
+		require.NoError(t, err)
+		assert.Len(t, *models, 1, "the chat model still loads")
+		assert.Equal(t, 1, src.TotalUnknown, "the guardrail row is counted as unknown")
 	})
 }
 
