@@ -12,7 +12,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const drainTimeout = 10 * time.Second
+const DrainTimeout = 10 * time.Second
 
 type Detail map[string]any
 
@@ -124,7 +124,7 @@ func (j *Job) loop(ctx context.Context, stop <-chan struct{}, log *zap.Logger) {
 			ticker.Reset(j.Interval)
 		case <-stop:
 			if j.RunAtStop {
-				drainCtx, cancel := context.WithTimeout(context.Background(), drainTimeout)
+				drainCtx, cancel := context.WithTimeout(context.Background(), DrainTimeout)
 				_ = j.exec(drainCtx, log)
 				cancel()
 			}
@@ -244,6 +244,7 @@ func (g *Group) Shutdown(ctx context.Context) error {
 		return fmt.Errorf("worker %s: did not stop in time: %w", g.name, ctx.Err())
 	}
 }
+
 func (g *Group) Trigger(name string) error {
 	g.mu.Lock()
 	defer g.mu.Unlock()

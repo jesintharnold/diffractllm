@@ -31,6 +31,9 @@ type DiffractLLMServer struct {
 	startOnce sync.Once
 	serveErr  chan error
 
+	baseCtx    context.Context
+	cancelBase context.CancelFunc
+
 	HookEngine       *core.HookEngine
 	governance       *governance.Governance
 	selectionEngine  *dataplane.SelectionEngine
@@ -71,12 +74,15 @@ func (ds *DiffractLLMServer) Start() error {
 			return
 		}
 
+		ds.baseCtx, ds.cancelBase = context.WithCancel(context.Background())
+
 		ds.httpServer = &http.Server{
 			Addr:              fmt.Sprintf(":%d", ds.config.Port),
 			Handler:           handler,
 			ReadHeaderTimeout: 10 * time.Second,
 			WriteTimeout:      0, // Disabled to support SSE streaming; Provider Transports will take care of the enforcement
 			IdleTimeout:       60 * time.Second,
+			BaseContext:       func(net.Listener) context.Context { return ds.baseCtx },
 		}
 
 		listener, err := net.Listen("tcp", ds.httpServer.Addr)
@@ -104,12 +110,23 @@ func (ds *DiffractLLMServer) Start() error {
 
 func (ds *DiffractLLMServer) ServeError() <-chan error { return ds.serveErr }
 
-func (ds *DiffractLLMServer) Shutdown(ctx context.Context) error {
+func (ds *DiffractLLMServer) Shutdown(ctx context.Context, streamGrace time.Duration) error {
 	if ds.httpServer == nil {
 		return nil
 	}
 	ds.isReady.Store(false)
-	return ds.httpServer.Shutdown(ctx)
+
+	done := make(chan error, 1)
+	go func() { done <- ds.httpServer.Shutdown(ctx) }()
+
+	select {
+	case err := <-done:
+		return err
+	case <-time.After(streamGrace):
+		ds.logger.Warn("streams still open, cancelling", zap.Duration("after", streamGrace))
+		ds.cancelBase()
+		return <-done
+	}
 }
 func (ds *DiffractLLMServer) Status() bool {
 	return ds.isReady.Load()
