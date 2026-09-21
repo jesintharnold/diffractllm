@@ -257,6 +257,9 @@ func (s *Store) UpdateVirtualKeyRouting(keyID string, request UpdateVirtualKeyRo
 		if _, err := core.CompileProviderConfigs(mode, key.ProviderConfigs); err != nil {
 			return err
 		}
+		if mode == core.VKDirect {
+			key.ProviderConfigs[0].Weight = 1
+		}
 		if _, err := core.ParseLBKind(key.LoadBalancer); err != nil {
 			return err
 		}
@@ -282,6 +285,10 @@ func (s *Store) CreateVirtualKeyTx(payload *core.VirtualKeyRequest) (*CreateVirt
 	}
 	if _, err := core.CompileProviderConfigs(*payload.Mode, payload.ProviderConfigs); err != nil {
 		return nil, "", err
+	}
+
+	if *payload.Mode == core.VKDirect {
+		payload.ProviderConfigs[0].Weight = 1
 	}
 
 	apiKey, hash, prefix, err := core.GenerateVirtualKey()

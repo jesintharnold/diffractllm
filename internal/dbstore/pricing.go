@@ -334,7 +334,9 @@ func (s *Store) UpdateCustomPricing(pricingID string, pricing core.Pricing) (*St
 		if err := tx.Where("id = ?", pricingID).First(&row).Error; err != nil {
 			return fmt.Errorf("override pricing %q not found: %w", pricingID, err)
 		}
-		row.Pricing = pricing
+		// Merge, not replace: a caller sending two fields must not silently drop
+		// the other eight. nil means "leave it alone".
+		row.Pricing = core.MergePricing(row.Pricing, pricing)
 		if err := tx.Save(&row).Error; err != nil {
 			return fmt.Errorf("update override pricing %q: %w", pricingID, err)
 		}

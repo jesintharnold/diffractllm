@@ -1,0 +1,42 @@
+meta {
+  name: Set status
+  type: http
+  seq: 6
+}
+
+put {
+  url: {{URL}}/v1/admin/virtual-keys/:id/status
+  body: json
+  auth: inherit
+}
+
+params:path {
+  id: 01a0c31c-d26e-7a83-a7c6-ba212d9974a5
+}
+
+body:json {
+  {
+    "is_active": true
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
+
+docs {
+  Revoke and revive in one endpoint. `true` brings a key back, `false` takes it down.
+  
+  The budget moves with the key: `bound` on revive, `released` on revoke. The key
+  cache is updated in the same call, so the change is live immediately rather than
+  waiting for the next 10s sync.
+  
+  **Reviving is refused** if the budget was rebound to another active key while
+  this one was down — one budget funds one live key. Release the other key first.
+  
+  `is_active` is required. Omitting it is a 400, not a default to false.
+  
+  Routing changes do not belong here — use Update routing. This endpoint only
+  moves the key between live and revoked.
+}

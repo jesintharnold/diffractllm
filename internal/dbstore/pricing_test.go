@@ -328,3 +328,58 @@ func TestBulkSyncModelPricingSkipsUnknownProviders(t *testing.T) {
 	require.Len(t, rows, 1)
 	assert.Equal(t, priceModel, rows[0].ModelName)
 }
+
+// ---------- update semantics ----------
+
+// A caller sending two fields must not silently drop the rest. core.Pricing has
+// ~161 optional fields; nobody resends all of them to change one rate.
+func TestUpdateCustomPricingMergesRatherThanReplaces(t *testing.T) {
+	s := store(t)
+	seedBasePrice(t, s, core.ProviderOpenAI, priceModel, 1)
+
+	created, err := s.CreateCustomPricing(overrideRequest(core.ScopeGlobal, priceModel,
+		func(r *core.CustomPricingRequest) {
+			r.Pricing = core.Pricing{
+				InputCostPerToken:           tptr(0.0000025),
+				OutputCostPerToken:          tptr(0.00001),
+				CacheReadInputTokenCost:     tptr(0.00000125),
+				CacheCreationInputTokenCost: tptr(0.00000313),
+				OutputCostPerReasoningToken: tptr(0.00002),
+			}
+		}))
+	require.NoError(t, err)
+
+	// Change two of the five.
+	updated, err := s.UpdateCustomPricing(created.ID, core.Pricing{
+		InputCostPerToken:  tptr(0.0000015),
+		OutputCostPerToken: tptr(0.000006),
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, 0.0000015, *updated.Pricing.InputCostPerToken, "sent field is changed")
+	assert.Equal(t, 0.000006, *updated.Pricing.OutputCostPerToken, "sent field is changed")
+
+	require.NotNil(t, updated.Pricing.CacheReadInputTokenCost, "untouched field was dropped")
+	assert.Equal(t, 0.00000125, *updated.Pricing.CacheReadInputTokenCost)
+	require.NotNil(t, updated.Pricing.CacheCreationInputTokenCost, "untouched field was dropped")
+	assert.Equal(t, 0.00000313, *updated.Pricing.CacheCreationInputTokenCost)
+	require.NotNil(t, updated.Pricing.OutputCostPerReasoningToken, "untouched field was dropped")
+	assert.Equal(t, 0.00002, *updated.Pricing.OutputCostPerReasoningToken)
+}
+
+// The scope is fixed at creation, so BeforeSave must see the stored row and not
+// the empty struct a Model(&T{}) update would hand it.
+func TestUpdateCustomPricingKeepsTheScope(t *testing.T) {
+	s := store(t)
+	seedBasePrice(t, s, core.ProviderOpenAI, priceModel, 1)
+
+	created, err := s.CreateCustomPricing(overrideRequest(core.ScopeVirtualKey, priceModel, scopedToKey("vk-1")))
+	require.NoError(t, err)
+
+	updated, err := s.UpdateCustomPricing(created.ID, core.Pricing{InputCostPerToken: tptr(0.5)})
+	require.NoError(t, err)
+
+	assert.Equal(t, core.ScopeVirtualKey, updated.ScopeType)
+	require.NotNil(t, updated.ScopeVirtualkeyID)
+	assert.Equal(t, "vk-1", *updated.ScopeVirtualkeyID)
+}

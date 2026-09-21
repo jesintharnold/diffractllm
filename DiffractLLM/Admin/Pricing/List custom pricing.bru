@@ -5,14 +5,14 @@ meta {
 }
 
 get {
-  url: {{URL}}/v1/admin/pricing/custom?scope_type=virtualkey&provider=openai
+  url: {{URL}}/v1/admin/pricing/custom?scope_type=global
   body: none
   auth: inherit
 }
 
 params:query {
-  scope_type: virtualkey
-  provider: openai
+  scope_type: global
+  ~provider: openai
   ~virtual_key_id: paste-virtual-key-id-here
   ~model_name: gpt-4o
 }
