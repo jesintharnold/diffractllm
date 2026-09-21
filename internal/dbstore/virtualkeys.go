@@ -148,6 +148,44 @@ func (s *Store) ListVirtualKeys() ([]StoreVirtualKey, error) {
 	return keys, nil
 }
 
+func (s *Store) SetVirtualKeyActive(id string, active bool) (*StoreVirtualKey, error) {
+	err := s.DB.Transaction(func(tx *gorm.DB) error {
+		var key StoreVirtualKey
+		if err := tx.Where("id = ?", id).First(&key).Error; err != nil {
+			return fmt.Errorf("virtual key %q not found: %w", id, err)
+		}
+		if key.IsActive == active {
+			return nil
+		}
+
+		if active {
+			var bound int64
+			if err := tx.Model(&StoreVirtualKey{}).
+				Where("budget_id = ? AND is_active = ? AND id <> ?", key.BudgetID, true, id).
+				Count(&bound).Error; err != nil {
+				return fmt.Errorf("checking budget %q: %w", key.BudgetID, err)
+			}
+			if bound > 0 {
+				return fmt.Errorf("budget %q is already bound to another active key", key.BudgetID)
+			}
+		}
+
+		if err := tx.Model(&key).Update("is_active", active).Error; err != nil {
+			return fmt.Errorf("failed to set virtual key %q active=%v: %w", id, active, err)
+		}
+
+		status := "released"
+		if active {
+			status = "bound"
+		}
+		return tx.Model(&StoreBudget{}).Where("id = ?", key.BudgetID).Update("status", status).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+	return s.GetVirtualKey(id)
+}
+
 func (s *Store) RevokeVirtualKey(id string) error {
 	return s.DB.Transaction(func(tx *gorm.DB) error {
 		var key StoreVirtualKey

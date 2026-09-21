@@ -68,6 +68,7 @@ func (ds *DiffractLLMServer) routeHandlers() (http.Handler, error) {
 		keys.GET("/:id", ds.getVirtualKey)
 		keys.PUT("/:id/routing", ds.updateVirtualKeyRouting)
 		keys.POST("/:id/rotate", ds.rotateVirtualKey)
+		keys.PUT("/:id/status", ds.setVirtualKeyStatus)
 		keys.DELETE("/:id", ds.revokeVirtualKey)
 	}
 

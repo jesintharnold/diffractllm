@@ -15,8 +15,7 @@ body:json {
     "name": "acme gpt-4o discount",
     "model_name": "gpt-4o",
     "model_type": "chat",
-    "scope_type": "virtualkey",
-    "scope_virtual_key_id": "paste-virtual-key-id-here",
+    "scope_type": "global",
     "pricing": {
       "input_cost_per_token": 0.0000020,
       "output_cost_per_token": 0.0000080,
@@ -27,22 +26,23 @@ body:json {
 
 settings {
   encodeUrl: true
+  timeout: 0
 }
 
 docs {
   **Costs are per single token**, not per million. 0.0000020 = $2.00 per 1M tokens.
-
+  
   An override replaces fields on a price that already exists — it cannot create
   one. A model with no base price is rejected.
-
+  
   `scope_type` decides which id is required:
     global      — neither
     provider    — `scope_provider`
     virtualkey  — `scope_virtual_key_id`
-
+  
   Only the fields you set are overridden; the rest fall through to base. `core.Pricing`
   has ~161 optional fields covering tiers, batches, audio, image, video and OCR.
-
+  
   One override per (model_name, model_type, scope_type, scope) — a duplicate is
   rejected by a unique index.
 }

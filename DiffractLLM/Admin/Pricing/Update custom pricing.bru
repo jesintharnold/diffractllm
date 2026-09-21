@@ -11,11 +11,11 @@ put {
 }
 
 params:path {
-  id: paste-pricing-id-here
+  id: 01a0c432-e253-7d56-a9f9-d40a188d55af
 }
 
 body:json {
-  {
+  {"scope_type": "global",
     "input_cost_per_token": 0.0000015,
     "output_cost_per_token": 0.0000060
   }
@@ -23,6 +23,7 @@ body:json {
 
 settings {
   encodeUrl: true
+  timeout: 0
 }
 
 docs {

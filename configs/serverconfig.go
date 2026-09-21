@@ -41,6 +41,9 @@ type UpstreamConfig struct {
 	RequestTimeout        time.Duration `mapstructure:"request_timeout"`
 	StreamIdleTimeout     time.Duration `mapstructure:"stream_idle_timeout"`
 
+	MaxRetries   int           `mapstructure:"max_retries"`
+	RetryBackoff time.Duration `mapstructure:"retry_backoff"`
+
 	MaxResponseBytesKB int  `mapstructure:"max_response_bytes"`
 	WriteBufferSize    int  `mapstructure:"write_buffer_size"`
 	ReadBufferSize     int  `mapstructure:"read_buffer_size"`
@@ -124,6 +127,8 @@ func read() (*GatewayConfig, error) {
 	viper.SetDefault("upstream.response_header_timeout", "30s")
 	viper.SetDefault("upstream.request_timeout", "60s")
 	viper.SetDefault("upstream.stream_idle_timeout", "60s")
+	viper.SetDefault("upstream.max_retries", 0)
+	viper.SetDefault("upstream.retry_backoff", "250ms")
 	viper.SetDefault("upstream.max_response_bytes", 32768) // KB -> 32MB
 	viper.SetDefault("upstream.write_buffer_size", 64<<10)
 	viper.SetDefault("upstream.read_buffer_size", 64<<10)
@@ -210,6 +215,10 @@ func (u UpstreamConfig) Validate() error {
 		}
 	}
 
+	if u.MaxRetries < 0 {
+		return fmt.Errorf("max_retries cannot be negative, got %d", u.MaxRetries)
+	}
+
 	durations := []struct {
 		name  string
 		value time.Duration
@@ -221,6 +230,7 @@ func (u UpstreamConfig) Validate() error {
 		{"response_header_timeout", u.ResponseHeaderTimeout},
 		{"request_timeout", u.RequestTimeout},
 		{"stream_idle_timeout", u.StreamIdleTimeout},
+		{"retry_backoff", u.RetryBackoff},
 	}
 	for _, f := range durations {
 		if f.value <= 0 {

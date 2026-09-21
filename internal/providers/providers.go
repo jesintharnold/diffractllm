@@ -12,7 +12,6 @@ type Provider interface {
 	ChatCompletionStream(rctx *core.DiffractLLMContext, req *core.DiffractLLMChatCompletionRequest, cred *core.Credential) (<-chan *core.DiffractLLMChatCompletionStreamResponse, *core.DiffractLLMError)
 }
 
-
 type ProviderInstance struct {
 	providers map[core.Provider]Provider
 }

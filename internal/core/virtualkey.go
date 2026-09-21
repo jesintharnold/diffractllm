@@ -100,7 +100,11 @@ func CompileProviderConfigs(mode VKMode, configs []ProviderConfig) ([]*ProviderC
 			return nil, fmt.Errorf("duplicate provider %q", provider)
 		}
 		providers[provider] = struct{}{}
-		if mode == VKWeighted {
+
+		weight := stored.Weight
+		if mode == VKDirect {
+			weight = 1
+		} else {
 			if stored.Weight < 0 || stored.Weight > 1 || math.IsNaN(float64(stored.Weight)) || math.IsInf(float64(stored.Weight), 0) {
 				return nil, fmt.Errorf("provider %q weight must be finite and in [0, 1]", provider)
 			}
@@ -108,7 +112,7 @@ func CompileProviderConfigs(mode VKMode, configs []ProviderConfig) ([]*ProviderC
 		}
 		config := &ProviderConfig{
 			Provider:             provider,
-			Weight:               stored.Weight,
+			Weight:               weight,
 			AllowedModels:        make([]string, 0, len(stored.AllowedModels)),
 			BlockedModels:        make([]string, 0, len(stored.BlockedModels)),
 			runtimeAllowedModels: make(map[string]struct{}, len(stored.AllowedModels)),

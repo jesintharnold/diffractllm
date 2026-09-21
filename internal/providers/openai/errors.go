@@ -42,7 +42,6 @@ func ToOpenAIError(e *core.DiffractLLMError) *OpenAIErrorResponse {
 	return &OpenAIErrorResponse{Error: body}
 }
 
-
 func ParseError(provider core.Provider, safeURL string, status int, body []byte) *core.DiffractLLMError {
 	var e OpenAIErrorResponse
 	_ = sonic.Unmarshal(body, &e)

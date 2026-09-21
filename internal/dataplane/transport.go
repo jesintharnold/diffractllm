@@ -320,6 +320,37 @@ func buildProviders(defaultConfig config.UpstreamConfig, upstreamProviderConfig 
 	return &providerClientMaps
 }
 
+func (t *DiffractLLMTransport) EffectiveNetwork(stored core.NetworkConfig) core.NetworkConfig {
+	effective := stored
+
+	requestTimeout := compareConfig(t.defaultConfig.RequestTimeout, stored.RequestTimeout)
+	streamIdle := compareConfig(t.defaultConfig.StreamIdleTimeout, stored.StreamIdleTimeout)
+	maxConns := compareConfig(t.defaultConfig.MaxConnsPerHost, stored.MaxConnsPerHost)
+	effective.RequestTimeout = &requestTimeout
+	effective.StreamIdleTimeout = &streamIdle
+	effective.MaxConnsPerHost = &maxConns
+
+	if effective.MaxResponseBytes == 0 {
+		effective.MaxResponseBytes = t.defaultConfig.MaxResponseBytes()
+	}
+
+	retries := t.defaultConfig.MaxRetries
+	if stored.MaxRetries != nil && *stored.MaxRetries > 0 {
+		retries = *stored.MaxRetries
+	}
+	backoff := t.defaultConfig.RetryBackoff
+	if stored.RetryBackoff != nil && *stored.RetryBackoff > 0 {
+		backoff = *stored.RetryBackoff
+	}
+	effective.MaxRetries = &retries
+	effective.RetryBackoff = &backoff
+
+	ambiguous := stored.RetryAmbiguousStatus != nil && *stored.RetryAmbiguousStatus
+	effective.RetryAmbiguousStatus = &ambiguous
+
+	return effective
+}
+
 func (t *DiffractLLMTransport) Replace(upstreamProviderConfig map[core.Provider]*core.Upstream) []core.Provider {
 	next := *buildProviders(t.defaultConfig, upstreamProviderConfig, t.logger)
 	var failed []core.Provider
@@ -382,12 +413,12 @@ func (t *DiffractLLMTransport) ServeHTTP(rctx *core.DiffractLLMContext, req *Dif
 		}
 	}
 
-	maxAttempts := 1
+	maxAttempts := 1 + t.defaultConfig.MaxRetries
 	if upstream.Network.MaxRetries != nil && *upstream.Network.MaxRetries > 0 {
-		maxAttempts += *upstream.Network.MaxRetries
+		maxAttempts = 1 + *upstream.Network.MaxRetries
 	}
 
-	backoff := 250 * time.Millisecond
+	backoff := t.defaultConfig.RetryBackoff
 	if upstream.Network.RetryBackoff != nil && *upstream.Network.RetryBackoff > 0 {
 		backoff = *upstream.Network.RetryBackoff
 	}
@@ -470,7 +501,6 @@ func (t *DiffractLLMTransport) ServeHTTP(rctx *core.DiffractLLMContext, req *Dif
 	}
 	return nil, lastErr
 }
-
 
 func retrySafe(status int) bool {
 	switch status {

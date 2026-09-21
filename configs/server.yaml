@@ -18,6 +18,8 @@ upstream:
   response_header_timeout: 30s   # to first response header, safe for streams
   request_timeout: 60s           # whole non-streaming call; not applied to streams
   stream_idle_timeout: 60s       # max gap BETWEEN chunks, not total stream length
+  max_retries: 0                 # attempts beyond the first; a provider can override
+  retry_backoff: 250ms           # base delay, doubled per attempt
   max_response_bytes: 32768      # KB -> 32MB, mirrors server.max_body_size
   write_buffer_size: 65536
   read_buffer_size: 65536

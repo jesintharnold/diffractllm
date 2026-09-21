@@ -46,5 +46,3 @@ type OpenAIChatCompletionStreamResponse struct {
 	core.DiffractLLMChatCompletionStreamResponse
 	Usage *OpenAIChatCompletionUsage `json:"usage,omitempty"`
 }
-
-

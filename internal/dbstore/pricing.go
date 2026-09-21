@@ -330,12 +330,13 @@ func (s *Store) ListCustomPricing() ([]StoreCustomModelPricing, error) {
 func (s *Store) UpdateCustomPricing(pricingID string, pricing core.Pricing) (*StoreCustomModelPricing, error) {
 	var result StoreCustomModelPricing
 	err := s.DB.Transaction(func(tx *gorm.DB) error {
-		res := tx.Model(&StoreCustomModelPricing{}).Where("id = ?", pricingID).Update("pricing", pricing)
-		if res.Error != nil {
-			return fmt.Errorf("update override pricing %q: %w", pricingID, res.Error)
+		var row StoreCustomModelPricing
+		if err := tx.Where("id = ?", pricingID).First(&row).Error; err != nil {
+			return fmt.Errorf("override pricing %q not found: %w", pricingID, err)
 		}
-		if res.RowsAffected == 0 {
-			return fmt.Errorf("override pricing %q not found", pricingID)
+		row.Pricing = pricing
+		if err := tx.Save(&row).Error; err != nil {
+			return fmt.Errorf("update override pricing %q: %w", pricingID, err)
 		}
 		if err := tx.Preload("ScopeProvider").Where("id = ?", pricingID).First(&result).Error; err != nil {
 			return fmt.Errorf("reload override pricing %q: %w", pricingID, err)
@@ -373,8 +374,6 @@ func (s *Store) ListCustomPricingFiltered(filters CustomPricingFilters) ([]Store
 		query = query.Where("scope_type = ?", filters.ScopeType)
 	}
 	if filters.VirtualKeyID != "" {
-		// The column follows the Go field ScopeVirtualkeyID, so it has no
-		// underscore before "key" - unlike the json tag.
 		query = query.Where("scope_virtualkey_id = ?", filters.VirtualKeyID)
 	}
 	if filters.ModelName != "" {
