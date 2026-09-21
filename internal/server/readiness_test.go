@@ -9,7 +9,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 
+	"diffractllm/internal/core"
+	"diffractllm/internal/governance"
 	"diffractllm/internal/providerplane"
 	"diffractllm/internal/providers"
 )
@@ -67,18 +70,27 @@ func TestReadyRequiresEveryCheck(t *testing.T) {
 			failing: "catalog",
 		},
 		{
-			name: "no live credential",
-			build: func(ds *DiffractLLMServer) {
-				ds.CredentialPlane = providerplane.NewProviderPlane(nil)
-			},
-			failing: "credentials",
-		},
-		{
 			name: "no adapter in this build",
 			build: func(ds *DiffractLLMServer) {
 				ds.ProviderRegistry = providers.NewProviderInstance()
 			},
 			failing: "adapters",
+		},
+		{
+			name: "governance never synced",
+			build: func(ds *DiffractLLMServer) {
+				g, err := governance.NewGovernance(testStore(t), zap.NewNop())
+				require.NoError(t, err)
+				ds.governance = g
+			},
+			failing: "governance",
+		},
+		{
+			name: "no hooks registered",
+			build: func(ds *DiffractLLMServer) {
+				ds.HookEngine = core.NewHookEngine(zap.NewNop())
+			},
+			failing: "hooks",
 		},
 	}
 
@@ -116,16 +128,37 @@ func TestReadyWhenEverythingIsLoaded(t *testing.T) {
 func TestReadyReportsAllChecks(t *testing.T) {
 	ds := readyServer(t)
 	ds.isReady.Store(false)
-	ds.CredentialPlane = providerplane.NewProviderPlane(nil)
+	ds.ProviderRegistry = providers.NewProviderInstance()
 
 	code, body := callReady(t, ds)
 	require.Equal(t, http.StatusServiceUnavailable, code)
 
 	checks, ok := body["checks"].(map[string]any)
 	require.True(t, ok)
-	assert.Len(t, checks, 4)
+	assert.Len(t, checks, 5)
 	assert.Equal(t, false, checks["listening"])
-	assert.Equal(t, false, checks["credentials"])
+	assert.Equal(t, false, checks["adapters"])
 	assert.Equal(t, true, checks["catalog"])
-	assert.Equal(t, true, checks["adapters"])
+	assert.Equal(t, true, checks["governance"])
+	assert.Equal(t, true, checks["hooks"])
+}
+
+// Credentials and virtual keys arrive from the console after install. Gating on
+// them would leave a fresh gateway permanently unroutable, including to the
+// admin API needed to add them.
+func TestReadyDoesNotGateOnRuntimeConfig(t *testing.T) {
+	ds := readyServer(t)
+	ds.CredentialPlane = providerplane.NewProviderPlane(nil)
+
+	code, body := callReady(t, ds)
+
+	assert.Equal(t, http.StatusOK, code, "no credentials must not block readiness")
+	assert.Equal(t, "ready", body["status"])
+
+	checks, ok := body["checks"].(map[string]any)
+	require.True(t, ok)
+	assert.NotContains(t, checks, "credentials", "credentials must not be a gating check")
+
+	// The probe carries the verdict and nothing else.
+	assert.Len(t, body, 2, "only status and checks belong in a readiness response")
 }

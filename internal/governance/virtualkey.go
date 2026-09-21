@@ -21,6 +21,11 @@ type VirtualkeyCache struct {
 	logger   *zap.Logger
 }
 
+// A nil snapshot means the cache has never loaded. An empty one is fine.
+func (vk *VirtualkeyCache) Loaded() bool {
+	return vk != nil && vk.virtual.Load() != nil
+}
+
 func (vk *VirtualkeyCache) LookupVkey(key string) (*core.VirtualKey, bool) {
 	v := vk.virtual.Load()
 	if v == nil {

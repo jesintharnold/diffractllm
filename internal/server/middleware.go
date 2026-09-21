@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 const RequestIDKey = "request_id"
@@ -24,9 +25,8 @@ func RequestIDMiddleware() gin.HandlerFunc {
 	}
 }
 
-
 func AccessLogMiddleware(logger *zap.Logger) gin.HandlerFunc {
-	log := logger.With(zap.String("component", "http"))
+	log := logger.WithOptions(zap.AddStacktrace(zapcore.FatalLevel)).With(zap.String("component", "http"))
 	return func(c *gin.Context) {
 		start := time.Now()
 		path := c.Request.URL.Path
@@ -54,12 +54,12 @@ func AccessLogMiddleware(logger *zap.Logger) gin.HandlerFunc {
 		}
 
 		switch {
+		case path == "/health" || path == "/ready":
+			log.Debug("request", fields...)
 		case status >= http.StatusInternalServerError:
 			log.Error("request", fields...)
 		case status >= http.StatusBadRequest:
 			log.Warn("request", fields...)
-		case path == "/health" || path == "/ready":
-			log.Debug("request", fields...)
 		default:
 			log.Info("request", fields...)
 		}

@@ -87,6 +87,10 @@ func NewHookEngine(logger *zap.Logger) *HookEngine {
 	}
 }
 
+func (he *HookEngine) Registered() int {
+	return he.preCallCount + he.preProviderCount + he.postProviderCount + he.postCallCount
+}
+
 func (he *HookEngine) AddPreCallHook(hook Hook) error {
 	if he.preCallCount >= maxHooks {
 		return NewInternalError("hooks", "pre-call hook limit reached", nil)

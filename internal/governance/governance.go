@@ -111,7 +111,16 @@ func (g *Governance) Start(ctx context.Context) error {
 
 func (g *Governance) Shutdown(ctx context.Context) error { return g.workers.Shutdown(ctx) }
 
-func (g *Governance) Stats() []worker.JobStats { return g.workers.Stats() }
+func (g *Governance) Ready() bool {
+	return g != nil && g.KeyCache.Loaded() && g.BudgetCache != nil
+}
+
+func (g *Governance) Stats() []worker.JobStats {
+	if g == nil || g.workers == nil {
+		return nil
+	}
+	return g.workers.Stats()
+}
 
 func (g *Governance) syncVirtualKey() (int, error) {
 	start := time.Now()

@@ -16,6 +16,7 @@ import (
 	config "diffractllm/configs"
 	"diffractllm/internal/core"
 	"diffractllm/internal/dbstore"
+	"diffractllm/internal/governance"
 	"diffractllm/internal/modelcatalog"
 	"diffractllm/internal/providerplane"
 	"diffractllm/internal/providers"
@@ -92,6 +93,34 @@ func registryWithOpenAI() *providers.ProviderInstance {
 }
 
 // Every readiness check satisfied. Each test then breaks exactly one.
+// Governance whose RunAtStart syncs have actually run, so Stats() reports a
+// success. The caches are empty - that is the point: no rows is still synced.
+func syncedGovernance(t *testing.T) *governance.Governance {
+	t.Helper()
+
+	g, err := governance.NewGovernance(testStore(t), zap.NewNop())
+	require.NoError(t, err)
+	require.NoError(t, g.Start(context.Background()))
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = g.Shutdown(ctx)
+	})
+	return g
+}
+
+func hookEngineWithHooks(t *testing.T) *core.HookEngine {
+	t.Helper()
+	engine := core.NewHookEngine(zap.NewNop())
+	require.NoError(t, engine.AddPostCallHook(noopHook{}))
+	return engine
+}
+
+type noopHook struct{}
+
+func (noopHook) Name() string                                            { return "noop" }
+func (noopHook) Execute(*core.DiffractLLMContext) *core.DiffractLLMError { return nil }
+
 func readyServer(t *testing.T) *DiffractLLMServer {
 	t.Helper()
 	ds := &DiffractLLMServer{
@@ -99,6 +128,8 @@ func readyServer(t *testing.T) *DiffractLLMServer {
 		ModelCatalog:     loadedCatalog(t),
 		CredentialPlane:  providerplane.NewProviderPlane([]*core.Credential{liveCredential()}),
 		ProviderRegistry: registryWithOpenAI(),
+		governance:       syncedGovernance(t),
+		HookEngine:       hookEngineWithHooks(t),
 	}
 	ds.isReady.Store(true)
 	return ds

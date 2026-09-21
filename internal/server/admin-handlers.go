@@ -560,9 +560,9 @@ func validateProviderSettings(payload updateProviderRequest) error {
 // ---------- models ----------
 
 type modelOption struct {
-	ID        string         `json:"id"`
-	ModelName string         `json:"model_name"`
-	ModelType core.ModelType `json:"model_type"`
+	ID        string `json:"id"`
+	ModelName string `json:"model_name"`
+	ModelType string `json:"model_type"`
 }
 
 type catalogEntry struct {
@@ -611,7 +611,7 @@ func (ds *DiffractLLMServer) listModels(c *gin.Context) {
 		out = append(out, modelOption{
 			ID:        entries[i].ID,
 			ModelName: entries[i].ModelName,
-			ModelType: entries[i].ModelType,
+			ModelType: entries[i].ModelType.String(),
 		})
 	}
 
@@ -662,10 +662,11 @@ func (ds *DiffractLLMServer) handleHealth(c *gin.Context) {
 
 func (ds *DiffractLLMServer) handleReady(c *gin.Context) {
 	checks := gin.H{
-		"listening":   ds.Status(),
-		"catalog":     ds.ModelCatalog.Ready(),
-		"credentials": ds.CredentialPlane.Len() > 0,
-		"adapters":    ds.ProviderRegistry.Len() > 0,
+		"listening":  ds.Status(),
+		"catalog":    ds.ModelCatalog.Ready(),
+		"adapters":   ds.ProviderRegistry.Len() > 0,
+		"governance": ds.governance.Ready(),
+		"hooks":      ds.HookEngine.Registered() > 0,
 	}
 
 	for _, ok := range checks {
