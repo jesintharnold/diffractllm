@@ -1,0 +1,31 @@
+meta {
+  name: Update custom pricing
+  type: http
+  seq: 3
+}
+
+put {
+  url: {{URL}}/v1/admin/pricing/custom/:id
+  body: json
+  auth: inherit
+}
+
+params:path {
+  id: paste-pricing-id-here
+}
+
+body:json {
+  {
+    "input_cost_per_token": 0.0000015,
+    "output_cost_per_token": 0.0000060
+  }
+}
+
+settings {
+  encodeUrl: true
+}
+
+docs {
+  The body is a bare `pricing` object, not the full request envelope — scope and
+  model are fixed at creation.
+}

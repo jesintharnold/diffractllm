@@ -1,0 +1,41 @@
+meta {
+  name: Chat completion - streaming
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{URL}}/openai/v1/chat/completions
+  body: json
+  auth: inherit
+}
+
+headers {
+  Authorization: Bearer paste-virtual-key-here
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "model": "gpt-4o",
+    "messages": [
+      { "role": "user", "content": "Count from one to ten." }
+    ],
+    "stream": true,
+    "stream_options": { "include_usage": true }
+  }
+}
+
+settings {
+  encodeUrl: true
+}
+
+docs {
+  Server-sent events, terminated by `data: [DONE]`.
+
+  `stream_options.include_usage` puts the token counts on the final chunk. Without
+  it the gateway has nothing to bill and the request settles at zero.
+
+  On shutdown an open stream gets 15 seconds to finish before the base context is
+  cancelled, at which point it settles whatever it produced.
+}

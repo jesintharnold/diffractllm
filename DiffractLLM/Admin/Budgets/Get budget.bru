@@ -1,0 +1,20 @@
+meta {
+  name: Get budget
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{URL}}/v1/admin/budgets/:id
+  body: none
+  auth: inherit
+}
+
+params:path {
+  id: 01a0c31c-6b65-7098-9b41-cdfde4f4ca8a
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

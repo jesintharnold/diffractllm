@@ -1,0 +1,31 @@
+meta {
+  name: List custom pricing
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{URL}}/v1/admin/pricing/custom
+  body: none
+  auth: inherit
+}
+
+params:query {
+  ~scope_type: virtualkey
+  ~virtual_key_id: paste-virtual-key-id-here
+  ~provider: openai
+  ~model_name: gpt-4o
+}
+
+settings {
+  encodeUrl: true
+}
+
+docs {
+  Every override. All four filters are optional — enable the ones you need.
+
+  `scope_type` is `global`, `provider` or `virtualkey`.
+
+  Resolution order is base, then global, then provider, then virtual key; the
+  narrowest scope that defines a field wins, and undefined fields fall through.
+}

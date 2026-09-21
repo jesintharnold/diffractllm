@@ -1,0 +1,24 @@
+meta {
+  name: Get provider settings
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{URL}}/v1/admin/providers/:providername/settings
+  body: none
+  auth: inherit
+}
+
+params:path {
+  providername: azure
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
+
+docs {
+  Network and proxy configuration for this upstream. Secrets are masked in the response.
+}

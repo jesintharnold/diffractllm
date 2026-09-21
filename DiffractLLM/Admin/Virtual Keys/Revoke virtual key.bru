@@ -1,0 +1,24 @@
+meta {
+  name: Revoke virtual key
+  type: http
+  seq: 6
+}
+
+delete {
+  url: {{URL}}/v1/admin/virtual-keys/:id
+  body: none
+  auth: inherit
+}
+
+params:path {
+  id: 01a0c31c-d26e-7a83-a7c6-ba212d9974a5
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
+
+docs {
+  Marks the key inactive and releases its budget for rebinding.
+}
