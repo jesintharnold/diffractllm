@@ -28,12 +28,12 @@ func (op *AzureProvider) ProviderName() core.Provider {
 }
 
 func (ap *AzureProvider) ChatCompletion(rctx *core.DiffractLLMContext, req *core.DiffractLLMChatCompletionRequest, cred *core.Credential) (*core.DiffractLLMChatCompletionResponse, *core.DiffractLLMError) {
-	alias, derr := resolveAlias(req, cred)
+	alias, derr := resolveAlias(rctx, req, cred)
 	if derr != nil {
 		return nil, derr
 	}
 
-	switch protocol := alias.Protocol(req.Model); protocol {
+	switch protocol := alias.Protocol(rctx.Modelkey.ModelName); protocol {
 	case core.ProtocolOpenAI:
 		cfg, derr := ap.openaichatConfig(rctx, req, cred, alias, false)
 		if derr != nil {
@@ -47,12 +47,12 @@ func (ap *AzureProvider) ChatCompletion(rctx *core.DiffractLLMContext, req *core
 }
 
 func (ap *AzureProvider) ChatCompletionStream(rctx *core.DiffractLLMContext, req *core.DiffractLLMChatCompletionRequest, cred *core.Credential) (<-chan *core.DiffractLLMChatCompletionStreamResponse, *core.DiffractLLMError) {
-	alias, derr := resolveAlias(req, cred)
+	alias, derr := resolveAlias(rctx, req, cred)
 	if derr != nil {
 		return nil, derr
 	}
 
-	switch protocol := alias.Protocol(req.Model); protocol {
+	switch protocol := alias.Protocol(rctx.Modelkey.ModelName); protocol {
 	case core.ProtocolOpenAI:
 		cfg, derr := ap.openaichatConfig(rctx, req, cred, alias, true)
 		if derr != nil {
@@ -65,14 +65,15 @@ func (ap *AzureProvider) ChatCompletionStream(rctx *core.DiffractLLMContext, req
 	}
 }
 
-func resolveAlias(req *core.DiffractLLMChatCompletionRequest, cred *core.Credential) (*core.Alias, *core.DiffractLLMError) {
+func resolveAlias(rctx *core.DiffractLLMContext, req *core.DiffractLLMChatCompletionRequest, cred *core.Credential) (*core.Alias, *core.DiffractLLMError) {
 	if req == nil {
 		return nil, core.NewInvalidRequestBody("chat request is required", nil)
 	}
 	if cred == nil || cred.Settings.Azure == nil {
 		return nil, core.NewInternalError("azure-provider", "azure credential settings are required", nil)
 	}
-	return cred.CheckModelAlias(req.Model), nil
+
+	return cred.CheckModelAlias(rctx.Modelkey.ModelName), nil
 }
 
 func unsupportedProtocol(protocol core.EndpointProtocol) *core.DiffractLLMError {

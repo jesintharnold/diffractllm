@@ -204,14 +204,66 @@ func (s *Store) ListCredentialsByProvider(provider core.Provider) ([]StoreCreden
 	return rows, nil
 }
 
-func (s *Store) UpdateCredential(id string, cred *core.Credential) (*StoreCredential, error) {
+type UpdateCredentialRequest struct {
+	Name          *string                  `json:"name,omitempty"`
+	APIKey        *string                  `json:"api_key,omitempty"`
+	Enabled       *bool                    `json:"enabled,omitempty"`
+	ExpiryAt      *time.Time               `json:"expires_at,omitempty"`
+	AllowedModels *[]string                `json:"allowed_models,omitempty"`
+	BlockedModels *[]string                `json:"blocked_models,omitempty"`
+	Endpoint      *string                  `json:"endpoint,omitempty"`
+	Aliases       *map[string]core.Alias   `json:"aliases,omitempty"`
+	Settings      *core.CredentialSettings `json:"settings,omitempty"`
+}
+
+func (r UpdateCredentialRequest) applyTo(cred *core.Credential) {
+	if r.Name != nil {
+		cred.Name = *r.Name
+	}
+	if r.Enabled != nil {
+		cred.Enabled = *r.Enabled
+	}
+	if r.ExpiryAt != nil {
+		cred.ExpiryAt = r.ExpiryAt
+	}
+	if r.AllowedModels != nil {
+		cred.AllowedModels = *r.AllowedModels
+	}
+	if r.BlockedModels != nil {
+		cred.BlockedModels = *r.BlockedModels
+	}
+	if r.Endpoint != nil {
+		cred.Endpoint = *r.Endpoint
+	}
+	if r.Aliases != nil {
+		cred.Aliases = *r.Aliases
+	}
+
+	if r.APIKey != nil && *r.APIKey != "" && *r.APIKey != SecretMask {
+		cred.APIKey = *r.APIKey
+	}
+
+	if r.Settings != nil && r.Settings.Azure != nil {
+		azure := *r.Settings.Azure
+		if azure.ClientSecret == "" || azure.ClientSecret == SecretMask {
+			if cred.Settings.Azure != nil {
+				azure.ClientSecret = cred.Settings.Azure.ClientSecret
+			}
+		}
+		cred.Settings.Azure = &azure
+	}
+}
+
+func (s *Store) UpdateCredential(id string, req UpdateCredentialRequest) (*StoreCredential, error) {
 	err := s.DB.Transaction(func(tx *gorm.DB) error {
 		var existing StoreCredential
 		if err := tx.Preload("Provider").Where("id = ?", id).First(&existing).Error; err != nil {
 			return fmt.Errorf("credential %q not found: %w", id, err)
 		}
-		candidate := *cred
-		candidate.Provider = core.Provider(existing.Provider.Name)
+
+		candidate := *existing.ToCore()
+		req.applyTo(&candidate)
+
 		if err := candidate.Validate(); err != nil {
 			return fmt.Errorf("invalid credential: %w", err)
 		}

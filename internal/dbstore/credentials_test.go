@@ -153,10 +153,9 @@ func TestUpdateCredentialReEncrypts(t *testing.T) {
 	before := rawColumn(t, s, "credentials", "api_key", row.ID)
 
 	const rotated = "sk-live-rotated-333444555"
-	_, err := s.UpdateCredential(row.ID, &core.Credential{
-		Provider: core.ProviderOpenAI, Name: "renamed", APIKey: rotated,
-		Enabled: true, Endpoint: "https://api.example.test",
-		AllowedModels: []string{"gpt-4o", "gpt-4o-mini"},
+	_, err := s.UpdateCredential(row.ID, UpdateCredentialRequest{
+		Name: tptr("renamed"), APIKey: tptr(rotated),
+		AllowedModels: &[]string{"gpt-4o", "gpt-4o-mini"},
 	})
 	require.NoError(t, err)
 
@@ -246,4 +245,86 @@ func TestDeleteCredential(t *testing.T) {
 
 	_, err := s.GetCredential(row.ID)
 	assert.Error(t, err)
+}
+
+// ---------- the key must survive an unrelated update ----------
+
+// api_key sits in the update's Select list, so an omitted one would be written
+// as empty and erase the secret. Omitted means keep. Wiping it leaves the
+// credential loadable but unable to authenticate, which surfaces far from the cause.
+func TestUpdateCredentialKeepsTheKeyWhenOmitted(t *testing.T) {
+	s := store(t)
+	row := newCredential(t, s, core.ProviderOpenAI)
+
+	_, err := s.UpdateCredential(row.ID, UpdateCredentialRequest{Name: tptr("renamed")})
+	require.NoError(t, err)
+
+	got, err := s.GetCredential(row.ID)
+	require.NoError(t, err)
+	require.NotNil(t, got.APIKey, "omitting api_key erased the secret")
+	assert.Equal(t, plainAPIKey, *got.APIKey)
+	assert.Equal(t, "renamed", got.Name)
+}
+
+// A console renders the masked value; sending it back must not store asterisks.
+func TestUpdateCredentialRefusesTheMaskedValue(t *testing.T) {
+	s := store(t)
+	row := newCredential(t, s, core.ProviderOpenAI)
+
+	_, err := s.UpdateCredential(row.ID, UpdateCredentialRequest{APIKey: tptr(SecretMask)})
+	require.NoError(t, err)
+
+	got, err := s.GetCredential(row.ID)
+	require.NoError(t, err)
+	require.NotNil(t, got.APIKey)
+	assert.Equal(t, plainAPIKey, *got.APIKey, "the mask was stored as the key")
+}
+
+// enabled is a bool, so before the request became pointers an update that did not
+// mention it wrote false and silently took the credential out of rotation.
+func TestUpdateCredentialKeepsEveryOmittedField(t *testing.T) {
+	s := store(t)
+	row := newCredential(t, s, core.ProviderAzure, func(c *core.Credential) {
+		c.Enabled = true
+		c.BlockedModels = []string{"dall-e-3"}
+		c.Aliases = map[string]core.Alias{
+			"gpt-4o": {ModelID: "gpt4o-deploy", RouteStyle: core.AzureRouteDeployment, APIVersion: "2025-04-01-preview"},
+		}
+		c.Settings.Azure = &core.AzureSettings{AuthMode: core.AzureAuthKeyMode}
+	})
+
+	// Rename only. Everything else must survive.
+	_, err := s.UpdateCredential(row.ID, UpdateCredentialRequest{Name: tptr("renamed")})
+	require.NoError(t, err)
+
+	got, err := s.GetCredential(row.ID)
+	require.NoError(t, err)
+
+	assert.Equal(t, "renamed", got.Name)
+	assert.True(t, got.Enabled, "omitting enabled disabled the credential")
+	assert.Equal(t, []string{"dall-e-3"}, got.BlockedModels, "blocked models were erased")
+	assert.Equal(t, "https://api.example.test", got.Endpoint, "endpoint was erased")
+	assert.Len(t, got.Aliases, 1, "aliases were erased")
+	assert.Equal(t, "gpt4o-deploy", got.Aliases["gpt-4o"].ModelID)
+	require.NotNil(t, got.AzureAuthMode, "azure settings were erased")
+	assert.Equal(t, string(core.AzureAuthKeyMode), *got.AzureAuthMode)
+	require.NotNil(t, got.APIKey)
+	assert.Equal(t, plainAPIKey, *got.APIKey)
+}
+
+// Sending a field explicitly still changes it.
+func TestUpdateCredentialAppliesWhatIsSent(t *testing.T) {
+	s := store(t)
+	row := newCredential(t, s, core.ProviderOpenAI)
+
+	_, err := s.UpdateCredential(row.ID, UpdateCredentialRequest{
+		Enabled:       tptr(false),
+		BlockedModels: &[]string{"o3-pro"},
+	})
+	require.NoError(t, err)
+
+	got, err := s.GetCredential(row.ID)
+	require.NoError(t, err)
+	assert.False(t, got.Enabled)
+	assert.Equal(t, []string{"o3-pro"}, got.BlockedModels)
 }

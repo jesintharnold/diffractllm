@@ -128,6 +128,9 @@ func HandleChatCompletionStream(rctx *core.DiffractLLMContext, transport *datapl
 				return
 			}
 			if wire.Object != objectChatCompletionChunk {
+				if wire.Object == "" && len(wire.Choices) == 0 && wire.Error == nil {
+					continue
+				}
 				emitError(ParseError(cfg.Provider, safeURL, http.StatusBadGateway, delta))
 				return
 			}

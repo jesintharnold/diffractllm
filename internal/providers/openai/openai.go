@@ -69,7 +69,7 @@ func (op *OpenAIProvider) chatConfig(rctx *core.DiffractLLMContext, req *core.Di
 		return nil, core.NewInternalError("openai", "credential is required", nil)
 	}
 
-	model := cred.CheckModelAlias(req.Model)
+	model := cred.CheckModelAlias(rctx.Modelkey.ModelName)
 
 	url, err := op.endpoint(cred, core.ChatRequest)
 	if err != nil {

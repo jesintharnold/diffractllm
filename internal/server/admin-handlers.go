@@ -285,14 +285,14 @@ func (ds *DiffractLLMServer) createCredential(c *gin.Context) {
 func (ds *DiffractLLMServer) updateCredential(c *gin.Context) {
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, adminMaxBody)
 
-	var payload core.Credential
+	var payload dbstore.UpdateCredentialRequest
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		adminErr(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	id := c.Param("id")
-	row, err := ds.dbStore.UpdateCredential(id, &payload)
+	row, err := ds.dbStore.UpdateCredential(id, payload)
 	if err != nil {
 		adminErr(c, http.StatusBadRequest, err.Error())
 		return
