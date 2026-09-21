@@ -1,0 +1,42 @@
+meta {
+  name: Chat completion
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{URL}}/openai/v1/chat/completions
+  body: json
+  auth: inherit
+}
+
+headers {
+  Authorization: Bearer paste-virtual-key-here
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "model": "gpt-4o",
+    "messages": [
+      { "role": "user", "content": "Say hello in five words." }
+    ],
+    "max_tokens": 64
+  }
+}
+
+settings {
+  encodeUrl: true
+}
+
+docs {
+  The gateway route. `/openai` names the inbound wire format, not the upstream —
+  the `model` field decides where the request actually goes.
+
+  A bare name like `gpt-4o` draws across the providers on the key. Pin one with
+  `openai/gpt-4o` to skip the draw.
+
+  Requires, in order: a virtual key, a budget with headroom, the model allowed on
+  the key, and a live credential on the chosen provider. Each failure has its own
+  status — 401 no key, 403 model not permitted, 429 budget exhausted.
+}

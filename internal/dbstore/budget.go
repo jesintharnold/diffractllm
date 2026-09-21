@@ -1,4 +1,4 @@
-﻿package dbstore
+package dbstore
 
 import (
 	"diffractllm/internal/core"
@@ -13,9 +13,9 @@ type StoreBudget struct {
 	ID                  string        `gorm:"primaryKey;type:text"`
 	Name                string        `gorm:"uniqueIndex;not null;type:text"`
 	BudgetLimit         int64         `gorm:"not null"`
-	BudgetUnit          string        `gorm:"not null;default:'microdollars'"`
+	BudgetUnit          string        `gorm:"not null;default:'nanodollars'"`
 	BudgetDuration      string        `gorm:"not null;type:varchar(10)"`
-	Enforce             bool          `gorm:"not null;default:true"`
+	Enforce             bool          `gorm:"not null"`
 	TotalCost           int64         `gorm:"not null;default:0"`
 	RequestCount        int64         `gorm:"not null;default:0"`
 	Status              string        `gorm:"not null;default:'unbound';type:text"`
@@ -48,7 +48,7 @@ func (b *StoreBudget) ToCore() *core.Budget {
 		BudgetLimit:         b.BudgetLimit,
 		BudgetUnit:          b.BudgetUnit,
 		BudgetDuration:      b.BudgetDuration,
-		Enforce:             b.Enforce,
+		Enforce:             &b.Enforce,
 		TotalSpend:          b.TotalCost,
 		RequestCount:        b.RequestCount,
 		Status:              b.Status,
@@ -58,19 +58,39 @@ func (b *StoreBudget) ToCore() *core.Budget {
 }
 
 func (s *Store) CreateBudget(b core.Budget) (*StoreBudget, error) {
+	if b.BudgetLimit <= 0 {
+		return nil, fmt.Errorf("budget_limit must be positive nano-USD, got %d", b.BudgetLimit)
+	}
+	if b.BudgetDuration == "" {
+		return nil, fmt.Errorf("budget_duration is required")
+	}
+	if _, err := core.ParseDuration(b.BudgetDuration); err != nil {
+		return nil, fmt.Errorf("invalid budget_duration %q: %w", b.BudgetDuration, err)
+	}
+
 	unit := b.BudgetUnit
 	if unit == "" {
-		unit = "microdollars"
+		unit = core.BudgetUnitNanoUSD
 	}
+	enforce := true
+	if b.Enforce != nil {
+		enforce = *b.Enforce
+	}
+
+	refreshedAt := b.LastBudgetRefreshAt
+	if refreshedAt.IsZero() {
+		refreshedAt = time.Now().UTC()
+	}
+
 	budget := StoreBudget{
 		ID:                  uuid.Must(uuid.NewV7()).String(),
 		Name:                b.Name,
 		BudgetLimit:         b.BudgetLimit,
 		BudgetUnit:          unit,
 		BudgetDuration:      b.BudgetDuration,
-		Enforce:             b.Enforce,
+		Enforce:             enforce,
 		Status:              "unbound",
-		LastBudgetRefreshAt: b.LastBudgetRefreshAt,
+		LastBudgetRefreshAt: refreshedAt,
 	}
 
 	if err := s.DB.Create(&budget).Error; err != nil {
@@ -109,7 +129,14 @@ func (s *Store) UpdateBudget(budget_id string, b core.Budget) (*StoreBudget, err
 	}
 
 	if b.BudgetDuration != "" && existingBudget.BudgetDuration != b.BudgetDuration {
+		if _, err := core.ParseDuration(b.BudgetDuration); err != nil {
+			return nil, fmt.Errorf("invalid budget_duration %q: %w", b.BudgetDuration, err)
+		}
 		updates["budget_duration"] = b.BudgetDuration
+	}
+
+	if b.Enforce != nil && existingBudget.Enforce != *b.Enforce {
+		updates["enforce"] = *b.Enforce
 	}
 
 	if len(updates) == 0 {
@@ -145,10 +172,10 @@ func (s *Store) DeleteBudget(budgetID string) error {
 	return s.DB.Where("id = ?", budgetID).Delete(&StoreBudget{}).Error
 }
 
-func (s *Store) FlushBudgetUsage(budgetID string, spend, requests int64) error {
+func (s *Store) FlushBudgetUsage(budgetID string, totalCost, totalRequests int64) error {
 	updates := map[string]any{
-		"total_cost":      gorm.Expr("total_cost + ?", spend),
-		"request_count":   gorm.Expr("request_count + ?", requests),
+		"total_cost":      totalCost,
+		"request_count":   totalRequests,
 		"last_flushed_at": time.Now(),
 	}
 	return s.DB.Model(&StoreBudget{}).Where("id = ?", budgetID).UpdateColumns(updates).Error

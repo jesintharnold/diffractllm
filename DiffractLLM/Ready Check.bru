@@ -1,0 +1,15 @@
+meta {
+  name: Ready Check
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{URL}}/ready
+  body: none
+  auth: inherit
+}
+
+settings {
+  encodeUrl: true
+}

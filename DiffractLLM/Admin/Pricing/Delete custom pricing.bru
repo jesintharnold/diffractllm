@@ -1,0 +1,23 @@
+meta {
+  name: Delete custom pricing
+  type: http
+  seq: 4
+}
+
+delete {
+  url: {{URL}}/v1/admin/pricing/custom/:id
+  body: none
+  auth: inherit
+}
+
+params:path {
+  id: paste-pricing-id-here
+}
+
+settings {
+  encodeUrl: true
+}
+
+docs {
+  Removing an override returns that model to the next scope down, ending at base.
+}

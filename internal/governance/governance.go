@@ -1,8 +1,10 @@
-﻿package governance
+package governance
 
 import (
+	"context"
 	"diffractllm/internal/core"
 	"diffractllm/internal/dbstore"
+	"diffractllm/internal/worker"
 	"fmt"
 	"time"
 
@@ -10,112 +12,148 @@ import (
 	"go.uber.org/zap"
 )
 
+type jobsIntervalconfig struct {
+	vkeySyncInterval        time.Duration
+	budgetSyncInterval      time.Duration
+	usageFlushInterval      time.Duration
+	budgetFlushRollInterval time.Duration
+}
+
 type Governance struct {
-	Store        *dbstore.Store
-	KeyCache     *VirtualkeyCache
-	BudgetCache  *BudgetCache
-	UsageBuffer  *UsageBuffer
-	PricingCache *PricingCache
-	logger       *zap.Logger
+	Store       *dbstore.Store
+	KeyCache    *VirtualkeyCache
+	BudgetCache *BudgetCache
+	UsageBuffer *UsageBuffer
+	logger      *zap.Logger
+	workers     *worker.Group
+	config      jobsIntervalconfig
 }
 
 func NewGovernance(store *dbstore.Store, logger *zap.Logger) (*Governance, error) {
 	keyCache := &VirtualkeyCache{logger: logger}
 	budgetCache := &BudgetCache{logger: logger}
 	usageBuffer := NewUsageBuffer(0, logger)
-	priceCache := NewPricingCache(logger)
 	g := &Governance{
-		Store:        store,
-		KeyCache:     keyCache,
-		BudgetCache:  budgetCache,
-		UsageBuffer:  usageBuffer,
-		PricingCache: priceCache,
-		logger:       logger,
+		Store:       store,
+		KeyCache:    keyCache,
+		BudgetCache: budgetCache,
+		UsageBuffer: usageBuffer,
+		logger:      logger,
+		config: jobsIntervalconfig{
+			vkeySyncInterval:        10 * time.Second,
+			budgetSyncInterval:      10 * time.Second,
+			usageFlushInterval:      10 * time.Second,
+			budgetFlushRollInterval: 10 * time.Second,
+		},
 	}
 	return g, nil
 }
 
-func (g *Governance) InitGovernance() error {
-	if err := g.SyncVirtualKey(); err != nil {
-		return fmt.Errorf("init governance: %w", err)
-	}
-	if err := g.SyncBudget(); err != nil {
-		return fmt.Errorf("init governance: %w", err)
-	}
-	if err := g.SyncBasePrice(); err != nil {
-		return fmt.Errorf("init governance: %w", err)
-	}
-	if err := g.SyncCustomPrice(); err != nil {
-		return fmt.Errorf("init governance: %w", err)
-	}
-	g.logger.Info("governance caches initialized")
-	return nil
-}
+func (g *Governance) Start(ctx context.Context) error {
+	g.workers = worker.NewGroup("governance", g.logger)
+	err := g.workers.Add(
+		&worker.Job{
+			Name:       "budget_sync",
+			Interval:   g.config.budgetSyncInterval,
+			RunAtStart: true,
+			Run: func(ctx context.Context) (worker.Detail, error) {
+				loaded, err := g.syncBudget()
+				if err != nil {
+					return nil, err
+				}
+				return worker.Detail{"budgets_loaded": loaded}, nil
+			},
+		},
 
-func (g *Governance) SyncCustomPrice() error {
-	start := time.Now()
-	g.logger.Debug("custom pricing sync started")
+		&worker.Job{
+			Name:       "virtual_keys_sync",
+			Interval:   g.config.vkeySyncInterval,
+			RunAtStart: true,
+			Run: func(ctx context.Context) (worker.Detail, error) {
+				loaded, err := g.syncVirtualKey()
+				if err != nil {
+					return nil, err
+				}
+				return worker.Detail{"virtual_keys_loaded": loaded}, nil
+			},
+		},
 
-	customprice, err := g.Store.ListCustomPricing()
+		&worker.Job{
+			Name:      "usage_flush",
+			Interval:  g.config.usageFlushInterval,
+			RunAtStop: true,
+			Run: func(ctx context.Context) (worker.Detail, error) {
+				written, err := g.flushUsageHistory()
+				return worker.Detail{
+					"records_written": written,
+					"records_pending": g.UsageBuffer.Len(),
+					"records_dropped": g.UsageBuffer.DroppedCount(),
+				}, err
+			},
+		},
+
+		&worker.Job{
+			Name:      "budget_flush_roll",
+			Interval:  g.config.budgetFlushRollInterval,
+			RunAtStop: true,
+			Run: func(ctx context.Context) (worker.Detail, error) {
+				flushed := g.flushBudgetUsage()
+				rolled := g.trackBudgetWindow()
+				return worker.Detail{"budgets_flushed": flushed, "windows_rolled": rolled}, nil
+			},
+		},
+	)
 	if err != nil {
-		return fmt.Errorf("sync custom pricing: %w", err)
+		return err
 	}
-	tempCustomprice := make([]*core.CustomPricing, 0, len(customprice))
-	for i := range customprice {
-		tempCustomprice = append(tempCustomprice, customprice[i].ToCore())
-	}
-	g.PricingCache.LoadCustomPricing(tempCustomprice)
-
-	g.logger.Debug("custom pricing sync finished", zap.Int("rows_loaded", len(tempCustomprice)), zap.Duration("took", time.Since(start)))
-	return nil
+	return g.workers.Start(ctx)
 }
 
-func (g *Governance) SyncBasePrice() error {
-	start := time.Now()
-	g.logger.Debug("base pricing sync started")
+func (g *Governance) Shutdown(ctx context.Context) error { return g.workers.Shutdown(ctx) }
 
-	baseprice, err := g.Store.ListBasePricing()
-	if err != nil {
-		return fmt.Errorf("sync base pricing: %w", err)
-	}
-	tempBaseprice := make([]*core.BasePricing, 0, len(baseprice))
-	for i := range baseprice {
-		tempBaseprice = append(tempBaseprice, baseprice[i].ToCore())
-	}
-	g.PricingCache.LoadBasePricing(tempBaseprice)
-
-	g.logger.Debug("base pricing sync finished", zap.Int("rows_loaded", len(tempBaseprice)), zap.Duration("took", time.Since(start)))
-	return nil
+func (g *Governance) Ready() bool {
+	return g != nil && g.KeyCache.Loaded() && g.BudgetCache != nil
 }
 
-func (g *Governance) SyncVirtualKey() error {
+func (g *Governance) Stats() []worker.JobStats {
+	if g == nil || g.workers == nil {
+		return nil
+	}
+	return g.workers.Stats()
+}
+
+func (g *Governance) syncVirtualKey() (int, error) {
 	start := time.Now()
 	g.logger.Debug("virtual key sync started")
 	vkeydetail, err := g.Store.ListVirtualKeys()
 	if err != nil {
-		return fmt.Errorf("sync virtual keys: %w", err)
+		return 0, fmt.Errorf("sync virtual keys: %w", err)
 	}
 
 	tempVkey := make([]*core.VirtualKey, 0, len(vkeydetail))
 	for i := range vkeydetail {
-		tempVkey = append(tempVkey, vkeydetail[i].ToCore())
+		virtualKey, err := vkeydetail[i].ToCore()
+		if err != nil {
+			return 0, fmt.Errorf("sync virtual key %q: %w", vkeydetail[i].ID, err)
+		}
+		if err := virtualKey.Validate(); err != nil {
+			return 0, fmt.Errorf("sync virtual key %q: %w", vkeydetail[i].ID, err)
+		}
+		tempVkey = append(tempVkey, virtualKey)
 	}
 	g.KeyCache.LoadVirtualKeys(tempVkey)
 
-	g.logger.Debug("virtual key sync finished",
-		zap.Int("rows_loaded", len(tempVkey)),
-		zap.Duration("took", time.Since(start)),
-	)
-	return nil
+	g.logger.Debug("virtual key sync finished", zap.Int("rows_loaded", len(tempVkey)), zap.Duration("took", time.Since(start)))
+	return len(tempVkey), nil
 }
 
-func (g *Governance) SyncBudget() error {
+func (g *Governance) syncBudget() (int, error) {
 	start := time.Now()
 	g.logger.Debug("budget sync started")
 
 	db_budget, err := g.Store.ListBudgets()
 	if err != nil {
-		return fmt.Errorf("sync budget : %w", err)
+		return 0, fmt.Errorf("sync budget : %w", err)
 	}
 	tempBudget := make([]*core.Budget, 0, len(db_budget))
 	for i := range db_budget {
@@ -124,14 +162,14 @@ func (g *Governance) SyncBudget() error {
 	g.BudgetCache.LoadBudgets(tempBudget)
 
 	g.logger.Debug("budget sync finished", zap.Int("rows_loaded", len(db_budget)), zap.Duration("took", time.Since(start)))
-	return nil
+	return len(tempBudget), nil
 }
 
 // Responsible for hisory drain to the DB
-func (g *Governance) FlushUsageHistory() {
+func (g *Governance) flushUsageHistory() (int, error) {
 	records := g.UsageBuffer.Drain()
 	if len(records) == 0 {
-		return
+		return 0, nil
 	}
 	storeRecords := make([]dbstore.StoreUsageRecord, len(records))
 	for index, record := range records {
@@ -157,61 +195,77 @@ func (g *Governance) FlushUsageHistory() {
 		for _, r := range records {
 			g.UsageBuffer.Append(r)
 		}
-		return
+		return 0, err
 	}
 	g.logger.Debug("usage flushed", zap.Int("count", len(records)))
+	return len(records), nil
 }
 
 // Responsible for Budget windows for all
-func (g *Governance) FlushBudgetUsage() {
+func (g *Governance) flushBudgetUsage() int64 {
+	var flushed int64
 	g.BudgetCache.BudgetMap.Range(func(key, value any) bool {
 		b := value.(*Budget)
-		pendingCost := b.PendingCost.Swap(0)
-		pendingReq := b.PendingRequests.Swap(0)
 		cfg := b.Config.Load()
-
-		if pendingCost > 0 || pendingReq > 0 {
-			err := g.Store.FlushBudgetUsage(cfg.ID, pendingCost, pendingReq)
-
-			if err != nil {
-				g.logger.Error("Failed to flush budget usage", zap.Error(err), zap.String("budget_id", cfg.ID))
-				b.PendingCost.Add(pendingCost)
-				b.PendingRequests.Add(pendingReq)
-			} else {
-				b.TotalCost.Add(pendingCost)
-				b.RequestCount.Add(pendingReq)
-			}
+		if cfg == nil {
+			return true
 		}
+		cost := b.WindowCost.Load()
+		reqs := b.WindowReqs.Load()
+		if cost == b.LastFlushed.Load() && reqs == b.LastReqs.Load() {
+			return true
+		}
+
+		if err := g.Store.FlushBudgetUsage(cfg.ID, cost, reqs); err != nil {
+			g.logger.Error("Failed to flush budget usage", zap.Error(err), zap.String("budget_id", cfg.ID))
+			return true
+		}
+		b.LastFlushed.Store(cost)
+		b.LastReqs.Store(reqs)
+		flushed++
 		return true
 	})
+	return flushed
 }
 
-func (g *Governance) TrackBudgetWindow() {
+func (g *Governance) trackBudgetWindow() int64 {
 	now := time.Now()
+	var rolled int64
 	g.BudgetCache.BudgetMap.Range(func(key, value any) bool {
 		b := value.(*Budget)
 		cfg := b.Config.Load()
-		if cfg == nil || cfg.BudgetParseDuration <= 0 {
+		target := budgetResetTarget(cfg, now)
+		if target == nil {
 			return true
 		}
 
-		if now.Sub(cfg.LastBudgetRefreshAt) < cfg.BudgetParseDuration {
+		// Close the old window at its final total before resetting.
+		cost := b.WindowCost.Load()
+		reqs := b.WindowReqs.Load()
+		if err := g.Store.FlushBudgetUsage(cfg.ID, cost, reqs); err != nil {
+			g.logger.Error("closing window flush failed, will retry next tick",
+				zap.String("budget_id", cfg.ID), zap.Error(err))
 			return true
 		}
-		if err := g.Store.ResetBudgetWindow(cfg.ID, now); err != nil {
+
+		if err := g.Store.ResetBudgetWindow(cfg.ID, *target); err != nil {
 			g.logger.Error("budget window reset DB write failed, will retry next tick",
 				zap.String("budget_id", cfg.ID), zap.Error(err))
 			return true
 		}
 
 		newCfg := *cfg
-		newCfg.LastBudgetRefreshAt = now
+		newCfg.LastBudgetRefreshAt = *target
 		newCfg.TotalSpend = 0
 		newCfg.RequestCount = 0
 		b.Config.Store(&newCfg)
-		b.TotalCost.Store(0)
-		b.RequestCount.Store(0)
+
+		b.WindowCost.Add(-cost)
+		b.WindowReqs.Add(-reqs)
+		b.LastFlushed.Store(0)
+		b.LastReqs.Store(0)
+		rolled++
 		return true
 	})
-
+	return rolled
 }

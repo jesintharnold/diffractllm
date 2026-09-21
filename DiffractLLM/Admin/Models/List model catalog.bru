@@ -1,0 +1,29 @@
+meta {
+  name: List model catalog
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{URL}}/v1/admin/models/catalog?provider=azure&limit=10&offset=0
+  body: none
+  auth: inherit
+}
+
+params:query {
+  provider: azure
+  limit: 10
+  offset: 0
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
+
+docs {
+  The full catalog row — metadata, capabilities and resolved pricing.
+  
+  Paginated: `limit` and `offset`. Both are ignored unless they parse as positive
+  integers.
+}

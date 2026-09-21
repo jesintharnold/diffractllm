@@ -1,0 +1,25 @@
+meta {
+  name: Sync catalog
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{URL}}/v1/admin/sync/catalog
+  body: none
+  auth: inherit
+}
+
+settings {
+  encodeUrl: true
+}
+
+docs {
+  Triggers the `catalog_sync` worker immediately instead of waiting for its interval.
+
+  Fetches the upstream datasheet, writes model metadata and base pricing, then
+  hot-swaps the in-memory snapshots.
+
+  Models whose provider is not in the `providers` table are skipped — the feed
+  covers ~60 providers and only the configured ones are stored.
+}

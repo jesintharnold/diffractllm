@@ -1,0 +1,21 @@
+meta {
+  name: List budgets
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{URL}}/v1/admin/budgets
+  body: none
+  auth: inherit
+}
+
+settings {
+  encodeUrl: true
+}
+
+docs {
+  Every budget with its current spend and request count.
+
+  `budget_limit` and `total_spend` are **nano-USD** (int64). Divide by 1e9 for dollars.
+}
