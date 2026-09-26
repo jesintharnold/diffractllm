@@ -9,3 +9,5 @@ graft/
 .mcp.json
 .ignore
 data
+DiffractLLM/*
+*.bru
