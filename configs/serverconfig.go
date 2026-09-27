@@ -63,12 +63,26 @@ type ModelCatalogConfig struct {
 	SyncInterval time.Duration `mapstructure:"sync_interval"`
 }
 
+type MetricsEngineConfig struct {
+	Enabled        bool          `mapstructure:"enabled"`
+	DSN            string        `mapstructure:"dsn"`
+	BufferCapacity int           `mapstructure:"buffer_capacity"`
+	FlushInterval  time.Duration `mapstructure:"flush_interval"`
+	PruneInterval  time.Duration `mapstructure:"prune_interval"`
+	EventsDays     int           `mapstructure:"events_days"`
+	PayloadsDays   int           `mapstructure:"payloads_days"`
+	QueryTimeout   time.Duration `mapstructure:"query_timeout"`
+	MaxPage        int           `mapstructure:"max_page"`
+	MaxWindow      time.Duration `mapstructure:"max_window"`
+}
+
 type GatewayConfig struct {
 	ServerConfig *ServerConfig  `mapstructure:"server"`
 	Upstream     UpstreamConfig `mapstructure:"upstream"`
 
-	Observability *Observability      `mapstructure:"observability"`
-	ModelCatalog  *ModelCatalogConfig `mapstructure:"modelcatalog"`
+	Observability *Observability       `mapstructure:"observability"`
+	ModelCatalog  *ModelCatalogConfig  `mapstructure:"modelcatalog"`
+	MetricsEngine *MetricsEngineConfig `mapstructure:"metrics_engine"`
 }
 
 func Load() (*GatewayConfig, error) {
@@ -139,6 +153,17 @@ func read() (*GatewayConfig, error) {
 	viper.SetDefault("modelcatalog.sync_interval", "5m")
 	viper.SetDefault("modelcatalog.source_url", "https://getbifrost.ai/datasheet")
 
+	viper.SetDefault("metrics_engine.enabled", true)
+	viper.SetDefault("metrics_engine.dsn", "./data/diffractllm-metrics.duckdb")
+	viper.SetDefault("metrics_engine.buffer_capacity", 5000)
+	viper.SetDefault("metrics_engine.flush_interval", "5s")
+	viper.SetDefault("metrics_engine.prune_interval", "24h")
+	viper.SetDefault("metrics_engine.events_days", 90)
+	viper.SetDefault("metrics_engine.payloads_days", 7)
+	viper.SetDefault("metrics_engine.query_timeout", "5s")
+	viper.SetDefault("metrics_engine.max_page", 200)
+	viper.SetDefault("metrics_engine.max_window", "2160h") // 90 days
+
 	if err := viper.ReadInConfig(); err != nil {
 		if _, notFound := err.(viper.ConfigFileNotFoundError); !notFound {
 			return nil, fmt.Errorf("read server.yaml: %w", err)
@@ -174,6 +199,32 @@ func (c *GatewayConfig) Validate() error {
 		if err := c.ModelCatalog.Validate(); err != nil {
 			return fmt.Errorf("modelcatalog: %w", err)
 		}
+	}
+	if c.MetricsEngine != nil {
+		if err := c.MetricsEngine.Validate(); err != nil {
+			return fmt.Errorf("metrics_engine: %w", err)
+		}
+	}
+	return nil
+}
+
+func (m *MetricsEngineConfig) Validate() error {
+	if !m.Enabled {
+		return nil
+	}
+	switch {
+	case m.DSN == "":
+		return fmt.Errorf("dsn is required")
+	case m.BufferCapacity <= 0:
+		return fmt.Errorf("buffer_capacity must be positive, got %d", m.BufferCapacity)
+	case m.FlushInterval <= 0 || m.PruneInterval <= 0 || m.QueryTimeout <= 0:
+		return fmt.Errorf("flush_interval, prune_interval and query_timeout must be positive")
+	case m.EventsDays <= 0 || m.PayloadsDays <= 0:
+		return fmt.Errorf("events_days and payloads_days must be positive")
+	case m.PayloadsDays > m.EventsDays:
+		return fmt.Errorf("payloads_days (%d) exceeds events_days (%d); bodies would outlive their events", m.PayloadsDays, m.EventsDays)
+	case m.MaxPage <= 0 || m.MaxWindow <= 0:
+		return fmt.Errorf("max_page and max_window must be positive")
 	}
 	return nil
 }

@@ -25,9 +25,29 @@ upstream:
   read_buffer_size: 65536
   disable_compression: true
 
+metricsengine:
+  Enabled: true
+  PayloadMode: ""   # none , errors_only
+  BodyLimitBytes:
+  logHeaders: []
+
+
 observability:
   log_level: "debug"
 
 modelcatalog:
   source_url: "https://getbifrost.ai/datasheet"
   sync_interval: 5m
+
+
+metrics_engine:
+  enabled: true
+  dsn: "./data/diffractllm-metrics.duckdb"
+  buffer_capacity: 5000
+  flush_interval: 5s
+  prune_interval: 24h
+  events_days: 90
+  payloads_days: 7
+  query_timeout: 5s
+  max_page: 200
+  max_window: 2160h
