@@ -16,6 +16,7 @@ import (
 	"diffractllm/internal/dataplane"
 	"diffractllm/internal/dbstore"
 	"diffractllm/internal/governance"
+	metricsengine "diffractllm/internal/metrics-engine"
 	"diffractllm/internal/modelcatalog"
 	logger "diffractllm/internal/observability/logging"
 	"diffractllm/internal/providerplane"
@@ -50,6 +51,7 @@ type gatewayImpl struct {
 	source     *dbstore.DBSource
 	governance *governance.Governance
 	catalog    *modelcatalog.ModelCatalog
+	metrics    *metricsengine.MetricsEngine
 	modelplane *providerplane.ProviderPlane
 	dataplane  *dataplane.SelectionEngine
 	server     *server.DiffractLLMServer
@@ -119,6 +121,18 @@ func (gw *gatewayImpl) Initialize() error {
 		gw.catalog, registry, transport, store,
 	)
 
+	if mc := cfg.MetricsEngine; mc != nil && mc.Enabled {
+		events := metricsengine.NewDuckDBStore(base, context.Background())
+		if err := events.Init(mc.DSN, context.Background()); err != nil {
+			return fmt.Errorf("metrics store %q: %w", mc.DSN, err)
+		}
+		gw.metrics = metricsengine.NewMetricsEngine(events, mc, base)
+		if err := metricsengine.RegisterHooks(gw.server.HookEngine, gw.metrics); err != nil {
+			return fmt.Errorf("metrics hooks: %w", err)
+		}
+		gw.logger.Info("metrics engine ready", zap.String("store", mc.DSN))
+	}
+
 	gw.logger.Info("gateway initialized successfully")
 	return nil
 }
@@ -157,6 +171,13 @@ func (gw *gatewayImpl) Start() error {
 		return fmt.Errorf("governance: %w", err)
 	}
 
+	if gw.metrics != nil {
+		gw.logger.Info("starting metrics flush job")
+		if err := gw.metrics.Start(workCtx); err != nil {
+			return fmt.Errorf("metrics: %w", err)
+		}
+	}
+
 	gw.logger.Info("starting http server")
 	if err := gw.server.Start(); err != nil {
 		return fmt.Errorf("http server: %w", err)
@@ -181,15 +202,29 @@ func (gw *gatewayImpl) Stop() error {
 
 	if gw.isRunning {
 		httpCtx, cancelHTTP := context.WithTimeout(context.Background(), ShutdownTimeout)
-		lg.Info("[1/4] stopping http server")
+		lg.Info("[1/5] stopping http server")
 		if err := gw.server.Shutdown(httpCtx, StreamGrace); err != nil {
 			lg.Error("http shutdown failed", zap.Error(err))
 			stopErr = errors.Join(stopErr, fmt.Errorf("http: %w", err))
 		}
 		cancelHTTP()
+	}
 
+	// Outside the running check: a failed Start must still close the DuckDB file.
+	if gw.metrics != nil {
+		metricsCtx, cancelMetrics := context.WithTimeout(context.Background(), DrainBudget)
+		lg.Info("[2/5] flushing metrics events")
+		if err := gw.metrics.Shutdown(metricsCtx); err != nil {
+			lg.Error("metrics shutdown failed", zap.Error(err))
+			stopErr = errors.Join(stopErr, fmt.Errorf("metrics: %w", err))
+		}
+		cancelMetrics()
+		gw.metrics = nil
+	}
+
+	if gw.isRunning {
 		govCtx, cancelGov := context.WithTimeout(context.Background(), DrainBudget)
-		lg.Info("[2/4] draining governance")
+		lg.Info("[3/5] draining governance")
 		if err := gw.governance.Shutdown(govCtx); err != nil {
 			lg.Error("governance shutdown failed", zap.Error(err))
 			stopErr = errors.Join(stopErr, fmt.Errorf("governance: %w", err))
@@ -197,7 +232,7 @@ func (gw *gatewayImpl) Stop() error {
 		cancelGov()
 
 		catCtx, cancelCat := context.WithTimeout(context.Background(), DrainBudget)
-		lg.Info("[3/4] stopping model catalog")
+		lg.Info("[4/5] stopping model catalog")
 		if err := gw.catalog.Shutdown(catCtx); err != nil {
 			lg.Error("catalog shutdown failed", zap.Error(err))
 			stopErr = errors.Join(stopErr, fmt.Errorf("catalog: %w", err))
@@ -208,7 +243,7 @@ func (gw *gatewayImpl) Stop() error {
 	gw.isRunning = false
 
 	if gw.source != nil {
-		lg.Info("[4/4] closing store")
+		lg.Info("[5/5] closing store")
 		if err := gw.source.Close(); err != nil {
 			lg.Error("store close failed", zap.Error(err))
 			stopErr = errors.Join(stopErr, fmt.Errorf("store: %w", err))
@@ -268,10 +303,14 @@ func (gw *gatewayImpl) Stats() []ComponentStats {
 	if !gw.isRunning {
 		return nil
 	}
-	return []ComponentStats{
+	stats := []ComponentStats{
 		{Component: "governance", Jobs: gw.governance.Stats()},
 		{Component: "catalog", Jobs: gw.catalog.Stats()},
 	}
+	if gw.metrics != nil {
+		stats = append(stats, ComponentStats{Component: "metrics", Jobs: gw.metrics.Stats()})
+	}
+	return stats
 }
 
 func (gw *gatewayImpl) GetStatus() map[string]any {

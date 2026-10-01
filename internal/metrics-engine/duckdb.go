@@ -19,10 +19,11 @@ import (
 )
 
 type OLAPStore interface {
-	Start(ctx context.Context) error
-	Stop() error
+	Write(ctx context.Context, events []*Event) error
+	Close() error
 }
 
+//go:embed migrations/*.sql
 var migrations embed.FS
 
 type appliedMigration struct {
@@ -149,12 +150,8 @@ func NewDuckDBStore(logger *zap.Logger, ctx context.Context) *DuckDBStore {
 }
 
 func (ds *DuckDBStore) Init(dbpath string, ctx context.Context) error {
-	if _, err := os.Stat(dbpath); os.IsNotExist(err) {
-		file, err := os.Create(dbpath)
-		if err != nil {
-			return fmt.Errorf("failed to create the duck DB file at %q: %w", dbpath, err)
-		}
-		file.Close()
+	if err := os.MkdirAll(filepath.Dir(dbpath), 0o700); err != nil {
+		return fmt.Errorf("failed to create the duck DB directory for %q: %w", dbpath, err)
 	}
 
 	connector, err := duckdb.NewConnector(dbpath, func(execer driver.ExecerContext) error {
@@ -256,28 +253,24 @@ func (ds *DuckDBStore) Write(ctx context.Context, events []*Event) error {
 }
 
 func (ds *DuckDBStore) Prune(ctx context.Context, recordsBefore time.Time) (map[string]int64, error) {
-	var totalEvents int64
-	var totalPayloadEvents int64
 	result := make(map[string]int64)
 	tx, err := ds.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin prune transaction: %w", err)
+	}
 	defer tx.Rollback()
 
-	eventRes, err := tx.ExecContext(ctx, `DELETE FROM events WHERE started_at <`, recordsBefore)
+	eventRes, err := tx.ExecContext(ctx, `DELETE FROM events WHERE started_at < ?`, recordsBefore)
 	if err != nil {
-		return nil, fmt.Errorf("prune events: %w failed", err)
+		return nil, fmt.Errorf("prune events: %w", err)
 	}
-	n, _ := eventRes.RowsAffected()
-	totalEvents += n
-	result["total_events"] = totalEvents
+	result["total_events"], _ = eventRes.RowsAffected()
 
-	payloadRes, err := tx.ExecContext(ctx, `DELETE FROM event_payloads WHERE started_at <`, recordsBefore)
+	payloadRes, err := tx.ExecContext(ctx, `DELETE FROM event_payloads WHERE started_at < ?`, recordsBefore)
 	if err != nil {
-		return nil, fmt.Errorf("prune events: %w failed", err)
+		return nil, fmt.Errorf("prune event payloads: %w", err)
 	}
-	p, _ := payloadRes.RowsAffected()
-	totalPayloadEvents += p
-
-	result["total_payload_events"] = totalPayloadEvents
+	result["total_payload_events"], _ = payloadRes.RowsAffected()
 
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("commit prune transaction failed: %w", err)

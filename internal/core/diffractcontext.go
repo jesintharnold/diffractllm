@@ -50,6 +50,7 @@ type DiffractLLMContext struct {
 	Usage *Usage
 
 	Cost               float64
+	Pricing            *Pricing
 	StreamChunks       int32
 	StreamFinishReason FinishReason
 	StreamAborted      bool
@@ -167,6 +168,7 @@ func (rc *DiffractLLMContext) reset() {
 	rc.Error = nil
 	rc.Usage = nil
 	rc.Cost = 0
+	rc.Pricing = nil
 	rc.StreamChunks = 0
 	rc.StreamFinishReason = ""
 	rc.StreamAborted = false

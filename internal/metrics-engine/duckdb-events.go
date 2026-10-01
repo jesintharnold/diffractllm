@@ -2,6 +2,7 @@ package metricsengine
 
 import (
 	"database/sql/driver"
+	"encoding/json"
 	"errors"
 
 	"github.com/bytedance/sonic"
@@ -111,20 +112,18 @@ var eventPayloadColNames = []string{
 	"client_response",
 }
 
-
-
 func (e *Event) toAppenderValues(dst []driver.Value) error {
 	var errs []error
 	js := func(v any) driver.Value {
-		s, err := sonic.MarshalString(v)
+		b, err := sonic.Marshal(v)
 		if err != nil {
 			errs = append(errs, err)
 			return nil
 		}
-		if s == "null" || s == "[]" || s == "{}" {
+		if s := string(b); s == "null" || s == "[]" || s == "{}" {
 			return nil
 		}
-		return s
+		return json.RawMessage(b) // JSON columns json.Marshal their value: raw, not a string
 	}
 
 	clear(dst)
@@ -170,7 +169,7 @@ func (e *Event) toAppenderValues(dst []driver.Value) error {
 		dst[colLLMStream] = l.Stream
 		dst[colLLMFinishReason] = nullCheck(l.FinishReason)
 		dst[colLLMToolCalls] = js(l.ToolCalls)
-		dst[colLLMParams] = nullCheck(string(l.Params))
+		dst[colLLMParams] = rawJSON(l.Params)
 		dst[colLLMPricing] = js(l.Pricing)
 
 		if u := l.Usage; u != nil {
@@ -196,11 +195,11 @@ func (e *Event) toPayloadValues() []driver.Value {
 	return []driver.Value{
 		e.ID,
 		e.Timing.Start,
-		nullCheck(string(p.ClientRequest)),
-		nullCheck(string(p.NormalizedRequest)),
-		nullCheck(string(p.ProviderRequest)),
-		nullCheck(string(p.ProviderResponse)),
-		nullCheck(string(p.NormalizedResponse)),
-		nullCheck(string(p.ClientResponse)),
+		rawJSON(p.ClientRequest),
+		rawJSON(p.NormalizedRequest),
+		rawJSON(p.ProviderRequest),
+		rawJSON(p.ProviderResponse),
+		rawJSON(p.NormalizedResponse),
+		rawJSON(p.ClientResponse),
 	}
 }

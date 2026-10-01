@@ -143,6 +143,7 @@ func (ds *DiffractLLMServer) GenericRequestHandler(w http.ResponseWriter, r *htt
 		writeErr(rctx, desc, core.NewUnpricedModel(rctx.Modelkey))
 		return
 	}
+	rctx.Pricing = pricing
 
 	provInstance, dErr := ds.ProviderRegistry.Get(rctx.Modelkey.Provider)
 	if dErr != nil {

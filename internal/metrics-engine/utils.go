@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"database/sql/driver"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"strconv"
@@ -42,4 +43,11 @@ func nz[T int | int32 | int64](v T) driver.Value {
 		return nil
 	}
 	return int64(v)
+}
+
+func rawJSON(b []byte) driver.Value {
+	if len(b) == 0 {
+		return nil
+	}
+	return json.RawMessage(b)
 }
