@@ -69,15 +69,16 @@ type Attempt struct {
 }
 
 type LLM struct {
-	RequestedModel string           `json:"requested_model"`
-	Provider       string           `json:"provider"`
-	Model          string           `json:"model"`
-	Stream         bool             `json:"stream"`
-	Params         json.RawMessage  `json:"params,omitempty"`
-	Usage          *core.Usage      `json:"usage,omitempty"`
-	Pricing        *core.Pricing    `json:"pricing,omitempty"`
-	FinishReason   string           `json:"finish_reason,omitempty"`
-	ToolCalls      []string         `json:"tool_calls,omitempty"`
+	RequestedModel string          `json:"requested_model"`
+	Provider       string          `json:"provider"`
+	Model          string          `json:"model"`
+	UpstreamModel  string          `json:"upstream_model,omitempty"` // what the provider was actually asked for
+	Stream         bool            `json:"stream"`
+	Params         json.RawMessage `json:"params,omitempty"`
+	Usage          *core.Usage     `json:"usage,omitempty"`
+	Pricing        *core.Pricing   `json:"pricing,omitempty"`
+	FinishReason   string          `json:"finish_reason,omitempty"`
+	ToolCalls      []string        `json:"tool_calls,omitempty"`
 }
 
 type Payload struct {
@@ -90,9 +91,10 @@ type Payload struct {
 }
 
 type Routing struct {
-	Mode         core.VKMode `json:"mode"`
-	CredentialID string      `json:"credential_id"`
-	Attempts     []Attempt   `json:"attempts,omitempty"`
+	Mode           core.VKMode `json:"mode"`
+	CredentialID   string      `json:"credential_id"`
+	CredentialName string      `json:"credential_name,omitempty"`
+	Attempts       []Attempt   `json:"attempts,omitempty"`
 }
 
 type Event struct {
@@ -104,8 +106,8 @@ type Event struct {
 	RequestKind     core.RequestKind `json:"request_kind"` // chat | embedding | speech | … — set by the route
 	RequestEndpoint string           `json:"request_endpoint"`
 
-	CostNanoUSD  int64             `json:"cost_nano_usd"`
-	
+	CostNanoUSD int64 `json:"cost_nano_usd"`
+
 	Governance   Governance        `json:"governance"`
 	Outcome      Outcome           `json:"outcome"`
 	Timing       Timing            `json:"timing"`

@@ -21,6 +21,11 @@ import (
 type OLAPStore interface {
 	Write(ctx context.Context, events []*Event) error
 	Close() error
+	GetOverviewTiles(ctx context.Context, from, to time.Time) (*OverviewTiles, error)
+	GetRequestSummaryByTime(ctx context.Context, from, to time.Time, bucket time.Duration) (*TimeSummary, error)
+	GetRequestLogsByTime(ctx context.Context, from, to time.Time, offset, limit int) (*RequestLogPage, error)
+	GetRequestDetailByID(ctx context.Context, id string) (*RequestDetail, error)
+	GetPayloadByID(ctx context.Context, id string) (*Payload, error)
 }
 
 //go:embed migrations/*.sql

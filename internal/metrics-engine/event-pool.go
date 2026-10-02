@@ -57,7 +57,7 @@ func (e *Event) fill(rctx *core.DiffractLLMContext) {
 	}
 
 	if rctx.SelectedCredential != nil {
-		e.Routing = &Routing{CredentialID: rctx.SelectedCredential.ID}
+		e.Routing = &Routing{CredentialID: rctx.SelectedCredential.ID, CredentialName: rctx.SelectedCredential.Name}
 		if rctx.VirtualKeyPolicy != nil {
 			e.Routing.Mode = rctx.VirtualKeyPolicy.Mode
 		}
@@ -67,6 +67,7 @@ func (e *Event) fill(rctx *core.DiffractLLMContext) {
 		RequestedModel: rctx.RequestedModel,
 		Provider:       string(rctx.Modelkey.Provider),
 		Model:          rctx.Modelkey.ModelName,
+		UpstreamModel:  rctx.UpstreamModel,
 		Stream:         rctx.StreamChunks > 0 || rctx.StreamAborted || rctx.StreamFinishReason != "",
 		FinishReason:   string(rctx.StreamFinishReason),
 		Pricing:        rctx.Pricing,

@@ -31,6 +31,9 @@ func newTestEngine(store OLAPStore, capacity int) *MetricsEngine {
 	return NewMetricsEngine(store, &config.MetricsEngineConfig{
 		BufferCapacity: capacity,
 		FlushInterval:  time.Hour,
+		QueryTimeout:   5 * time.Second,
+		MaxPage:        200,
+		MaxWindow:      90 * 24 * time.Hour,
 	}, zap.NewNop())
 }
 
@@ -89,10 +92,10 @@ func TestAddEventThenFlushWritesTheRow(t *testing.T) {
 
 	var (
 		kind, requestKind, endpoint, result, model, provider, credential, mode, tier string
-		requestID, vkey, budget                                                     string
-		httpStatus, upstreamStatus                                                  int
-		in, out, total, cached, cost, ttfb, totalUS                                 int64
-		usageDetail                                                                 string
+		requestID, vkey, budget                                                      string
+		httpStatus, upstreamStatus                                                   int
+		in, out, total, cached, cost, ttfb, totalUS                                  int64
+		usageDetail                                                                  string
 	)
 	err = store.db.QueryRow(`
 		SELECT kind, request_kind, request_endpoint, outcome_result, llm_model, llm_provider,
@@ -259,9 +262,10 @@ func TestFailedBatchLeavesNothingBehind(t *testing.T) {
 
 // failingStore fails the first `failures` writes, then records what it receives.
 type failingStore struct {
-	failures int
-	calls    int
-	written  []string
+	OLAPStore // reads are not exercised; calling one panics
+	failures  int
+	calls     int
+	written   []string
 }
 
 func (s *failingStore) Write(_ context.Context, events []*Event) error {

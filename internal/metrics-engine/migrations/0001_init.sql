@@ -26,12 +26,14 @@ CREATE TABLE IF NOT EXISTS events (
 
     routing_mode                  VARCHAR,
     routing_credential_id         VARCHAR,
+    routing_credential_name       VARCHAR,
     routing_attempts              INTEGER,
     routing_attempt_list          JSON,
 
     llm_requested_model           VARCHAR,
     llm_provider                  VARCHAR,
     llm_model                     VARCHAR,
+    llm_upstream_model            VARCHAR,
     llm_stream                    BOOLEAN,
     llm_finish_reason             VARCHAR,
     llm_tool_calls                JSON,

@@ -7,6 +7,7 @@ import (
 	"diffractllm/internal/dataplane"
 	"diffractllm/internal/dbstore"
 	"diffractllm/internal/governance"
+	metricsengine "diffractllm/internal/metrics-engine"
 	"diffractllm/internal/modelcatalog"
 	"diffractllm/internal/providerplane"
 	"diffractllm/internal/providers"
@@ -43,6 +44,7 @@ type DiffractLLMServer struct {
 	Transport        *dataplane.DiffractLLMTransport
 
 	dbStore *dbstore.Store
+	metrics *metricsengine.MetricsEngine
 }
 
 func NewDiffractLLMServer(logger *zap.Logger, config *config.ServerConfig, gov *governance.Governance, selectionEngine *dataplane.SelectionEngine, credentialPlane *providerplane.ProviderPlane, catalog *modelcatalog.ModelCatalog,
@@ -80,7 +82,7 @@ func (ds *DiffractLLMServer) Start() error {
 			Addr:              fmt.Sprintf(":%d", ds.config.Port),
 			Handler:           handler,
 			ReadHeaderTimeout: 10 * time.Second,
-			WriteTimeout:      0, // Disabled to support SSE streaming; Provider Transports will take care of the enforcement
+			WriteTimeout:      0,
 			IdleTimeout:       60 * time.Second,
 			BaseContext:       func(net.Listener) context.Context { return ds.baseCtx },
 		}

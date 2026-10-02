@@ -713,8 +713,31 @@ type Usage struct {
 	Units           int64 `json:"units,omitempty"`
 }
 
-func CalculateCost(p Pricing, u Usage) float64 {
+type CostLine struct {
+	Item     string  `json:"item"`
+	Quantity float64 `json:"quantity"`
+	Unit     string  `json:"unit"`
+	UnitCost float64 `json:"unit_cost_usd"`
+	CostUSD  float64 `json:"cost_usd"`
+}
 
+func CalculateCost(p Pricing, u Usage) float64 {
+	var total float64
+	costLines(p, u, func(_, _ string, qty, unitCost float64) { total += qty * unitCost })
+	return total
+}
+
+func CostBreakdown(p Pricing, u Usage) []CostLine {
+	var lines []CostLine
+	costLines(p, u, func(item, unit string, qty, unitCost float64) {
+		if qty != 0 && unitCost != 0 {
+			lines = append(lines, CostLine{Item: item, Quantity: qty, Unit: unit, UnitCost: unitCost, CostUSD: qty * unitCost})
+		}
+	})
+	return lines
+}
+
+func costLines(p Pricing, u Usage, add func(item, unit string, qty, unitCost float64)) {
 	uncachedInput := u.InputTokens
 	if p.CacheReadInputTokenCost != nil || p.InputCostPerTokenCacheHit != nil {
 		uncachedInput -= u.CachedInputTokens
@@ -743,49 +766,47 @@ func CalculateCost(p Pricing, u Usage) float64 {
 		plainOutput = 0
 	}
 
-	total := float64(uncachedInput) * p.inputRate(u.InputTokens, u.Tier)
-	total += float64(plainOutput) * p.outputRate(u.InputTokens, u.Tier)
-	total += float64(u.CachedInputTokens) * p.cacheReadRate(u.InputTokens, u.Tier)
-	total += float64(u.CacheCreationTokens) * p.cacheCreationRate(u.InputTokens, u.Tier, u.CacheLongTTL)
-	total += float64(u.ReasoningTokens) * rate(p.OutputCostPerReasoningToken)
-	total += float64(u.CitationTokens) * rate(p.CitationCostPerToken)
+	add("input", "token", float64(uncachedInput), p.inputRate(u.InputTokens, u.Tier))
+	add("output", "token", float64(plainOutput), p.outputRate(u.InputTokens, u.Tier))
+	add("input_cache_read", "token", float64(u.CachedInputTokens), p.cacheReadRate(u.InputTokens, u.Tier))
+	add("input_cache_write", "token", float64(u.CacheCreationTokens), p.cacheCreationRate(u.InputTokens, u.Tier, u.CacheLongTTL))
+	add("reasoning", "token", float64(u.ReasoningTokens), rate(p.OutputCostPerReasoningToken))
+	add("citation", "token", float64(u.CitationTokens), rate(p.CitationCostPerToken))
 
-	total += float64(u.InputAudioTokens) * p.audioInputTokenRate(u.Tier)
-	total += float64(u.OutputAudioTokens) * rate(p.OutputCostPerAudioToken)
-	total += float64(u.CachedAudioTokens) * rate(p.CacheReadInputAudioTokenCost)
-	total += float64(u.CacheCreationAudioTokens) * rate(p.CacheCreationInputAudioTokenCost)
-	total += u.InputAudioSeconds * p.audioSecondRate(u.InputTokens)
+	add("input_audio", "token", float64(u.InputAudioTokens), p.audioInputTokenRate(u.Tier))
+	add("output_audio", "token", float64(u.OutputAudioTokens), rate(p.OutputCostPerAudioToken))
+	add("input_audio_cache_read", "token", float64(u.CachedAudioTokens), rate(p.CacheReadInputAudioTokenCost))
+	add("input_audio_cache_write", "token", float64(u.CacheCreationAudioTokens), rate(p.CacheCreationInputAudioTokenCost))
+	add("input_audio", "second", u.InputAudioSeconds, p.audioSecondRate(u.InputTokens))
 
-	total += float64(u.InputCharacters) * p.inputCharacterRate(u.InputTokens)
-	total += float64(u.OutputCharacters) * p.outputCharacterRate(u.InputTokens)
+	add("input", "character", float64(u.InputCharacters), p.inputCharacterRate(u.InputTokens))
+	add("output", "character", float64(u.OutputCharacters), p.outputCharacterRate(u.InputTokens))
 
-	total += float64(u.InputImages) * p.inputImageRate(u.InputTokens)
-	total += float64(u.OutputImages) * p.outputImageRate(u.ImageQuality, u.OutputPixels)
-	total += float64(u.InputImageTokens) * rate(p.InputCostPerImageToken)
-	total += float64(u.OutputImageTokens) * rate(p.OutputCostPerImageToken)
-	total += float64(u.GeneratedPixels) * rate(p.InputCostPerPixel)
-	total += float64(u.OutputPixels) * rate(p.OutputCostPerPixel)
+	add("input_image", "image", float64(u.InputImages), p.inputImageRate(u.InputTokens))
+	add("output_image", "image", float64(u.OutputImages), p.outputImageRate(u.ImageQuality, u.OutputPixels))
+	add("input_image", "token", float64(u.InputImageTokens), rate(p.InputCostPerImageToken))
+	add("output_image", "token", float64(u.OutputImageTokens), rate(p.OutputCostPerImageToken))
+	add("generated", "pixel", float64(u.GeneratedPixels), rate(p.InputCostPerPixel))
+	add("output", "pixel", float64(u.OutputPixels), rate(p.OutputCostPerPixel))
 
-	total += u.InputVideoSeconds * p.inputVideoSecondRateForClip(u.InputVideoSeconds, u.InputTokens)
-	total += u.OutputVideoSeconds * p.outputVideoSecondRate(u.VideoResolution, u.VideoHasAudio, u.VideoFromVideo)
-	total += float64(u.OutputVideoTokens) * rate(p.OutputCostPerVideoToken)
-	total += float64(u.OutputVideos) * p.outputVideoRate(u.VideoResolution, u.OutputVideoSeconds)
-	total += u.InputSeconds * rate(p.InputCostPerSecond)
-	total += u.OutputSeconds * rate(p.OutputCostPerSecond)
+	add("input_video", "second", u.InputVideoSeconds, p.inputVideoSecondRateForClip(u.InputVideoSeconds, u.InputTokens))
+	add("output_video", "second", u.OutputVideoSeconds, p.outputVideoSecondRate(u.VideoResolution, u.VideoHasAudio, u.VideoFromVideo))
+	add("output_video", "token", float64(u.OutputVideoTokens), rate(p.OutputCostPerVideoToken))
+	add("output_video", "video", float64(u.OutputVideos), p.outputVideoRate(u.VideoResolution, u.OutputVideoSeconds))
+	add("input", "second", u.InputSeconds, rate(p.InputCostPerSecond))
+	add("output", "second", u.OutputSeconds, rate(p.OutputCostPerSecond))
 
-	total += float64(u.Queries) * rate(p.InputCostPerQuery)
-	total += float64(u.SearchQueries) * p.searchQueryRate(u.SearchContextSize)
-	total += float64(u.Requests) * rate(p.CostPerRequest)
-	total += float64(u.InputRequests) * rate(p.InputCostPerRequest)
-	total += float64(u.Pages) * rate(p.OCRCostPerPage)
-	total += float64(u.OCRCredits) * rate(p.OCRCostPerCredit)
-	total += float64(u.AnnotationPages) * rate(p.AnnotationCostPerPage)
-	total += float64(u.CodeSessions) * rate(p.CodeInterpreterCostPerSession)
-	total += float64(u.InputDBUs) * rate(p.InputDBUCostPerToken)
-	total += float64(u.OutputDBUs) * rate(p.OutputDBUCostPerToken)
-	total += float64(u.Units) * rate(p.OutputCostPerUnit)
-
-	return total
+	add("query", "query", float64(u.Queries), rate(p.InputCostPerQuery))
+	add("search_query", "query", float64(u.SearchQueries), p.searchQueryRate(u.SearchContextSize))
+	add("request", "request", float64(u.Requests), rate(p.CostPerRequest))
+	add("input_request", "request", float64(u.InputRequests), rate(p.InputCostPerRequest))
+	add("ocr", "page", float64(u.Pages), rate(p.OCRCostPerPage))
+	add("ocr", "credit", float64(u.OCRCredits), rate(p.OCRCostPerCredit))
+	add("annotation", "page", float64(u.AnnotationPages), rate(p.AnnotationCostPerPage))
+	add("code_interpreter", "session", float64(u.CodeSessions), rate(p.CodeInterpreterCostPerSession))
+	add("input", "dbu", float64(u.InputDBUs), rate(p.InputDBUCostPerToken))
+	add("output", "dbu", float64(u.OutputDBUs), rate(p.OutputDBUCostPerToken))
+	add("unit", "unit", float64(u.Units), rate(p.OutputCostPerUnit))
 }
 
 type PricingVariant struct {

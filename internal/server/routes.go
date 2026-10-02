@@ -99,6 +99,15 @@ func (ds *DiffractLLMServer) routeHandlers() (http.Handler, error) {
 		pricing.DELETE("/:id", ds.deleteCustomPricing)
 	}
 
+	metrics := admin.Group("/metrics", ds.requireMetrics)
+	{
+		metrics.GET("/stats", ds.getMetricsStats)
+		metrics.GET("/requests", ds.listMetricsRequests)
+		metrics.GET("/requests/summary", ds.getMetricsRequestSummary)
+		metrics.GET("/requests/:id", ds.getMetricsRequest)
+		metrics.GET("/requests/:id/payload", ds.getMetricsRequestPayload)
+	}
+
 	// ----- END OF ADMIN HANDLERS ------
 
 	router.NoRoute(func(ctx *gin.Context) {

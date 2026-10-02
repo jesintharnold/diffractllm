@@ -32,11 +32,13 @@ const (
 	colTimingStages
 	colRoutingMode
 	colRoutingCredentialID
+	colRoutingCredentialName
 	colRoutingAttempts
 	colRoutingAttemptList
 	colLLMRequestedModel
 	colLLMProvider
 	colLLMModel
+	colLLMUpstreamModel
 	colLLMStream
 	colLLMFinishReason
 	colLLMToolCalls
@@ -79,11 +81,13 @@ var eventColumnNames = [numEventCols]string{
 	colTimingStages:              "timing_stages",
 	colRoutingMode:               "routing_mode",
 	colRoutingCredentialID:       "routing_credential_id",
+	colRoutingCredentialName:     "routing_credential_name",
 	colRoutingAttempts:           "routing_attempts",
 	colRoutingAttemptList:        "routing_attempt_list",
 	colLLMRequestedModel:         "llm_requested_model",
 	colLLMProvider:               "llm_provider",
 	colLLMModel:                  "llm_model",
+	colLLMUpstreamModel:          "llm_upstream_model",
 	colLLMStream:                 "llm_stream",
 	colLLMFinishReason:           "llm_finish_reason",
 	colLLMToolCalls:              "llm_tool_calls",
@@ -158,6 +162,7 @@ func (e *Event) toAppenderValues(dst []driver.Value) error {
 	if rt := e.Routing; rt != nil {
 		dst[colRoutingMode] = rt.Mode.String()
 		dst[colRoutingCredentialID] = nullCheck(rt.CredentialID)
+		dst[colRoutingCredentialName] = nullCheck(rt.CredentialName)
 		dst[colRoutingAttempts] = nz(len(rt.Attempts))
 		dst[colRoutingAttemptList] = js(rt.Attempts)
 	}
@@ -166,6 +171,7 @@ func (e *Event) toAppenderValues(dst []driver.Value) error {
 		dst[colLLMRequestedModel] = nullCheck(l.RequestedModel)
 		dst[colLLMProvider] = nullCheck(l.Provider)
 		dst[colLLMModel] = nullCheck(l.Model)
+		dst[colLLMUpstreamModel] = nullCheck(l.UpstreamModel)
 		dst[colLLMStream] = l.Stream
 		dst[colLLMFinishReason] = nullCheck(l.FinishReason)
 		dst[colLLMToolCalls] = js(l.ToolCalls)

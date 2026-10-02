@@ -130,6 +130,7 @@ func (gw *gatewayImpl) Initialize() error {
 		if err := metricsengine.RegisterHooks(gw.server.HookEngine, gw.metrics); err != nil {
 			return fmt.Errorf("metrics hooks: %w", err)
 		}
+		gw.server.SetMetrics(gw.metrics)
 		gw.logger.Info("metrics engine ready", zap.String("store", mc.DSN))
 	}
 

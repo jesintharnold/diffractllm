@@ -3,6 +3,7 @@ package metricsengine
 import (
 	"context"
 	"fmt"
+	"time"
 
 	config "diffractllm/configs"
 	"diffractllm/internal/core"
@@ -13,15 +14,15 @@ import (
 
 const (
 	jobEventsFlush   = "events_flush"
-	maxWriteAttempts = 3 
+	maxWriteAttempts = 3
 )
 
 type MetricsEngine struct {
-	store   OLAPStore
-	buffer  *EventsBuffer
-	workers *worker.Group
-	logger  *zap.Logger
-	config  *config.MetricsEngineConfig
+	store    OLAPStore
+	buffer   *EventsBuffer
+	workers  *worker.Group
+	logger   *zap.Logger
+	config   *config.MetricsEngineConfig
 	retry    []*Event
 	attempts int
 	lost     int64
@@ -117,4 +118,88 @@ func releaseAll(events []*Event) {
 	for _, e := range events {
 		releaseEvent(e)
 	}
+}
+
+// minRange is the shortest window the console shows.
+const minRange = time.Hour
+
+func (m *MetricsEngine) checkRange(from, to time.Time) error {
+	if to.Sub(from) < minRange {
+		return fmt.Errorf("%w: range must be at least %s", ErrInvalidQuery, minRange)
+	}
+	if to.Sub(from) > m.config.MaxWindow {
+		return fmt.Errorf("%w: range exceeds %s", ErrInvalidQuery, m.config.MaxWindow)
+	}
+	return nil
+}
+
+// bucketFor is Bifrost's table (calculateBucketSize): the range decides the bar width.
+func bucketFor(r time.Duration) time.Duration {
+	const day = 24 * time.Hour
+	switch {
+	case r >= 365*day:
+		return 30 * day
+	case r >= 90*day:
+		return 7 * day
+	case r > 31*day:
+		return 3 * day
+	case r >= 7*day:
+		return day
+	case r >= 3*day:
+		return 8 * time.Hour
+	case r >= day:
+		return time.Hour
+	case r >= 2*time.Hour:
+		return 10 * time.Minute
+	default:
+		return time.Minute
+	}
+}
+
+func (m *MetricsEngine) GetOverviewTiles(ctx context.Context, from, to time.Time) (*OverviewTiles, error) {
+	if err := m.checkRange(from, to); err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(ctx, m.config.QueryTimeout)
+	defer cancel()
+	return m.store.GetOverviewTiles(ctx, from.UTC(), to.UTC())
+}
+
+func (m *MetricsEngine) GetRequestSummaryByTime(ctx context.Context, from, to time.Time) (*TimeSummary, error) {
+	if err := m.checkRange(from, to); err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(ctx, m.config.QueryTimeout)
+	defer cancel()
+	return m.store.GetRequestSummaryByTime(ctx, from.UTC(), to.UTC(), bucketFor(to.Sub(from)))
+}
+
+func (m *MetricsEngine) GetRequestLogsByTime(ctx context.Context, from, to time.Time, offset, limit int) (*RequestLogPage, error) {
+	if err := m.checkRange(from, to); err != nil {
+		return nil, err
+	}
+	if offset < 0 || limit < 1 || limit > m.config.MaxPage {
+		return nil, fmt.Errorf("%w: need offset >= 0 and 1 <= limit <= %d", ErrInvalidQuery, m.config.MaxPage)
+	}
+	ctx, cancel := context.WithTimeout(ctx, m.config.QueryTimeout)
+	defer cancel()
+	return m.store.GetRequestLogsByTime(ctx, from.UTC(), to.UTC(), offset, limit)
+}
+
+func (m *MetricsEngine) GetRequestDetailByID(ctx context.Context, id string) (*RequestDetail, error) {
+	if id == "" {
+		return nil, fmt.Errorf("%w: id is required", ErrInvalidQuery)
+	}
+	ctx, cancel := context.WithTimeout(ctx, m.config.QueryTimeout)
+	defer cancel()
+	return m.store.GetRequestDetailByID(ctx, id)
+}
+
+func (m *MetricsEngine) GetPayloadByID(ctx context.Context, id string) (*Payload, error) {
+	if id == "" {
+		return nil, fmt.Errorf("%w: id is required", ErrInvalidQuery)
+	}
+	ctx, cancel := context.WithTimeout(ctx, m.config.QueryTimeout)
+	defer cancel()
+	return m.store.GetPayloadByID(ctx, id)
 }

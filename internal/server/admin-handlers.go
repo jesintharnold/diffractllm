@@ -439,6 +439,7 @@ func (ds *DiffractLLMServer) handleStats(c *gin.Context) {
 		"ready":      ds.Status(),
 		"governance": ds.governance.Stats(),
 		"catalog":    ds.ModelCatalog.Stats(),
+		"metrics":    ds.metrics.Stats(),
 	})
 }
 
@@ -494,8 +495,6 @@ func (ds *DiffractLLMServer) getProviderSettings(c *gin.Context) {
 		adminErr(c, http.StatusNotFound, "provider not found")
 		return
 	}
-	// The stored row holds only what was overridden. Resolve it against the
-	// gateway defaults so a reader sees what the dialer will actually use.
 	c.JSON(http.StatusOK, gin.H{
 		"network_config": ds.Transport.EffectiveNetwork(row.Network),
 		"proxy_config":   row.Proxy,
