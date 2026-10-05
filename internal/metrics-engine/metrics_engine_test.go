@@ -413,3 +413,31 @@ func TestPricingSnapshotIsStored(t *testing.T) {
 	require.NoError(t, store.db.QueryRow(`SELECT llm_pricing::VARCHAR FROM events`).Scan(&pricing))
 	assert.JSONEq(t, `{"input_cost_per_token":0.0000025}`, pricing)
 }
+
+// Retries and the provider's request id reach the request detail screen.
+func TestUpstreamAttemptsAndHeadersReachTheDetail(t *testing.T) {
+	store := newTestStore(t)
+	m := newTestEngine(store, 10)
+
+	rc := okContext()
+	rc.UpstreamAttempts = 3
+	rc.UpstreamStatus = 200
+	rc.Overwrite("upstream.apim-request-id", "azure-req-9")
+	rc.Overwrite("upstream.x-ratelimit-remaining-tokens", "1200")
+	m.AddEvent(rc)
+	_, err := m.flush(context.Background())
+	require.NoError(t, err)
+
+	var id string
+	require.NoError(t, store.db.QueryRow(`SELECT id FROM events`).Scan(&id))
+	d, err := store.GetRequestDetailByID(context.Background(), id)
+	require.NoError(t, err)
+
+	assert.Equal(t, 3, d.Upstream.Attempts)
+	assert.Equal(t, 200, d.Upstream.HTTPStatus)
+	assert.Equal(t, "azure-req-9", d.Upstream.RequestID)
+	assert.Equal(t, map[string]string{
+		"apim-request-id":              "azure-req-9",
+		"x-ratelimit-remaining-tokens": "1200",
+	}, d.Upstream.Headers)
+}

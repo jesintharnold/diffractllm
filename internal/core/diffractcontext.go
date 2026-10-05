@@ -37,14 +37,16 @@ type DiffractLLMContext struct {
 	SelectedCredential *Credential
 
 	// === PROXY OUTCOME FIELDS ===
-	UpstreamStatus int
-	TTFB           time.Duration
-	UpstreamModel  string
+	UpstreamStatus   int // last HTTP status the provider returned, retries included
+	UpstreamAttempts int
+	TTFB             time.Duration
+	UpstreamModel    string
 
 	// === RESPONSE OUTCOME FIELDS ===
 	RequestCompleted bool
 	ResponseStatus   int
 	ResponseBytes    int
+	ResponseBody     []byte // the JSON body sent to the client; nil for streams
 	Error            *DiffractLLMError
 
 	Usage *Usage
@@ -55,6 +57,39 @@ type DiffractLLMContext struct {
 	StreamFinishReason FinishReason
 	StreamAborted      bool
 	StartedAt          time.Time
+	Marks              [NumStages]time.Duration
+}
+
+type Stage uint8
+
+const (
+	StageAuth Stage = iota
+	StageReadBody
+	StageParse
+	StageAdmission  // pre-call hooks: model access, budget
+	StageRouting    // credential, price and provider picked
+	StageUpstream   // provider response headers arrived
+	StageFirstToken // first stream chunk sent to the client
+	NumStages
+)
+
+var StageNames = [NumStages]string{"auth", "read_body", "parse", "admission", "routing", "upstream", "first_token"}
+
+func (rc *DiffractLLMContext) Mark(s Stage) { rc.Marks[s] = time.Since(rc.StartedAt) }
+
+type UpstreamHeader struct {
+	Name string
+	Key  DiffractLLMContextKey
+}
+
+var UpstreamHeaders = []UpstreamHeader{
+	{"x-request-id", "upstream.x-request-id"},
+	{"apim-request-id", "upstream.apim-request-id"}, // Azure
+	{"openai-processing-ms", "upstream.openai-processing-ms"},
+	{"x-ratelimit-remaining-requests", "upstream.x-ratelimit-remaining-requests"},
+	{"x-ratelimit-remaining-tokens", "upstream.x-ratelimit-remaining-tokens"},
+	{"x-ratelimit-reset-requests", "upstream.x-ratelimit-reset-requests"},
+	{"retry-after", "upstream.retry-after"},
 }
 
 func (rc *DiffractLLMContext) Context() context.Context { return rc.ctx }
@@ -95,6 +130,7 @@ func (rc *DiffractLLMContext) JSON(code int, obj any) {
 	if err != nil {
 		return
 	}
+	rc.ResponseBody = data
 
 	rc.Writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 	rc.Writer.WriteHeader(code)
@@ -159,12 +195,14 @@ func (rc *DiffractLLMContext) reset() {
 
 	rc.AuthFrozen = false
 	rc.UpstreamStatus = 0
+	rc.UpstreamAttempts = 0
 	rc.TTFB = 0
 	rc.UpstreamModel = ""
 
 	rc.RequestCompleted = false
 	rc.ResponseStatus = 0
 	rc.ResponseBytes = 0
+	rc.ResponseBody = nil
 	rc.Error = nil
 	rc.Usage = nil
 	rc.Cost = 0
@@ -173,8 +211,8 @@ func (rc *DiffractLLMContext) reset() {
 	rc.StreamFinishReason = ""
 	rc.StreamAborted = false
 	rc.StartedAt = time.Time{}
+	rc.Marks = [NumStages]time.Duration{}
 
-	// Hook logs we are performing a reset - Important for flush
 	rc.HookLog.reset()
 	for k := range rc.metadata {
 		delete(rc.metadata, k)

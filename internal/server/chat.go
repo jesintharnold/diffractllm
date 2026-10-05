@@ -72,6 +72,9 @@ func (ds *DiffractLLMServer) chatCompletion(
 				rctx.StreamFinishReason = *chunk.Choices[0].FinishReason
 			}
 
+			if rctx.StreamChunks == 0 {
+				rctx.Mark(core.StageFirstToken)
+			}
 			rctx.StreamChunks++
 
 			event, payload := desc.FromDiffractStream(chunk)

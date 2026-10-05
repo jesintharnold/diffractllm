@@ -106,6 +106,7 @@ func (ds *DiffractLLMServer) GenericRequestHandler(w http.ResponseWriter, r *htt
 		writeErr(rctx, desc, authErr)
 		return
 	}
+	rctx.Mark(core.StageAuth)
 
 	// Read the complete body
 	body, err := ds.readBody(rctx)
@@ -114,6 +115,7 @@ func (ds *DiffractLLMServer) GenericRequestHandler(w http.ResponseWriter, r *htt
 		return
 	}
 	rctx.BodyBytes = body
+	rctx.Mark(core.StageReadBody)
 
 	// Now convert the json into struct
 	payloadStruct := desc.NewRequest()
@@ -124,12 +126,14 @@ func (ds *DiffractLLMServer) GenericRequestHandler(w http.ResponseWriter, r *htt
 
 	// Now convert the sdk rquest into the Internal diffract LLM rquest
 	dfRequest := desc.ToDiffract(payloadStruct, rctx)
+	rctx.Mark(core.StageParse)
 
 	// Execute Pre call hooks
 	if err = ds.HookEngine.RunPreCallHooks(rctx); err != nil {
 		writeErr(rctx, desc, err)
 		return
 	}
+	rctx.Mark(core.StageAdmission)
 
 	// Pick the provider and credential , pricing and provider instance + transport
 	cred, err := ds.selectionEngine.Resolve(rctx)
@@ -156,6 +160,7 @@ func (ds *DiffractLLMServer) GenericRequestHandler(w http.ResponseWriter, r *htt
 		writeErr(rctx, desc, err)
 		return
 	}
+	rctx.Mark(core.StageRouting)
 
 	defer ds.HookEngine.RunPostProviderHooks(rctx)
 

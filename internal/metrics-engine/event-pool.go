@@ -50,16 +50,32 @@ func (e *Event) fill(rctx *core.DiffractLLMContext) {
 		e.Outcome.ErrorMessage = err.Message
 	}
 
+	total := time.Since(rctx.StartedAt)
 	e.Timing = Timing{
 		Start:   rctx.StartedAt.UTC(),
-		TotalUS: time.Since(rctx.StartedAt).Microseconds(),
+		TotalUS: total.Microseconds(),
 		TTFBUS:  rctx.TTFB.Microseconds(),
+		TTFTUS:  rctx.Marks[core.StageFirstToken].Microseconds(),
+		Stages:  stages(rctx.Marks, total),
 	}
 
 	if rctx.SelectedCredential != nil {
-		e.Routing = &Routing{CredentialID: rctx.SelectedCredential.ID, CredentialName: rctx.SelectedCredential.Name}
+		e.Routing = &Routing{
+			CredentialID:   rctx.SelectedCredential.ID,
+			CredentialName: rctx.SelectedCredential.Name,
+			AttemptCount:   rctx.UpstreamAttempts,
+		}
 		if rctx.VirtualKeyPolicy != nil {
 			e.Routing.Mode = rctx.VirtualKeyPolicy.Mode
+		}
+	}
+
+	for _, uh := range core.UpstreamHeaders {
+		if v, ok := rctx.Get(uh.Key); ok {
+			if e.Headers == nil {
+				e.Headers = make(map[string]string, len(core.UpstreamHeaders))
+			}
+			e.Headers[uh.Name], _ = v.(string)
 		}
 	}
 
@@ -95,4 +111,24 @@ func classify(rctx *core.DiffractLLMContext) Result {
 	default:
 		return ResultGatewayError
 	}
+}
+
+func stages(marks [core.NumStages]time.Duration, total time.Duration) []Stage {
+	var out []Stage
+	var prev time.Duration
+	for s, end := range marks {
+		if end == 0 {
+			continue
+		}
+		out = append(out, span(core.StageNames[s], prev, end))
+		prev = end
+	}
+	if out != nil && total > prev {
+		out = append(out, span("response", prev, total))
+	}
+	return out
+}
+
+func span(name string, start, end time.Duration) Stage {
+	return Stage{Name: name, StartUS: start.Microseconds(), EndUS: end.Microseconds(), DurationUS: (end - start).Microseconds()}
 }

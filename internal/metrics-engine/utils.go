@@ -51,3 +51,13 @@ func rawJSON(b []byte) driver.Value {
 	}
 	return json.RawMessage(b)
 }
+
+func bodyJSON(b []byte) driver.Value {
+	if len(b) == 0 {
+		return nil
+	}
+	if json.Valid(b) {
+		return json.RawMessage(b)
+	}
+	return string(b)
+}

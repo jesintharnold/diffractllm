@@ -55,9 +55,10 @@ type Timing struct {
 }
 
 type Stage struct {
-	Name      string `json:"name"`
-	OffsetUS  int64  `json:"offset_us"`
-	ElapsedUS int64  `json:"elapsed_us"`
+	Name       string `json:"name"`
+	StartUS    int64  `json:"start_us"`
+	EndUS      int64  `json:"end_us"`
+	DurationUS int64  `json:"duration_us"`
 }
 
 type Attempt struct {
@@ -94,6 +95,7 @@ type Routing struct {
 	Mode           core.VKMode `json:"mode"`
 	CredentialID   string      `json:"credential_id"`
 	CredentialName string      `json:"credential_name,omitempty"`
+	AttemptCount   int         `json:"attempt_count,omitempty"`
 	Attempts       []Attempt   `json:"attempts,omitempty"`
 }
 

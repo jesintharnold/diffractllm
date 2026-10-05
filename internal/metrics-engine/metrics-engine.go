@@ -1,6 +1,7 @@
 package metricsengine
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"time"
@@ -75,6 +76,7 @@ func (m *MetricsEngine) AddEvent(rctx *core.DiffractLLMContext) {
 	}
 	e := acquireEvent()
 	e.fill(rctx)
+	m.capturePayload(e, rctx)
 	if !m.buffer.Append(e) {
 		releaseEvent(e)
 		return
@@ -120,7 +122,6 @@ func releaseAll(events []*Event) {
 	}
 }
 
-// minRange is the shortest window the console shows.
 const minRange = time.Hour
 
 func (m *MetricsEngine) checkRange(from, to time.Time) error {
@@ -133,7 +134,6 @@ func (m *MetricsEngine) checkRange(from, to time.Time) error {
 	return nil
 }
 
-// bucketFor is Bifrost's table (calculateBucketSize): the range decides the bar width.
 func bucketFor(r time.Duration) time.Duration {
 	const day = 24 * time.Hour
 	switch {
@@ -202,4 +202,64 @@ func (m *MetricsEngine) GetPayloadByID(ctx context.Context, id string) (*Payload
 	ctx, cancel := context.WithTimeout(ctx, m.config.QueryTimeout)
 	defer cancel()
 	return m.store.GetPayloadByID(ctx, id)
+}
+
+const maxTopLimit = 50
+
+func (m *MetricsEngine) GetTopVirtualKeys(ctx context.Context, from, to time.Time, limit int) ([]VirtualKeyUsage, error) {
+	if err := m.checkRange(from, to); err != nil {
+		return nil, err
+	}
+	if limit < 1 || limit > maxTopLimit {
+		return nil, fmt.Errorf("%w: need 1 <= limit <= %d", ErrInvalidQuery, maxTopLimit)
+	}
+	ctx, cancel := context.WithTimeout(ctx, m.config.QueryTimeout)
+	defer cancel()
+	return m.store.GetTopVirtualKeys(ctx, from.UTC(), to.UTC(), limit)
+}
+
+func (m *MetricsEngine) GetBudgetSpendByTime(ctx context.Context, budgetID string, from, to time.Time) (*BudgetSpend, error) {
+	if budgetID == "" {
+		return nil, fmt.Errorf("%w: budget id is required", ErrInvalidQuery)
+	}
+	if err := m.checkRange(from, to); err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(ctx, m.config.QueryTimeout)
+	defer cancel()
+	return m.store.GetBudgetSpendByTime(ctx, budgetID, from.UTC(), to.UTC(), bucketFor(to.Sub(from)))
+}
+
+func (m *MetricsEngine) capturePayload(e *Event, rctx *core.DiffractLLMContext) {
+	switch m.config.PayloadMode {
+	case config.PayloadModeFull:
+	case config.PayloadModeErrorsOnly:
+		if e.Outcome.Result == ResultOK || e.Outcome.Result == ResultClientAbort {
+			return
+		}
+	default:
+		return
+	}
+
+	limit := m.config.PayloadMaxKB << 10
+	req, reqCut := clip(rctx.BodyBytes, limit)
+	res, resCut := clip(rctx.ResponseBody, limit)
+	if req == nil && res == nil {
+		return
+	}
+	e.Payload = &Payload{ClientRequest: req, ClientResponse: res}
+	e.PayloadState = PayloadReady
+	if reqCut || resCut {
+		e.PayloadState = PayloadTruncated
+	}
+}
+
+func clip(b []byte, limit int) ([]byte, bool) {
+	if len(b) == 0 {
+		return nil, false
+	}
+	if len(b) > limit {
+		return bytes.Clone(b[:limit]), true
+	}
+	return bytes.Clone(b), false
 }

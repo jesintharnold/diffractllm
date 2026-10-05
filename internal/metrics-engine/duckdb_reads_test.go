@@ -192,3 +192,74 @@ func TestReadsRejectBadQueries(t *testing.T) {
 	_, err = m.GetRequestLogsByTime(ctx, t0, t0.Add(time.Hour), 0, 201)
 	assert.ErrorIs(t, err, ErrInvalidQuery)
 }
+
+// governed is a seeded event charged to a key and budget.
+func governed(id string, at time.Duration, vk, budget string, nano int64, result Result) *Event {
+	e := seedEvent(id, at, result, 200, 100*time.Millisecond, "openai")
+	e.Governance = Governance{ClientID: "client-" + vk, VirtualKeyID: vk, BudgetID: budget}
+	e.CostNanoUSD = nano
+	return e
+}
+
+func governedEngine(t *testing.T) *MetricsEngine {
+	store := newTestStore(t)
+	require.NoError(t, store.Write(context.Background(), []*Event{
+		governed("a1", 1*time.Minute, "vk-a", "b1", 1_000_000, ResultOK),
+		governed("a2", 65*time.Minute, "vk-a", "b1", 2_000_000, ResultUpstreamError),
+		governed("b1", 2*time.Minute, "vk-b", "b2", 5_000_000, ResultOK),
+		seedEvent("anon", 3*time.Minute, ResultRejected, 401, time.Millisecond, ""), // no key: skipped
+	}))
+	return newTestEngine(store, 10)
+}
+
+func TestTopVirtualKeysRankBySpend(t *testing.T) {
+	m := governedEngine(t)
+	keys, err := m.GetTopVirtualKeys(context.Background(), t0, t0.Add(2*time.Hour), 10)
+	require.NoError(t, err)
+
+	require.Len(t, keys, 2)
+	assert.Equal(t, "vk-b", keys[0].VirtualKeyID) // $0.005 beats $0.003
+	assert.Equal(t, VirtualKeyUsage{
+		VirtualKeyID: "vk-a", ClientID: "client-vk-a", Requests: 2, Errors: 1,
+		Tokens: 2 * 2186, SpendUSD: 0.003, LastUsed: t0.Add(65 * time.Minute),
+	}, keys[1])
+
+	keys, err = m.GetTopVirtualKeys(context.Background(), t0, t0.Add(2*time.Hour), 1)
+	require.NoError(t, err)
+	require.Len(t, keys, 1)
+	assert.Equal(t, "vk-b", keys[0].VirtualKeyID)
+}
+
+func TestBudgetSpendByTime(t *testing.T) {
+	m := governedEngine(t)
+	s, err := m.GetBudgetSpendByTime(context.Background(), "b1", t0, t0.Add(2*time.Hour))
+	require.NoError(t, err)
+
+	assert.Equal(t, "b1", s.BudgetID)
+	assert.Equal(t, 600.0, s.BucketSeconds) // 2h -> 10 minute bars
+	require.Len(t, s.Points, 12)
+	assert.Equal(t, SpendPoint{T: t0, SpendUSD: 0.001}, s.Points[0])
+	assert.Equal(t, SpendPoint{T: t0.Add(60 * time.Minute), SpendUSD: 0.002}, s.Points[6])
+	assert.Zero(t, s.Points[1].SpendUSD) // b2's spend at 10:02 is not here
+
+	s, err = m.GetBudgetSpendByTime(context.Background(), "nope", t0, t0.Add(2*time.Hour))
+	require.NoError(t, err)
+	require.Len(t, s.Points, 12)
+	for _, p := range s.Points {
+		assert.Zero(t, p.SpendUSD)
+	}
+}
+
+func TestTopAndBudgetRejectBadQueries(t *testing.T) {
+	m := governedEngine(t)
+	ctx := context.Background()
+
+	_, err := m.GetTopVirtualKeys(ctx, t0, t0.Add(time.Hour), 0)
+	assert.ErrorIs(t, err, ErrInvalidQuery)
+	_, err = m.GetTopVirtualKeys(ctx, t0, t0.Add(time.Hour), 51)
+	assert.ErrorIs(t, err, ErrInvalidQuery)
+	_, err = m.GetBudgetSpendByTime(ctx, "", t0, t0.Add(time.Hour))
+	assert.ErrorIs(t, err, ErrInvalidQuery)
+	_, err = m.GetBudgetSpendByTime(ctx, "b1", t0, t0.Add(30*time.Minute))
+	assert.ErrorIs(t, err, ErrInvalidQuery)
+}

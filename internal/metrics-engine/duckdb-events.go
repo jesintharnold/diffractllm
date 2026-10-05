@@ -163,7 +163,7 @@ func (e *Event) toAppenderValues(dst []driver.Value) error {
 		dst[colRoutingMode] = rt.Mode.String()
 		dst[colRoutingCredentialID] = nullCheck(rt.CredentialID)
 		dst[colRoutingCredentialName] = nullCheck(rt.CredentialName)
-		dst[colRoutingAttempts] = nz(len(rt.Attempts))
+		dst[colRoutingAttempts] = nz(rt.AttemptCount)
 		dst[colRoutingAttemptList] = js(rt.Attempts)
 	}
 
@@ -201,11 +201,11 @@ func (e *Event) toPayloadValues() []driver.Value {
 	return []driver.Value{
 		e.ID,
 		e.Timing.Start,
-		rawJSON(p.ClientRequest),
-		rawJSON(p.NormalizedRequest),
-		rawJSON(p.ProviderRequest),
-		rawJSON(p.ProviderResponse),
-		rawJSON(p.NormalizedResponse),
-		rawJSON(p.ClientResponse),
+		bodyJSON(p.ClientRequest),
+		bodyJSON(p.NormalizedRequest),
+		bodyJSON(p.ProviderRequest),
+		bodyJSON(p.ProviderResponse),
+		bodyJSON(p.NormalizedResponse),
+		bodyJSON(p.ClientResponse),
 	}
 }

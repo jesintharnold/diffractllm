@@ -1,6 +1,7 @@
 package metricsengine
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -18,7 +19,6 @@ var (
 	ErrInvalidQuery = errors.New("invalid query")
 )
 
-// Errors are every non-ok outcome except a client that hung up; those count as cancelled.
 const (
 	isError     = `outcome_result NOT IN ('ok', 'client_abort')`
 	isCancelled = `outcome_result = 'client_abort'`
@@ -83,6 +83,7 @@ type RequestDetail struct {
 	HTTPStatus  int          `json:"http_status"`
 	LatencyMS   float64      `json:"latency_ms"`
 	TTFBMS      float64      `json:"ttfb_ms,omitempty"`
+	TTFTMS      float64      `json:"ttft_ms,omitempty"`
 	Error       *DetailError `json:"error,omitempty"`
 
 	Model    DetailModel    `json:"model"`
@@ -91,6 +92,8 @@ type RequestDetail struct {
 	Upstream DetailUpstream `json:"upstream"`
 	Pipeline []Stage        `json:"pipeline,omitempty"`
 	Cost     DetailCost     `json:"cost"`
+
+	PayloadState string `json:"payload_state"` // none | ready | truncated: whether /payload has bodies
 }
 
 type DetailError struct {
@@ -126,8 +129,10 @@ type DetailContext struct {
 }
 
 type DetailUpstream struct {
-	HTTPStatus int `json:"http_status,omitempty"`
-	Attempts   int `json:"attempts,omitempty"`
+	HTTPStatus int               `json:"http_status,omitempty"`
+	Attempts   int               `json:"attempts,omitempty"`
+	RequestID  string            `json:"request_id,omitempty"`
+	Headers    map[string]string `json:"headers,omitempty"`
 }
 
 type DetailCost struct {
@@ -172,16 +177,13 @@ func (ds *DuckDBStore) GetRequestSummaryByTime(ctx context.Context, from, to tim
 	FROM events WHERE started_at >= $3 AND started_at < $4
 	GROUP BY ALL ORDER BY idx, 2`
 
-	// Bars sit on clock boundaries (Unix epoch, as Bifrost does), so the first and last can be partial.
-	b := bucket.Microseconds()
-	start := time.UnixMicro(from.UnixMicro() / b * b).UTC()
-	n := int((to.Sub(start) + bucket - 1) / bucket)
+	start, n := bucketStart(from, to, bucket)
 	s := &TimeSummary{From: from, To: to, BucketSeconds: bucket.Seconds(), Points: make([]TimePoint, n)}
 	for i := range s.Points {
 		s.Points[i] = TimePoint{T: start.Add(time.Duration(i) * bucket), Providers: []ProviderCount{}}
 	}
 
-	rows, err := ds.db.QueryContext(ctx, q, start.UnixMicro(), b, from, to)
+	rows, err := ds.db.QueryContext(ctx, q, start.UnixMicro(), bucket.Microseconds(), from, to)
 	if err != nil {
 		return nil, fmt.Errorf("request summary: %w", err)
 	}
@@ -233,7 +235,7 @@ func (ds *DuckDBStore) GetRequestLogsByTime(ctx context.Context, from, to time.T
 
 func (ds *DuckDBStore) GetRequestDetailByID(ctx context.Context, id string) (*RequestDetail, error) {
 	q := `SELECT id, coalesce(request_id, ''), started_at, coalesce(request_kind, ''), request_endpoint,
-		outcome_result, outcome_http_status, timing_total_us, coalesce(timing_ttfb_us, 0),
+		outcome_result, outcome_http_status, timing_total_us, coalesce(timing_ttfb_us, 0), coalesce(timing_ttft_us, 0),
 		coalesce(outcome_error_code, ''), coalesce(outcome_error_category, ''), coalesce(outcome_error_message, ''),
 		coalesce(llm_requested_model, ''), coalesce(llm_provider, ''), coalesce(llm_model, ''),
 		coalesce(llm_upstream_model, ''), coalesce(llm_stream, false), coalesce(llm_finish_reason, ''),
@@ -243,16 +245,16 @@ func (ds *DuckDBStore) GetRequestDetailByID(ctx context.Context, id string) (*Re
 		coalesce(routing_credential_name, ''), coalesce(routing_mode, ''),
 		coalesce(outcome_upstream_http_status, 0), coalesce(routing_attempts, 0),
 		cost_nano_usd, coalesce(timing_stages::VARCHAR, ''), coalesce(llm_pricing::VARCHAR, ''),
-		coalesce(usage_detail::VARCHAR, '')
+		coalesce(usage_detail::VARCHAR, ''), coalesce(headers::VARCHAR, ''), payload_state
 	FROM events WHERE id = $1`
 
 	var d RequestDetail
 	var e DetailError
-	var latencyUS, ttfbUS, nano int64
-	var stages, pricing, usage string
+	var latencyUS, ttfbUS, ttftUS, nano int64
+	var stages, pricing, usage, headers string
 	err := ds.db.QueryRowContext(ctx, q, id).Scan(
 		&d.ID, &d.RequestID, &d.StartedAt, &d.RequestKind, &d.Endpoint,
-		&d.Result, &d.HTTPStatus, &latencyUS, &ttfbUS,
+		&d.Result, &d.HTTPStatus, &latencyUS, &ttfbUS, &ttftUS,
 		&e.Code, &e.Category, &e.Message,
 		&d.Model.Requested, &d.Model.Provider, &d.Model.Model,
 		&d.Model.Upstream, &d.Model.Stream, &d.Model.FinishReason,
@@ -261,7 +263,7 @@ func (ds *DuckDBStore) GetRequestDetailByID(ctx context.Context, id string) (*Re
 		&d.Context.VirtualKeyID, &d.Context.ClientID, &d.Context.BudgetID,
 		&d.Context.Credential, &d.Context.RoutingMode,
 		&d.Upstream.HTTPStatus, &d.Upstream.Attempts,
-		&nano, &stages, &pricing, &usage)
+		&nano, &stages, &pricing, &usage, &headers, &d.PayloadState)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -272,10 +274,17 @@ func (ds *DuckDBStore) GetRequestDetailByID(ctx context.Context, id string) (*Re
 	d.StartedAt = d.StartedAt.UTC()
 	d.LatencyMS = ms(latencyUS)
 	d.TTFBMS = ms(ttfbUS)
+	d.TTFTMS = ms(ttftUS)
 	d.Tokens.Billed = d.Tokens.Input + d.Tokens.Output
 	d.Cost.TotalUSD = usd(nano)
 	if e != (DetailError{}) {
 		d.Error = &e
+	}
+	if headers != "" {
+		if err := sonic.UnmarshalString(headers, &d.Upstream.Headers); err != nil {
+			return nil, fmt.Errorf("request detail %s headers: %w", id, err)
+		}
+		d.Upstream.RequestID = cmp.Or(d.Upstream.Headers["x-request-id"], d.Upstream.Headers["apim-request-id"])
 	}
 	if stages != "" {
 		if err := sonic.UnmarshalString(stages, &d.Pipeline); err != nil {
@@ -296,7 +305,6 @@ func (ds *DuckDBStore) GetRequestDetailByID(ctx context.Context, id string) (*Re
 	return &d, nil
 }
 
-// GetPayloadByID returns the stored bodies as raw JSON; bodies that were not kept are omitted.
 func (ds *DuckDBStore) GetPayloadByID(ctx context.Context, id string) (*Payload, error) {
 	q := `SELECT client_request::VARCHAR, normalized_request::VARCHAR, provider_request::VARCHAR,
 		provider_response::VARCHAR, normalized_response::VARCHAR, client_response::VARCHAR
@@ -324,4 +332,89 @@ func (ds *DuckDBStore) GetPayloadByID(ctx context.Context, id string) (*Payload,
 		NormalizedResponse: raw(b[4]),
 		ClientResponse:     raw(b[5]),
 	}, nil
+}
+
+type VirtualKeyUsage struct {
+	VirtualKeyID string    `json:"virtual_key_id"`
+	ClientID     string    `json:"client_id"`
+	Requests     int64     `json:"requests"`
+	Errors       int64     `json:"errors"`
+	Tokens       int64     `json:"tokens"` // billed: input + output
+	SpendUSD     float64   `json:"spend_usd"`
+	LastUsed     time.Time `json:"last_used"`
+}
+
+type BudgetSpend struct {
+	BudgetID      string       `json:"budget_id"`
+	From          time.Time    `json:"from"`
+	To            time.Time    `json:"to"`
+	BucketSeconds float64      `json:"bucket_seconds"`
+	Points        []SpendPoint `json:"points"`
+}
+
+type SpendPoint struct {
+	T        time.Time `json:"t"`
+	SpendUSD float64   `json:"spend_usd"`
+}
+
+func bucketStart(from, to time.Time, bucket time.Duration) (time.Time, int) {
+	b := bucket.Microseconds()
+	start := time.UnixMicro(from.UnixMicro() / b * b).UTC()
+	return start, int((to.Sub(start) + bucket - 1) / bucket)
+}
+
+func (ds *DuckDBStore) GetTopVirtualKeys(ctx context.Context, from, to time.Time, limit int) ([]VirtualKeyUsage, error) {
+	q := `SELECT governance_virtual_key_id, coalesce(any_value(governance_client_id), ''),
+		count(*), count(*) FILTER (` + isError + `),
+		coalesce(sum(coalesce(usage_input_tokens, 0) + coalesce(usage_output_tokens, 0)), 0)::BIGINT,
+		coalesce(sum(cost_nano_usd), 0)::BIGINT, max(started_at)
+	FROM events
+	WHERE governance_virtual_key_id IS NOT NULL AND started_at >= $1 AND started_at < $2
+	GROUP BY governance_virtual_key_id
+	ORDER BY 6 DESC, 3 DESC, 1 LIMIT $3`
+
+	rows, err := ds.db.QueryContext(ctx, q, from, to, limit)
+	if err != nil {
+		return nil, fmt.Errorf("top virtual keys: %w", err)
+	}
+	defer rows.Close()
+
+	out := make([]VirtualKeyUsage, 0, limit)
+	for rows.Next() {
+		var k VirtualKeyUsage
+		var nano int64
+		if err := rows.Scan(&k.VirtualKeyID, &k.ClientID, &k.Requests, &k.Errors, &k.Tokens, &nano, &k.LastUsed); err != nil {
+			return nil, fmt.Errorf("top virtual keys: %w", err)
+		}
+		k.SpendUSD = usd(nano)
+		k.LastUsed = k.LastUsed.UTC()
+		out = append(out, k)
+	}
+	return out, rows.Err()
+}
+
+func (ds *DuckDBStore) GetBudgetSpendByTime(ctx context.Context, budgetID string, from, to time.Time, bucket time.Duration) (*BudgetSpend, error) {
+	q := `SELECT (epoch_us(started_at) - $1) // $2 AS idx, sum(cost_nano_usd)::BIGINT
+	FROM events WHERE governance_budget_id = $3 AND started_at >= $4 AND started_at < $5
+	GROUP BY idx`
+
+	start, n := bucketStart(from, to, bucket)
+	s := &BudgetSpend{BudgetID: budgetID, From: from, To: to, BucketSeconds: bucket.Seconds(), Points: make([]SpendPoint, n)}
+	for i := range s.Points {
+		s.Points[i].T = start.Add(time.Duration(i) * bucket)
+	}
+
+	rows, err := ds.db.QueryContext(ctx, q, start.UnixMicro(), bucket.Microseconds(), budgetID, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("budget spend: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var idx, nano int64
+		if err := rows.Scan(&idx, &nano); err != nil {
+			return nil, fmt.Errorf("budget spend: %w", err)
+		}
+		s.Points[idx].SpendUSD = usd(nano)
+	}
+	return s, rows.Err()
 }

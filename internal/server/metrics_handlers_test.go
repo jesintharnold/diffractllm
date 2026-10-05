@@ -93,6 +93,16 @@ func TestMetricsEndpoints(t *testing.T) {
 
 	code, _ = get(t, h, "/v1/admin/metrics/requests/ok-1/payload") // no body was kept
 	assert.Equal(t, http.StatusNotFound, code)
+
+	code, body = get(t, h, "/v1/admin/metrics/virtual-keys/top?"+hour)
+	assert.Equal(t, http.StatusOK, code)
+	assert.Equal(t, []any{}, body["rows"]) // seeded events carry no key: [] not null
+
+	code, body = get(t, h, "/v1/admin/metrics/budgets/b1?"+hour)
+	assert.Equal(t, http.StatusOK, code)
+	assert.Equal(t, "b1", body["budget_id"])
+	assert.Equal(t, 60.0, body["bucket_seconds"])
+	assert.Len(t, body["points"], 60)
 }
 
 func TestMetricsEndpointsRejectBadParams(t *testing.T) {
@@ -103,6 +113,7 @@ func TestMetricsEndpointsRejectBadParams(t *testing.T) {
 		"/v1/admin/metrics/stats?from=2026-10-01T10:00:00Z&to=2026-10-01T10:30:00Z", // under 1h
 		"/v1/admin/metrics/requests?" + hour + "&limit=abc",                         // not a number
 		"/v1/admin/metrics/requests?" + hour + "&limit=500",                         // over max_page
+		"/v1/admin/metrics/virtual-keys/top?" + hour + "&limit=51",
 	} {
 		code, body := get(t, h, url)
 		assert.Equal(t, http.StatusBadRequest, code, url)

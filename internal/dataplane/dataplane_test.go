@@ -1555,3 +1555,28 @@ func TestReplaceDoesNotCloseCarriedOverClients(t *testing.T) {
 	defer res.Body.Close()
 	assert.Equal(t, http.StatusOK, res.Status)
 }
+
+// rctx keeps the try count and the last status the provider sent, for request detail.
+func TestServeHTTPRecordsAttemptsAndLastStatusOnRctx(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("x-request-id", "req_upstream_1")
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer server.Close()
+
+	tr := transportFor(t, core.NetworkConfig{
+		MaxRetries: ptr(2), RetryBackoff: ptr(time.Millisecond),
+		RetryAmbiguousStatus: ptr(true),
+	})
+
+	rc := transportRctx(t)
+	res, derr := tr.ServeHTTP(rc, &DiffractLLMTransportRequest{Method: http.MethodPost, URL: server.URL})
+	require.Nil(t, derr)
+	defer res.Body.Close()
+
+	assert.Equal(t, 3, rc.UpstreamAttempts)
+	assert.Equal(t, http.StatusServiceUnavailable, rc.UpstreamStatus)
+	id, ok := rc.Get("upstream.x-request-id")
+	require.True(t, ok)
+	assert.Equal(t, "req_upstream_1", id)
+}

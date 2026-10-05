@@ -427,6 +427,7 @@ func (t *DiffractLLMTransport) ServeHTTP(rctx *core.DiffractLLMContext, req *Dif
 
 	var lastErr *core.DiffractLLMError
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		rctx.UpstreamAttempts = attempt
 		httpReq, err := http.NewRequestWithContext(ctx, req.Method, providerFullURL, bytes.NewReader(req.Body))
 		if err != nil {
 			return nil, core.NewInternalError("transport", "building request", err)
@@ -465,6 +466,7 @@ func (t *DiffractLLMTransport) ServeHTTP(rctx *core.DiffractLLMContext, req *Dif
 			return nil, lastErr
 		}
 
+		rctx.UpstreamStatus = resp.StatusCode
 		if retryable(resp.StatusCode, allowAmbiguous) && attempt < maxAttempts {
 			wait := retryAfter(resp.Header, backoff, attempt)
 			io.Copy(io.Discard, io.LimitReader(resp.Body, 4<<10))
@@ -475,8 +477,8 @@ func (t *DiffractLLMTransport) ServeHTTP(rctx *core.DiffractLLMContext, req *Dif
 			continue
 		}
 
-		rctx.UpstreamStatus = resp.StatusCode
 		rctx.TTFB = ttfb
+		rctx.Mark(core.StageUpstream)
 
 		captureResponseHeaders(rctx, resp.Header)
 		removeHopHeaders(resp.Header)
@@ -528,7 +530,7 @@ func retryAfter(h http.Header, base time.Duration, attempt int) time.Duration {
 			return time.Duration(secs) * time.Second
 		}
 	}
-	return base * time.Duration(1<<(attempt-1)) // exponential
+	return base * time.Duration(1<<(attempt-1))
 }
 
 func sleepBackoff(ctx context.Context, d time.Duration) bool {
@@ -540,19 +542,10 @@ func sleepBackoff(ctx context.Context, d time.Duration) bool {
 	}
 }
 
-var capturedResponseHeaders = []string{
-	"x-request-id",
-	"openai-processing-ms",
-	"x-ratelimit-remaining-requests",
-	"x-ratelimit-remaining-tokens",
-	"x-ratelimit-reset-requests",
-	"retry-after",
-}
-
 func captureResponseHeaders(rctx *core.DiffractLLMContext, h http.Header) {
-	for _, k := range capturedResponseHeaders {
-		if v := h.Get(k); v != "" {
-			rctx.Overwrite(core.DiffractLLMContextKey("upstream."+k), v)
+	for _, uh := range core.UpstreamHeaders {
+		if v := h.Get(uh.Name); v != "" {
+			rctx.Overwrite(uh.Key, v)
 		}
 	}
 }

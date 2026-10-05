@@ -13,7 +13,10 @@ import (
 	"go.uber.org/zap"
 )
 
-const defaultMetricsPageSize = 50
+const (
+	defaultMetricsPageSize = 50
+	defaultMetricsTopLimit = 10
+)
 
 func (ds *DiffractLLMServer) SetMetrics(m *metricsengine.MetricsEngine) { ds.metrics = m }
 
@@ -117,4 +120,35 @@ func (ds *DiffractLLMServer) getMetricsRequestPayload(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, payload)
+}
+
+func (ds *DiffractLLMServer) getMetricsTopVirtualKeys(c *gin.Context) {
+	from, to, ok := timeRange(c)
+	if !ok {
+		return
+	}
+	limit, err := strconv.Atoi(c.DefaultQuery("limit", strconv.Itoa(defaultMetricsTopLimit)))
+	if err != nil {
+		adminErr(c, http.StatusBadRequest, "limit must be a number")
+		return
+	}
+	keys, err := ds.metrics.GetTopVirtualKeys(c.Request.Context(), from, to, limit)
+	if err != nil {
+		ds.metricsErr(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"rows": keys})
+}
+
+func (ds *DiffractLLMServer) getMetricsBudgetSpend(c *gin.Context) {
+	from, to, ok := timeRange(c)
+	if !ok {
+		return
+	}
+	spend, err := ds.metrics.GetBudgetSpendByTime(c.Request.Context(), c.Param("id"), from, to)
+	if err != nil {
+		ds.metricsErr(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, spend)
 }

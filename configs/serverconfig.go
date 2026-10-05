@@ -63,6 +63,12 @@ type ModelCatalogConfig struct {
 	SyncInterval time.Duration `mapstructure:"sync_interval"`
 }
 
+const (
+	PayloadModeNone       = "none"
+	PayloadModeErrorsOnly = "errors_only"
+	PayloadModeFull       = "full"
+)
+
 type MetricsEngineConfig struct {
 	Enabled        bool          `mapstructure:"enabled"`
 	DSN            string        `mapstructure:"dsn"`
@@ -74,6 +80,8 @@ type MetricsEngineConfig struct {
 	QueryTimeout   time.Duration `mapstructure:"query_timeout"`
 	MaxPage        int           `mapstructure:"max_page"`
 	MaxWindow      time.Duration `mapstructure:"max_window"`
+	PayloadMode    string        `mapstructure:"payload_mode"`   // none | errors_only | full; empty means none
+	PayloadMaxKB   int           `mapstructure:"payload_max_kb"` // per body; bigger bodies are clipped
 }
 
 type GatewayConfig struct {
@@ -225,6 +233,10 @@ func (m *MetricsEngineConfig) Validate() error {
 		return fmt.Errorf("payloads_days (%d) exceeds events_days (%d); bodies would outlive their events", m.PayloadsDays, m.EventsDays)
 	case m.MaxPage <= 0 || m.MaxWindow <= 0:
 		return fmt.Errorf("max_page and max_window must be positive")
+	case m.PayloadMode != "" && m.PayloadMode != PayloadModeNone && m.PayloadMode != PayloadModeErrorsOnly && m.PayloadMode != PayloadModeFull:
+		return fmt.Errorf("payload_mode must be none, errors_only or full, got %q", m.PayloadMode)
+	case m.PayloadMode != "" && m.PayloadMode != PayloadModeNone && m.PayloadMaxKB <= 0:
+		return fmt.Errorf("payload_max_kb must be positive when payloads are captured")
 	}
 	return nil
 }

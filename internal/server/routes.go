@@ -106,6 +106,8 @@ func (ds *DiffractLLMServer) routeHandlers() (http.Handler, error) {
 		metrics.GET("/requests/summary", ds.getMetricsRequestSummary)
 		metrics.GET("/requests/:id", ds.getMetricsRequest)
 		metrics.GET("/requests/:id/payload", ds.getMetricsRequestPayload)
+		metrics.GET("/virtual-keys/top", ds.getMetricsTopVirtualKeys)
+		metrics.GET("/budgets/:id", ds.getMetricsBudgetSpend)
 	}
 
 	// ----- END OF ADMIN HANDLERS ------

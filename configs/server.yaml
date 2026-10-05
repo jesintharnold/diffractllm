@@ -51,3 +51,5 @@ metrics_engine:
   query_timeout: 5s
   max_page: 200
   max_window: 2160h
+  payload_mode: full   # none | errors_only | full
+  payload_max_kb: 64

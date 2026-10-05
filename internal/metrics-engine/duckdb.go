@@ -26,6 +26,8 @@ type OLAPStore interface {
 	GetRequestLogsByTime(ctx context.Context, from, to time.Time, offset, limit int) (*RequestLogPage, error)
 	GetRequestDetailByID(ctx context.Context, id string) (*RequestDetail, error)
 	GetPayloadByID(ctx context.Context, id string) (*Payload, error)
+	GetTopVirtualKeys(ctx context.Context, from, to time.Time, limit int) ([]VirtualKeyUsage, error)
+	GetBudgetSpendByTime(ctx context.Context, budgetID string, from, to time.Time, bucket time.Duration) (*BudgetSpend, error)
 }
 
 //go:embed migrations/*.sql
