@@ -52,8 +52,14 @@
       "stroke": "$line",
       "strokeWidth": 1,
       "layout": "vertical",
-      "gap": 6,
-      "padding": "$space-4",
+      "gap": 2,
+      "padding": [
+        10,
+        14,
+        12,
+        14
+      ],
+      "alignItems": "center",
       "children": [
         {
           "type": "text",
@@ -64,21 +70,41 @@
           "width": "fill_container",
           "content": "REQUESTS",
           "fontFamily": "$font-sans",
-          "fontSize": 11,
-          "fontWeight": "500",
-          "letterSpacing": 0.4
+          "fontSize": 12,
+          "fontWeight": "600",
+          "letterSpacing": 0.8
         },
         {
-          "type": "text",
-          "id": "y9uQrx",
-          "name": "Value",
-          "fill": "$text",
-          "textGrowth": "fixed-width",
-          "width": "fill_container",
-          "content": "12,481",
-          "fontFamily": "$font-mono",
-          "fontSize": 26,
-          "fontWeight": "500"
+          "type": "frame",
+          "id": "dhcqZ",
+          "name": "ValueRow",
+          "gap": 4,
+          "justifyContent": "center",
+          "alignItems": "end",
+          "children": [
+            {
+              "type": "text",
+              "id": "wEXYh",
+              "name": "Value",
+              "fill": "$text",
+              "content": "12,481",
+              "lineHeight": 1.1,
+              "fontFamily": "$font-sans",
+              "fontSize": 30,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "AbYxv",
+              "name": "Unit",
+              "fill": "$muted",
+              "content": "ms",
+              "lineHeight": 1.6,
+              "fontFamily": "$font-sans",
+              "fontSize": 14,
+              "fontWeight": "500"
+            }
+          ]
         },
         {
           "type": "text",
@@ -88,6 +114,7 @@
           "textGrowth": "fixed-width",
           "width": "fill_container",
           "content": "+12.4% vs yesterday",
+          "textAlign": "center",
           "fontFamily": "$font-sans",
           "fontSize": 11,
           "fontWeight": "normal"
@@ -126,8 +153,8 @@
               "type": "icon",
               "id": "g7Wkix",
               "name": "Mark",
-              "width": 17,
-              "height": 17,
+              "width": 19,
+              "height": 19,
               "icon": "aperture",
               "library": "lucide",
               "fill": "$accent"
@@ -139,7 +166,7 @@
               "fill": "$text",
               "content": "DiffractLLM",
               "fontFamily": "$font-sans",
-              "fontSize": 15,
+              "fontSize": 16,
               "fontWeight": "600"
             }
           ]
@@ -164,7 +191,7 @@
               "cornerRadius": "$radius-control",
               "gap": 10,
               "padding": [
-                8,
+                9,
                 10
               ],
               "alignItems": "center",
@@ -173,8 +200,8 @@
                   "type": "icon",
                   "id": "rwYnm",
                   "name": "icon Overview",
-                  "width": 15,
-                  "height": 15,
+                  "width": 17,
+                  "height": 17,
                   "icon": "layout-dashboard",
                   "library": "lucide",
                   "fill": "$muted"
@@ -186,7 +213,7 @@
                   "fill": "$text",
                   "content": "Overview",
                   "fontFamily": "$font-sans",
-                  "fontSize": 13,
+                  "fontSize": 14,
                   "fontWeight": "normal"
                 }
               ]
@@ -197,7 +224,7 @@
               "name": "section MODELS",
               "width": "fill_container",
               "padding": [
-                15,
+                16,
                 6,
                 6,
                 6
@@ -210,7 +237,7 @@
                   "fill": "$muted",
                   "content": "MODELS",
                   "fontFamily": "$font-sans",
-                  "fontSize": 10,
+                  "fontSize": 11,
                   "fontWeight": "600",
                   "letterSpacing": 0.9
                 }
@@ -224,7 +251,7 @@
               "cornerRadius": "$radius-control",
               "gap": 10,
               "padding": [
-                8,
+                9,
                 10
               ],
               "alignItems": "center",
@@ -233,8 +260,8 @@
                   "type": "icon",
                   "id": "AlllX",
                   "name": "icon Catalog",
-                  "width": 15,
-                  "height": 15,
+                  "width": 17,
+                  "height": 17,
                   "icon": "boxes",
                   "library": "lucide",
                   "fill": "$muted"
@@ -246,7 +273,7 @@
                   "fill": "$text",
                   "content": "Catalog",
                   "fontFamily": "$font-sans",
-                  "fontSize": 13,
+                  "fontSize": 14,
                   "fontWeight": "normal"
                 }
               ]
@@ -254,12 +281,12 @@
             {
               "type": "frame",
               "id": "r5gF2",
-              "name": "nav Pricing overrides",
+              "name": "nav Pricing",
               "width": "fill_container",
               "cornerRadius": "$radius-control",
               "gap": 10,
               "padding": [
-                8,
+                9,
                 10
               ],
               "alignItems": "center",
@@ -267,21 +294,21 @@
                 {
                   "type": "icon",
                   "id": "fBeU9",
-                  "name": "icon Pricing overrides",
-                  "width": 15,
-                  "height": 15,
-                  "icon": "tag",
+                  "name": "icon Pricing",
+                  "width": 17,
+                  "height": 17,
+                  "icon": "circle-dollar-sign",
                   "library": "lucide",
                   "fill": "$muted"
                 },
                 {
                   "type": "text",
                   "id": "yLWR2",
-                  "name": "label Pricing overrides",
+                  "name": "label Pricing",
                   "fill": "$text",
-                  "content": "Pricing overrides",
+                  "content": "Pricing",
                   "fontFamily": "$font-sans",
-                  "fontSize": 13,
+                  "fontSize": 14,
                   "fontWeight": "normal"
                 }
               ]
@@ -294,7 +321,7 @@
               "cornerRadius": "$radius-control",
               "gap": 10,
               "padding": [
-                8,
+                9,
                 10
               ],
               "alignItems": "center",
@@ -303,8 +330,8 @@
                   "type": "icon",
                   "id": "e6zeA",
                   "name": "icon API keys",
-                  "width": 15,
-                  "height": 15,
+                  "width": 17,
+                  "height": 17,
                   "icon": "key-square",
                   "library": "lucide",
                   "fill": "$muted"
@@ -316,7 +343,7 @@
                   "fill": "$text",
                   "content": "API keys",
                   "fontFamily": "$font-sans",
-                  "fontSize": 13,
+                  "fontSize": 14,
                   "fontWeight": "normal"
                 }
               ]
@@ -327,7 +354,7 @@
               "name": "section GOVERNANCE",
               "width": "fill_container",
               "padding": [
-                15,
+                16,
                 6,
                 6,
                 6
@@ -340,7 +367,7 @@
                   "fill": "$muted",
                   "content": "GOVERNANCE",
                   "fontFamily": "$font-sans",
-                  "fontSize": 10,
+                  "fontSize": 11,
                   "fontWeight": "600",
                   "letterSpacing": 0.9
                 }
@@ -354,7 +381,7 @@
               "cornerRadius": "$radius-control",
               "gap": 10,
               "padding": [
-                8,
+                9,
                 10
               ],
               "alignItems": "center",
@@ -363,8 +390,8 @@
                   "type": "icon",
                   "id": "XFv3N",
                   "name": "icon Virtual keys",
-                  "width": 15,
-                  "height": 15,
+                  "width": 17,
+                  "height": 17,
                   "icon": "key-round",
                   "library": "lucide",
                   "fill": "$muted"
@@ -376,7 +403,7 @@
                   "fill": "$text",
                   "content": "Virtual keys",
                   "fontFamily": "$font-sans",
-                  "fontSize": 13,
+                  "fontSize": 14,
                   "fontWeight": "normal"
                 }
               ]
@@ -389,7 +416,7 @@
               "cornerRadius": "$radius-control",
               "gap": 10,
               "padding": [
-                8,
+                9,
                 10
               ],
               "alignItems": "center",
@@ -398,8 +425,8 @@
                   "type": "icon",
                   "id": "h1pxI",
                   "name": "icon Budgets",
-                  "width": 15,
-                  "height": 15,
+                  "width": 17,
+                  "height": 17,
                   "icon": "wallet",
                   "library": "lucide",
                   "fill": "$muted"
@@ -411,7 +438,7 @@
                   "fill": "$text",
                   "content": "Budgets",
                   "fontFamily": "$font-sans",
-                  "fontSize": 13,
+                  "fontSize": 14,
                   "fontWeight": "normal"
                 }
               ]
@@ -424,7 +451,7 @@
               "cornerRadius": "$radius-control",
               "gap": 10,
               "padding": [
-                8,
+                9,
                 10
               ],
               "alignItems": "center",
@@ -433,8 +460,8 @@
                   "type": "icon",
                   "id": "BtowN",
                   "name": "icon Governance settings",
-                  "width": 15,
-                  "height": 15,
+                  "width": 17,
+                  "height": 17,
                   "icon": "sliders-horizontal",
                   "library": "lucide",
                   "fill": "$muted"
@@ -446,7 +473,7 @@
                   "fill": "$text",
                   "content": "Settings",
                   "fontFamily": "$font-sans",
-                  "fontSize": 13,
+                  "fontSize": 14,
                   "fontWeight": "normal"
                 }
               ]
@@ -457,7 +484,7 @@
               "name": "section OBSERVABILITY",
               "width": "fill_container",
               "padding": [
-                15,
+                16,
                 6,
                 6,
                 6
@@ -470,7 +497,7 @@
                   "fill": "$muted",
                   "content": "OBSERVABILITY",
                   "fontFamily": "$font-sans",
-                  "fontSize": 10,
+                  "fontSize": 11,
                   "fontWeight": "600",
                   "letterSpacing": 0.9
                 }
@@ -484,7 +511,7 @@
               "cornerRadius": "$radius-control",
               "gap": 10,
               "padding": [
-                8,
+                9,
                 10
               ],
               "alignItems": "center",
@@ -493,8 +520,8 @@
                   "type": "icon",
                   "id": "QLoiG",
                   "name": "icon Requests",
-                  "width": 15,
-                  "height": 15,
+                  "width": 17,
+                  "height": 17,
                   "icon": "list",
                   "library": "lucide",
                   "fill": "$muted"
@@ -506,7 +533,7 @@
                   "fill": "$text",
                   "content": "Requests",
                   "fontFamily": "$font-sans",
-                  "fontSize": 13,
+                  "fontSize": 14,
                   "fontWeight": "normal"
                 }
               ]
@@ -520,7 +547,7 @@
               "cornerRadius": "$radius-control",
               "gap": 10,
               "padding": [
-                8,
+                9,
                 10
               ],
               "alignItems": "center",
@@ -529,8 +556,8 @@
                   "type": "icon",
                   "id": "Q0TZLo",
                   "name": "icon Traces",
-                  "width": 15,
-                  "height": 15,
+                  "width": 17,
+                  "height": 17,
                   "icon": "git-branch",
                   "library": "lucide",
                   "fill": "$muted"
@@ -542,7 +569,7 @@
                   "fill": "$text",
                   "content": "Traces",
                   "fontFamily": "$font-sans",
-                  "fontSize": 13,
+                  "fontSize": 14,
                   "fontWeight": "normal"
                 }
               ]
@@ -556,7 +583,7 @@
               "cornerRadius": "$radius-control",
               "gap": 10,
               "padding": [
-                8,
+                9,
                 10
               ],
               "alignItems": "center",
@@ -565,8 +592,8 @@
                   "type": "icon",
                   "id": "Tsh1E",
                   "name": "icon Metrics",
-                  "width": 15,
-                  "height": 15,
+                  "width": 17,
+                  "height": 17,
                   "icon": "activity",
                   "library": "lucide",
                   "fill": "$muted"
@@ -578,7 +605,7 @@
                   "fill": "$text",
                   "content": "Metrics",
                   "fontFamily": "$font-sans",
-                  "fontSize": 13,
+                  "fontSize": 14,
                   "fontWeight": "normal"
                 }
               ]
@@ -592,7 +619,7 @@
               "cornerRadius": "$radius-control",
               "gap": 10,
               "padding": [
-                8,
+                9,
                 10
               ],
               "alignItems": "center",
@@ -601,8 +628,8 @@
                   "type": "icon",
                   "id": "fuMS4",
                   "name": "icon Alerts",
-                  "width": 15,
-                  "height": 15,
+                  "width": 17,
+                  "height": 17,
                   "icon": "bell",
                   "library": "lucide",
                   "fill": "$muted"
@@ -614,7 +641,7 @@
                   "fill": "$text",
                   "content": "Alerts",
                   "fontFamily": "$font-sans",
-                  "fontSize": 13,
+                  "fontSize": 14,
                   "fontWeight": "normal"
                 }
               ]
@@ -627,7 +654,7 @@
               "cornerRadius": "$radius-control",
               "gap": 10,
               "padding": [
-                8,
+                9,
                 10
               ],
               "alignItems": "center",
@@ -636,8 +663,8 @@
                   "type": "icon",
                   "id": "ieGmk",
                   "name": "icon Observability settings",
-                  "width": 15,
-                  "height": 15,
+                  "width": 17,
+                  "height": 17,
                   "icon": "sliders-horizontal",
                   "library": "lucide",
                   "fill": "$muted"
@@ -649,7 +676,7 @@
                   "fill": "$text",
                   "content": "Settings",
                   "fontFamily": "$font-sans",
-                  "fontSize": 13,
+                  "fontSize": 14,
                   "fontWeight": "normal"
                 }
               ]
@@ -660,7 +687,7 @@
               "name": "section SETTINGS",
               "width": "fill_container",
               "padding": [
-                15,
+                16,
                 6,
                 6,
                 6
@@ -673,7 +700,7 @@
                   "fill": "$muted",
                   "content": "SETTINGS",
                   "fontFamily": "$font-sans",
-                  "fontSize": 10,
+                  "fontSize": 11,
                   "fontWeight": "600",
                   "letterSpacing": 0.9
                 }
@@ -687,7 +714,7 @@
               "cornerRadius": "$radius-control",
               "gap": 10,
               "padding": [
-                8,
+                9,
                 10
               ],
               "alignItems": "center",
@@ -696,8 +723,8 @@
                   "type": "icon",
                   "id": "iHECX",
                   "name": "icon Gateway",
-                  "width": 15,
-                  "height": 15,
+                  "width": 17,
+                  "height": 17,
                   "icon": "settings",
                   "library": "lucide",
                   "fill": "$muted"
@@ -709,7 +736,7 @@
                   "fill": "$text",
                   "content": "Gateway",
                   "fontFamily": "$font-sans",
-                  "fontSize": 13,
+                  "fontSize": 14,
                   "fontWeight": "normal"
                 }
               ]
@@ -729,7 +756,7 @@
           "name": "Footer",
           "width": "fill_container",
           "layout": "vertical",
-          "gap": 6,
+          "gap": 8,
           "padding": [
             16,
             16,
@@ -741,6 +768,7 @@
               "type": "frame",
               "id": "ZbeD7",
               "name": "Status",
+              "width": "fill_container",
               "gap": 7,
               "alignItems": "center",
               "children": [
@@ -759,22 +787,68 @@
                   "fill": "$good",
                   "content": "Ready",
                   "fontFamily": "$font-sans",
-                  "fontSize": 11,
+                  "fontSize": 13,
                   "fontWeight": "500"
+                },
+                {
+                  "type": "text",
+                  "id": "K8vkLs",
+                  "name": "Version",
+                  "fill": "$muted",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "v0.4.2",
+                  "textAlign": "right",
+                  "fontFamily": "$font-mono",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
                 }
               ]
             },
             {
-              "type": "text",
-              "id": "yipqR",
-              "name": "Sync",
-              "fill": "$muted",
-              "textGrowth": "fixed-width",
+              "type": "frame",
+              "id": "gWnbw",
+              "name": "License",
               "width": "fill_container",
-              "content": "Catalog synced 4 min ago",
-              "fontFamily": "$font-sans",
-              "fontSize": 10,
-              "fontWeight": "normal"
+              "gap": 6,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "F40wnl",
+                  "name": "label",
+                  "fill": "$muted",
+                  "content": "License",
+                  "fontFamily": "$font-sans",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "g6BWRR",
+                  "name": "pill",
+                  "fill": "$tint-neutral",
+                  "cornerRadius": 4,
+                  "stroke": "$tint-neutral-edge",
+                  "strokeWidth": 1,
+                  "padding": [
+                    2,
+                    7
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "OV2gJ",
+                      "name": "value",
+                      "fill": "$text",
+                      "content": "Free",
+                      "fontFamily": "$font-sans",
+                      "fontSize": 11,
+                      "fontWeight": "600"
+                    }
+                  ]
+                }
+              ]
             }
           ]
         }
@@ -1287,7 +1361,7 @@
       "name": "01 · Overview",
       "clip": true,
       "width": 1440,
-      "height": 1034,
+      "height": 975,
       "fill": "$ground",
       "children": [
         {
@@ -1299,7 +1373,9 @@
           "theme": {},
           "descendants": {
             "x5YiY": {
-              "fill": "$raised"
+              "fill": "$nav-selected",
+              "stroke": "$nav-selected",
+              "strokeWidth": 0
             },
             "rwYnm": {
               "fill": "$accent"
@@ -1324,13 +1400,12 @@
               "name": "Header",
               "width": "fill_container",
               "stroke": "$line",
-              "strokeWidth": {
-                "bottom": 1
-              },
               "gap": 12,
               "padding": [
+                18,
                 20,
-                32
+                4,
+                20
               ],
               "alignItems": "center",
               "children": [
@@ -1346,21 +1421,12 @@
                       "type": "text",
                       "id": "bGiaj",
                       "name": "H1",
+                      "opacity": 0.9,
                       "fill": "$text",
-                      "content": "Overview",
+                      "content": "Gateway Overview",
                       "fontFamily": "$font-sans",
-                      "fontSize": 20,
+                      "fontSize": 18,
                       "fontWeight": "600"
-                    },
-                    {
-                      "type": "text",
-                      "id": "HzB1y",
-                      "name": "Sub",
-                      "fill": "$muted",
-                      "content": "Everything the gateway served in the selected window.",
-                      "fontFamily": "$font-sans",
-                      "fontSize": 12,
-                      "fontWeight": "normal"
                     }
                   ]
                 },
@@ -1422,10 +1488,10 @@
               "layout": "vertical",
               "gap": 16,
               "padding": [
+                12,
                 20,
-                32,
-                24,
-                32
+                16,
+                20
               ],
               "children": [
                 {
@@ -1513,8 +1579,11 @@
                         "WsLEx": {
                           "content": "REQUESTS"
                         },
-                        "y9uQrx": {
+                        "wEXYh": {
                           "content": "12,481"
+                        },
+                        "AbYxv": {
+                          "enabled": false
                         },
                         "jiIWc": {
                           "content": "+12.4% vs yesterday",
@@ -1533,8 +1602,12 @@
                         "WsLEx": {
                           "content": "ERROR RATE"
                         },
-                        "y9uQrx": {
-                          "content": "1.8 %"
+                        "wEXYh": {
+                          "content": "1.8"
+                        },
+                        "AbYxv": {
+                          "content": "%",
+                          "enabled": true
                         },
                         "jiIWc": {
                           "content": "-0.3 pp vs yesterday",
@@ -1553,8 +1626,12 @@
                         "WsLEx": {
                           "content": "p95 LATENCY"
                         },
-                        "y9uQrx": {
-                          "content": "842 ms"
+                        "wEXYh": {
+                          "content": "842"
+                        },
+                        "AbYxv": {
+                          "content": "ms",
+                          "enabled": true
                         },
                         "jiIWc": {
                           "content": "+64 ms vs yesterday",
@@ -1573,8 +1650,12 @@
                         "WsLEx": {
                           "content": "TOKENS"
                         },
-                        "y9uQrx": {
-                          "content": "14.2 M"
+                        "wEXYh": {
+                          "content": "14.2"
+                        },
+                        "AbYxv": {
+                          "content": "M",
+                          "enabled": true
                         },
                         "jiIWc": {
                           "content": "+8.1% vs yesterday",
@@ -1593,8 +1674,11 @@
                         "WsLEx": {
                           "content": "SPEND"
                         },
-                        "y9uQrx": {
+                        "wEXYh": {
                           "content": "$284.19"
+                        },
+                        "AbYxv": {
+                          "enabled": false
                         },
                         "jiIWc": {
                           "content": "68% of the daily cap",
@@ -3553,7 +3637,7 @@
                       "type": "frame",
                       "id": "qHLRH",
                       "layoutPosition": "absolute",
-                      "x": 694,
+                      "x": 708,
                       "y": 118,
                       "name": "Tooltip (hover bar 13)",
                       "width": 210,
@@ -4618,8 +4702,8 @@
           "type": "frame",
           "id": "z4XAT",
           "layoutPosition": "absolute",
-          "x": 1098,
-          "y": 66,
+          "x": 1110,
+          "y": 58,
           "name": "Time range (open)",
           "width": 310,
           "fill": "$raised",
@@ -5211,7 +5295,9 @@
           "height": "fill_container",
           "descendants": {
             "qMgnH": {
-              "fill": "$raised"
+              "fill": "$nav-selected",
+              "stroke": "$nav-selected",
+              "strokeWidth": 0
             },
             "AlllX": {
               "fill": "$accent"
@@ -6522,7 +6608,9 @@
           "height": "fill_container",
           "descendants": {
             "qMgnH": {
-              "fill": "$raised"
+              "fill": "$nav-selected",
+              "stroke": "$nav-selected",
+              "strokeWidth": 0
             },
             "AlllX": {
               "fill": "$accent"
@@ -8588,7 +8676,9 @@
           "height": "fill_container",
           "descendants": {
             "qMgnH": {
-              "fill": "$raised"
+              "fill": "$nav-selected",
+              "stroke": "$nav-selected",
+              "strokeWidth": 0
             },
             "AlllX": {
               "fill": "$accent"
@@ -10690,7 +10780,9 @@
           "height": "fill_container",
           "descendants": {
             "r5gF2": {
-              "fill": "$raised"
+              "fill": "$nav-selected",
+              "stroke": "$nav-selected",
+              "strokeWidth": 0
             },
             "fBeU9": {
               "fill": "$accent"
@@ -12067,7 +12159,9 @@
           "height": "fill_container",
           "descendants": {
             "r5gF2": {
-              "fill": "$raised"
+              "fill": "$nav-selected",
+              "stroke": "$nav-selected",
+              "strokeWidth": 0
             },
             "fBeU9": {
               "fill": "$accent"
@@ -13750,7 +13844,9 @@
           "height": "fill_container",
           "descendants": {
             "r5gF2": {
-              "fill": "$raised"
+              "fill": "$nav-selected",
+              "stroke": "$nav-selected",
+              "strokeWidth": 0
             },
             "fBeU9": {
               "fill": "$accent"
@@ -16818,7 +16914,9 @@
           "height": "fill_container",
           "descendants": {
             "Xjbmc": {
-              "fill": "$raised"
+              "fill": "$nav-selected",
+              "stroke": "$nav-selected",
+              "strokeWidth": 0
             },
             "e6zeA": {
               "fill": "$accent"
@@ -17407,7 +17505,9 @@
           "height": "fill_container",
           "descendants": {
             "Xjbmc": {
-              "fill": "$raised"
+              "fill": "$nav-selected",
+              "stroke": "$nav-selected",
+              "strokeWidth": 0
             },
             "e6zeA": {
               "fill": "$accent"
@@ -18414,7 +18514,9 @@
           "height": "fill_container",
           "descendants": {
             "Xjbmc": {
-              "fill": "$raised"
+              "fill": "$nav-selected",
+              "stroke": "$nav-selected",
+              "strokeWidth": 0
             },
             "e6zeA": {
               "fill": "$accent"
@@ -20131,7 +20233,9 @@
           "height": "fill_container",
           "descendants": {
             "Xjbmc": {
-              "fill": "$raised"
+              "fill": "$nav-selected",
+              "stroke": "$nav-selected",
+              "strokeWidth": 0
             },
             "e6zeA": {
               "fill": "$accent"
@@ -21806,7 +21910,9 @@
           "height": "fill_container",
           "descendants": {
             "Xjbmc": {
-              "fill": "$raised"
+              "fill": "$nav-selected",
+              "stroke": "$nav-selected",
+              "strokeWidth": 0
             },
             "e6zeA": {
               "fill": "$accent"
@@ -23977,7 +24083,9 @@
           "height": "fill_container",
           "descendants": {
             "A90ow": {
-              "fill": "$raised"
+              "fill": "$nav-selected",
+              "stroke": "$nav-selected",
+              "strokeWidth": 0
             },
             "XFv3N": {
               "fill": "$accent"
@@ -24926,7 +25034,9 @@
           "height": "fill_container",
           "descendants": {
             "A90ow": {
-              "fill": "$raised"
+              "fill": "$nav-selected",
+              "stroke": "$nav-selected",
+              "strokeWidth": 0
             },
             "XFv3N": {
               "fill": "$accent"
@@ -26785,7 +26895,9 @@
           "height": "fill_container",
           "descendants": {
             "xAZVZ": {
-              "fill": "$raised"
+              "fill": "$nav-selected",
+              "stroke": "$nav-selected",
+              "strokeWidth": 0
             },
             "h1pxI": {
               "fill": "$accent"
@@ -28227,7 +28339,9 @@
           "height": "fill_container",
           "descendants": {
             "xAZVZ": {
-              "fill": "$raised"
+              "fill": "$nav-selected",
+              "stroke": "$nav-selected",
+              "strokeWidth": 0
             },
             "h1pxI": {
               "fill": "$accent"
@@ -30598,7 +30712,9 @@
           "height": "fill_container",
           "descendants": {
             "e1XqJ": {
-              "fill": "$raised"
+              "fill": "$nav-selected",
+              "stroke": "$nav-selected",
+              "strokeWidth": 0
             },
             "BtowN": {
               "fill": "$accent"
@@ -31911,7 +32027,9 @@
           "height": "fill_container",
           "descendants": {
             "JxGPr": {
-              "fill": "$raised"
+              "fill": "$nav-selected",
+              "stroke": "$nav-selected",
+              "strokeWidth": 0
             },
             "QLoiG": {
               "fill": "$accent"
@@ -34446,7 +34564,9 @@
           "height": "fill_container",
           "descendants": {
             "JxGPr": {
-              "fill": "$raised"
+              "fill": "$nav-selected",
+              "stroke": "$nav-selected",
+              "strokeWidth": 0
             },
             "QLoiG": {
               "fill": "$accent"
@@ -37108,7 +37228,9 @@
           "height": "fill_container",
           "descendants": {
             "eRNpV": {
-              "fill": "$raised"
+              "fill": "$nav-selected",
+              "stroke": "$nav-selected",
+              "strokeWidth": 0
             },
             "ieGmk": {
               "fill": "$accent"
@@ -39144,7 +39266,9 @@
           "height": "fill_container",
           "descendants": {
             "d8q8Ro": {
-              "fill": "$raised"
+              "fill": "$nav-selected",
+              "stroke": "$nav-selected",
+              "strokeWidth": 0
             },
             "iHECX": {
               "fill": "$accent"
@@ -40897,7 +41021,7 @@
     },
     "radius-card": {
       "type": "number",
-      "value": 10
+      "value": 4
     },
     "radius-control": {
       "type": "number",
@@ -41147,6 +41271,29 @@
         },
         {
           "value": "#FFFFFF",
+          "theme": {
+            "mode": "classic"
+          }
+        }
+      ]
+    },
+    "nav-selected": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#EDF1F712",
+          "theme": {
+            "mode": "dark"
+          }
+        },
+        {
+          "value": "#0E141C0F",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#E6E8EC12",
           "theme": {
             "mode": "classic"
           }

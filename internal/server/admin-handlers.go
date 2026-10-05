@@ -1,6 +1,7 @@
 package server
 
 import (
+	"diffractllm/internal/buildinfo"
 	"diffractllm/internal/core"
 	"diffractllm/internal/dbstore"
 	"fmt"
@@ -695,6 +696,11 @@ func (ds *DiffractLLMServer) listModelCatalog(c *gin.Context) {
 
 func (ds *DiffractLLMServer) handleHealth(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+// handleInfo is public like /ready: build version and edition, nothing operational.
+func (ds *DiffractLLMServer) handleInfo(c *gin.Context) {
+	c.JSON(http.StatusOK, buildinfo.Get())
 }
 
 func (ds *DiffractLLMServer) handleReady(c *gin.Context) {

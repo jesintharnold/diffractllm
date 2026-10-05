@@ -11,3 +11,20 @@ graft/
 data
 DiffractLLM/*
 *.bru
+
+# Node / frontend: dependencies, build output, caches and local env files
+node_modules/
+dist/
+dist-ssr/
+.vite/
+coverage/
+*.tsbuildinfo
+.eslintcache
+.prettiercache
+*.log
+npm-debug.log*
+.env.local
+.env.*.local
+
+# The console's entry page must be tracked despite **.html above
+!internal/ui/web/index.html
