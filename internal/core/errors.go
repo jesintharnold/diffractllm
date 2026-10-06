@@ -1,6 +1,7 @@
-﻿package core
+package core
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -44,22 +45,23 @@ const (
 type ExtraDetails map[string]interface{}
 
 type DiffractLLMError struct {
-	ErrorCategory     ErrorCategory `json:"error_category"`
-	Code              ErrorCode     `json:"error_code"`
-	Internal          error         `json:"-"`
-	StatusCode        int           `json:"-"`
-	Message           string        `json:"message"`
-	Type              string        `json:"type"`
-	Component         string        `json:"component,omitempty"`
-	Provider          string        `json:"provider,omitempty"`
-	Backend           string        `json:"backend,omitempty"`
-	BackendURL        string        `json:"backend_url,omitempty"`
-	RequestID         string        `json:"request_id,omitempty"`
-	Parameter         *string       `json:"parameter,omitempty"`
-	Details           ExtraDetails  `json:"extra_details,omitempty"`
-	RetryAfter        int           `json:"retry_after,omitempty"`
-	ProviderErrorCode string        `json:"provider_error_code,omitempty"`
-	ProviderErrorType string        `json:"provider_error_type,omitempty"`
+	ErrorCategory       ErrorCategory   `json:"error_category"`
+	Code                ErrorCode       `json:"error_code"`
+	Internal            error           `json:"-"`
+	StatusCode          int             `json:"-"`
+	Message             string          `json:"message"`
+	Type                string          `json:"type"`
+	Component           string          `json:"component,omitempty"`
+	Provider            string          `json:"provider,omitempty"`
+	Backend             string          `json:"backend,omitempty"`
+	BackendURL          string          `json:"backend_url,omitempty"`
+	RequestID           string          `json:"request_id,omitempty"`
+	Parameter           *string         `json:"parameter,omitempty"`
+	Details             ExtraDetails    `json:"extra_details,omitempty"`
+	RetryAfter          int             `json:"retry_after,omitempty"`
+	ProviderErrorCode   string          `json:"provider_error_code,omitempty"`
+	ProviderErrorType   string          `json:"provider_error_type,omitempty"`
+	ProviderErrorDetail json.RawMessage `json:"provider_error_detail,omitempty"`
 }
 
 func (r *DiffractLLMError) Error() string {
@@ -81,25 +83,9 @@ func (r *DiffractLLMError) IsClient() bool {
 	return r.ErrorCategory == ErrorCategoryClient
 }
 
-// Marshal is only needed here that too for the uploading the native logs directly
-// Unmarshal is not needed for now
-
 func (r *DiffractLLMError) MarshalJSON() ([]byte, error) {
 	type Alias DiffractLLMError
-	aux := &struct {
-		*Alias
-	}{
-		Alias: (*Alias)(r),
-	}
-
-	if r.Internal != nil {
-		if r.Details == nil {
-			r.Details = make(ExtraDetails)
-		}
-		r.Details["raw_error"] = r.Internal.Error()
-	}
-
-	return sonic.Marshal(aux)
+	return sonic.Marshal((*Alias)(r))
 }
 
 func NewNoHealthyBackends(backendName string) *DiffractLLMError {
@@ -376,5 +362,29 @@ func NewBudgetExceeded(message string) *DiffractLLMError {
 		Details: map[string]interface{}{
 			"internal_detail": message,
 		},
+	}
+}
+
+func NewPayloadTooLarge(limit int64) *DiffractLLMError {
+	return &DiffractLLMError{
+		ErrorCategory: ErrorCategoryClient,
+		Code:          CodeInvalidRequestBody,
+		Message:       "request body exceeds max_body_size",
+		Type:          "invalid_request_error",
+		StatusCode:    http.StatusRequestEntityTooLarge,
+		Component:     "validator",
+		Details:       map[string]any{"internal_detail": fmt.Sprintf("body limit is %d bytes", limit)},
+	}
+}
+
+func NewUnpricedModel(key CatalogKey) *DiffractLLMError {
+	return &DiffractLLMError{
+		ErrorCategory: ErrorCategoryClient,
+		Code:          CodeInvalidRequestBody,
+		Message:       "model has no pricing configured",
+		Type:          "invalid_request_error",
+		StatusCode:    http.StatusBadRequest,
+		Component:     "pricing",
+		Details:       map[string]any{"model": key.SlashKey()},
 	}
 }

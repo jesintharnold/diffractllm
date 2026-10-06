@@ -1,0 +1,224 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+/* Latin only, the three weights the design uses; nothing is fetched from a CDN. */
+@import '@fontsource/ibm-plex-sans/latin-400.css';
+@import '@fontsource/ibm-plex-sans/latin-500.css';
+@import '@fontsource/ibm-plex-sans/latin-600.css';
+@import '@fontsource/ibm-plex-mono/latin-400.css';
+@import '@fontsource/ibm-plex-mono/latin-500.css';
+@import '@fontsource/ibm-plex-mono/latin-600.css';
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Design tokens: ADR-001 §5, mirrored from ui/design/diffractllm-console.pen.
+ * Our `accent` (gold) is shadcn's --primary; shadcn's --accent is the hover surface.
+ */
+:root {
+  --background: #f6f8fb; /* ground */
+  --foreground: #0e141c; /* text */
+  --card: #ffffff; /* raised */
+  --card-foreground: #0e141c;
+  --popover: #ffffff;
+  --popover-foreground: #0e141c;
+  --primary: #664d0a; /* accent */
+  --primary-foreground: #f6f8fb;
+  --secondary: #eef2f7; /* sunken */
+  --secondary-foreground: #0e141c;
+  --muted: #eef2f7; /* sunken */
+  --muted-foreground: #4e5a6b; /* muted */
+  --accent: #eef2f7; /* hover and selected surface = sunken */
+  --accent-foreground: #0e141c;
+  --destructive: #97302b; /* bad */
+  --border: #d5dce6; /* line */
+  --input: #d5dce6;
+  --ring: #664d0a;
+
+  --info: #24568f;
+  --success: #12603f; /* good */
+  --warning: #7e4211; /* warn */
+  --scrim: #0e141ca6;
+  --knob: #ffffff;
+  --nav-selected: #0e141c0f; /* selected sidebar row: text at 6% */
+
+  --chart-1: #664d0a;
+  --chart-2: #24568f;
+  --chart-3: #12603f;
+  --chart-4: #7e4211;
+  --chart-5: #4e5a6b;
+
+  --tint-openai: #664d0a16;
+  --tint-openai-edge: #664d0a3a;
+  --tint-azure: #24568f16;
+  --tint-azure-edge: #24568f3a;
+  --tint-anthropic: #12603f16;
+  --tint-anthropic-edge: #12603f3a;
+  --tint-neutral: #4e5a6b16;
+  --tint-neutral-edge: #4e5a6b3a;
+
+  --sidebar: #eef2f7;
+  --sidebar-foreground: #0e141c;
+  --sidebar-primary: #664d0a;
+  --sidebar-primary-foreground: #f6f8fb;
+  --sidebar-accent: #ffffff;
+  --sidebar-accent-foreground: #0e141c;
+  --sidebar-border: #d5dce6;
+  --sidebar-ring: #664d0a;
+
+  --radius: 0.375rem; /* radius-control 6px: shadcn rounds controls with rounded-lg */
+}
+
+.dark {
+  --background: #07090d;
+  --foreground: #edf1f7;
+  --card: #11151d;
+  --card-foreground: #edf1f7;
+  --popover: #11151d;
+  --popover-foreground: #edf1f7;
+  --primary: #d7a93a;
+  --primary-foreground: #07090d;
+  --secondary: #0a0d12;
+  --secondary-foreground: #edf1f7;
+  --muted: #0a0d12;
+  --muted-foreground: #96a2b6;
+  --accent: #0a0d12;
+  --accent-foreground: #edf1f7;
+  --destructive: #e0776f;
+  --border: #232b3a;
+  --input: #232b3a;
+  --ring: #d7a93a;
+
+  --info: #6ca3de;
+  --success: #45b183;
+  --warning: #dc8a3b;
+  --scrim: #07090dcc;
+  --knob: #ffffff;
+  --nav-selected: #edf1f712; /* selected sidebar row: text at 7% */
+
+  --chart-1: #d7a93a;
+  --chart-2: #6ca3de;
+  --chart-3: #45b183;
+  --chart-4: #dc8a3b;
+  --chart-5: #96a2b6;
+
+  --tint-openai: #d7a93a22;
+  --tint-openai-edge: #d7a93a4a;
+  --tint-azure: #6ca3de22;
+  --tint-azure-edge: #6ca3de4a;
+  --tint-anthropic: #45b18322;
+  --tint-anthropic-edge: #45b1834a;
+  --tint-neutral: #96a2b622;
+  --tint-neutral-edge: #96a2b64a;
+
+  --sidebar: #0a0d12;
+  --sidebar-foreground: #edf1f7;
+  --sidebar-primary: #d7a93a;
+  --sidebar-primary-foreground: #07090d;
+  --sidebar-accent: #11151d;
+  --sidebar-accent-foreground: #edf1f7;
+  --sidebar-border: #232b3a;
+  --sidebar-ring: #d7a93a;
+}
+
+@theme inline {
+  --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-sans);
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-info: var(--info);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-scrim: var(--scrim);
+  --color-knob: var(--knob);
+  --color-nav-selected: var(--nav-selected);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --color-tint-openai: var(--tint-openai);
+  --color-tint-openai-edge: var(--tint-openai-edge);
+  --color-tint-azure: var(--tint-azure);
+  --color-tint-azure-edge: var(--tint-azure-edge);
+  --color-tint-anthropic: var(--tint-anthropic);
+  --color-tint-anthropic-edge: var(--tint-anthropic-edge);
+  --color-tint-neutral: var(--tint-neutral);
+  --color-tint-neutral-edge: var(--tint-neutral-edge);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* shadcn: controls use rounded-lg, cards rounded-xl */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: var(--radius); /* radius-control 6px */
+  --radius-xl: 4px; /* radius-card: lightly rounded, near sharp */
+  --radius-2xl: 6px;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+/*
+ * Calm navigation (View Transitions API): the selected-row highlight glides to the new item
+ * and the page cross-fades. Browsers without support navigate instantly; reduced motion opts out.
+ */
+.nav-indicator {
+  view-transition-name: nav-indicator;
+}
+
+::view-transition-group(nav-indicator) {
+  animation-duration: 280ms;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 180ms;
+  animation-timing-function: ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}

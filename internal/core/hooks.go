@@ -1,4 +1,4 @@
-﻿package core
+package core
 
 import (
 	"time"
@@ -85,6 +85,10 @@ func NewHookEngine(logger *zap.Logger) *HookEngine {
 	return &HookEngine{
 		logger: logger.With(zap.String("component", "hooks")),
 	}
+}
+
+func (he *HookEngine) Registered() int {
+	return he.preCallCount + he.preProviderCount + he.postProviderCount + he.postCallCount
 }
 
 func (he *HookEngine) AddPreCallHook(hook Hook) error {

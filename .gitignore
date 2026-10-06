@@ -1,2 +1,30 @@
-*.md
 **/**.yaml
+**/refactor-plan/*.md
+**.html
+**/reference
+**.md
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+graft/
+.claude
+.mcp.json
+.ignore
+data
+DiffractLLM/*
+*.bru
+
+# Node / frontend: dependencies, build output, caches and local env files
+node_modules/
+dist/
+dist-ssr/
+.vite/
+coverage/
+*.tsbuildinfo
+.eslintcache
+.prettiercache
+*.log
+npm-debug.log*
+.env.local
+.env.*.local
+
+# The console's entry page must be tracked despite **.html above
+!internal/ui/web/index.html
