@@ -42,6 +42,22 @@
   --knob: #ffffff;
   --nav-selected: #0e141c0f; /* selected sidebar row: text at 6% */
 
+  /* Chart series (ui/design "Provider colors"): brand-inspired, errors always on top. */
+  --provider-openai: #0b7a5f;
+  --provider-azure: #0b4f94;
+  --provider-anthropic: #8a5530;
+  --provider-nvidia: #3f6b00;
+  --provider-xai: #2b2f36;
+  --provider-gemini: #5b3fb3;
+  --provider-bedrock: #b36b00;
+  --provider-mistral: #8a6d00;
+  --provider-other-1: #0e6e72;
+  --provider-other-2: #9c2f72;
+  --provider-other-3: #3a47b8;
+  --chart-error: #800000;
+  --chart-cancelled: #6b7280;
+  --primary-soft: color-mix(in oklch, #664d0a 80%, #ffffff); /* range calendar selection */
+
   --chart-1: #664d0a;
   --chart-2: #24568f;
   --chart-3: #12603f;
@@ -70,6 +86,7 @@
 }
 
 .dark {
+  color-scheme: dark; /* native date and time pickers follow the theme */
   --background: #07090d;
   --foreground: #edf1f7;
   --card: #11151d;
@@ -95,6 +112,22 @@
   --scrim: #07090dcc;
   --knob: #ffffff;
   --nav-selected: #edf1f712; /* selected sidebar row: text at 7% */
+
+  /* Chart series (ui/design "Provider colors"): brand-inspired, errors always on top. */
+  --provider-openai: #10a37f;
+  --provider-azure: #1f6fb8;
+  --provider-anthropic: #b07a52;
+  --provider-nvidia: #5a8f00;
+  --provider-xai: #e6e8eb;
+  --provider-gemini: #a78bfa;
+  --provider-bedrock: #ff9900;
+  --provider-mistral: #f2c94c;
+  --provider-other-1: #4fc3c7;
+  --provider-other-2: #e58fc4;
+  --provider-other-3: #7c8cf8;
+  --chart-error: #9b1c1c;
+  --chart-cancelled: #5b6475;
+  --primary-soft: color-mix(in oklch, #d7a93a 72%, #11151d); /* range calendar selection */
 
   --chart-1: #d7a93a;
   --chart-2: #6ca3de;
@@ -221,4 +254,9 @@
   ::view-transition-new(*) {
     animation: none !important;
   }
+}
+
+/* Range calendar: a softer gold than buttons, so the selected days do not glare. */
+.range-calendar {
+  --primary: var(--primary-soft);
 }

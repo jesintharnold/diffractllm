@@ -40,6 +40,17 @@ export default defineConfig([
     },
   },
   {
+    // Vendored shadcn chart: Recharts types its tooltip payloads as `any`. Only this file.
+    files: ['src/components/ui/chart.tsx'],
+    rules: {
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/no-unnecessary-condition': 'off',
+      '@typescript-eslint/no-unnecessary-type-assertion': 'off',
+    },
+  },
+  {
     // API paths live only in src/app/endpoints.ts, so a backend route change is a one-line edit.
     files: ['src/**/*.{ts,tsx}'],
     ignores: ['src/app/endpoints.ts'],

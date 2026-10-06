@@ -4,13 +4,15 @@ import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { AppSidebar } from './app-sidebar'
 
-// ADR-001 §7 shell: sidebar beside a scrolling inset. 220px column (design), drawer below 768px.
+// ADR-001 §7 shell: sidebar beside an inset exactly one screen tall. The inset scrolls only when a
+// page's fixed parts don't fit; tables scroll inside their own card. 220px column (design),
+// drawer below 1024px.
 export function AppShell() {
   return (
     <TooltipProvider>
       <SidebarProvider style={{ '--sidebar-width': '13.75rem' } as CSSProperties}>
         <AppSidebar />
-        <SidebarInset className="min-w-0">
+        <SidebarInset className="h-svh min-w-0 overflow-y-auto">
           <Outlet />
         </SidebarInset>
       </SidebarProvider>
