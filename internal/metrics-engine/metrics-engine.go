@@ -141,7 +141,7 @@ func bucketFor(r time.Duration) time.Duration {
 		return 30 * day
 	case r >= 90*day:
 		return 7 * day
-	case r > 31*day:
+	case r >= 30*day:
 		return 3 * day
 	case r >= 7*day:
 		return day

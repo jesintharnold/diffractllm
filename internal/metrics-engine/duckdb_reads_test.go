@@ -70,7 +70,7 @@ func TestBucketForFollowsBifrost(t *testing.T) {
 	day := 24 * time.Hour
 	for r, want := range map[time.Duration]time.Duration{
 		time.Hour: time.Minute, 6 * time.Hour: 10 * time.Minute, day: time.Hour,
-		3 * day: 8 * time.Hour, 7 * day: day, 30 * day: day, 45 * day: 3 * day, 90 * day: 7 * day,
+		3 * day: 8 * time.Hour, 7 * day: day, 29 * day: day, 30 * day: 3 * day, 90 * day: 7 * day,
 	} {
 		assert.Equal(t, want, bucketFor(r), "range %s", r)
 	}
@@ -120,8 +120,10 @@ func TestRequestLogsPageNewestFirst(t *testing.T) {
 	require.Len(t, page.Rows, 2)
 	assert.Equal(t, "e6", page.Rows[0].ID)
 	assert.Equal(t, "client_abort", page.Rows[0].Result)
+	assert.Equal(t, "azure", page.Rows[0].Provider)
 	assert.Equal(t, "e5", page.Rows[1].ID)
 	assert.Equal(t, 401, page.Rows[1].HTTPStatus)
+	assert.Empty(t, page.Rows[1].Provider, "rejected before routing: no provider")
 	assert.Equal(t, time.UTC, page.Rows[0].StartedAt.Location())
 
 	page, err = m.GetRequestLogsByTime(context.Background(), t0, t0.Add(time.Hour), 4, 2)
@@ -129,6 +131,7 @@ func TestRequestLogsPageNewestFirst(t *testing.T) {
 	require.Len(t, page.Rows, 2)
 	r := page.Rows[1]
 	assert.Equal(t, "e1", r.ID)
+	assert.Equal(t, "openai", r.Provider)
 	assert.Equal(t, "gpt-4o", r.Model)
 	assert.Equal(t, 100.0, r.LatencyMS)
 	assert.Equal(t, int64(1284), r.InputTokens)

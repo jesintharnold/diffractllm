@@ -63,6 +63,7 @@ type RequestLogRow struct {
 	ID           string    `json:"id"`
 	StartedAt    time.Time `json:"started_at"`
 	RequestKind  string    `json:"request_kind"`
+	Provider     string    `json:"provider"`
 	Model        string    `json:"model"`
 	LatencyMS    float64   `json:"latency_ms"`
 	InputTokens  int64     `json:"input_tokens"`
@@ -205,8 +206,8 @@ func (ds *DuckDBStore) GetRequestSummaryByTime(ctx context.Context, from, to tim
 }
 
 func (ds *DuckDBStore) GetRequestLogsByTime(ctx context.Context, from, to time.Time, offset, limit int) (*RequestLogPage, error) {
-	q := `SELECT id, started_at, coalesce(request_kind, ''), coalesce(llm_model, llm_requested_model, ''),
-		timing_total_us, coalesce(usage_input_tokens, 0), coalesce(usage_output_tokens, 0), cost_nano_usd,
+	q := `SELECT id, started_at, coalesce(request_kind, ''), coalesce(llm_provider, ''),
+		coalesce(llm_model, llm_requested_model, ''), timing_total_us, coalesce(usage_input_tokens, 0), coalesce(usage_output_tokens, 0), cost_nano_usd,
 		outcome_http_status, outcome_result, coalesce(governance_client_id, ''), count(*) OVER ()
 	FROM events WHERE started_at >= $1 AND started_at < $2
 	ORDER BY started_at DESC, id DESC LIMIT $3 OFFSET $4`
@@ -221,7 +222,7 @@ func (ds *DuckDBStore) GetRequestLogsByTime(ctx context.Context, from, to time.T
 	for rows.Next() {
 		var r RequestLogRow
 		var latencyUS, nano int64
-		if err := rows.Scan(&r.ID, &r.StartedAt, &r.RequestKind, &r.Model, &latencyUS, &r.InputTokens,
+		if err := rows.Scan(&r.ID, &r.StartedAt, &r.RequestKind, &r.Provider, &r.Model, &latencyUS, &r.InputTokens,
 			&r.OutputTokens, &nano, &r.HTTPStatus, &r.Result, &r.ClientID, &page.Total); err != nil {
 			return nil, fmt.Errorf("request logs: %w", err)
 		}
