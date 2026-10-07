@@ -10,6 +10,7 @@ import { ModelsTab } from '@/features/catalog/models-tab'
 import { ProvidersTab } from '@/features/catalog/providers-tab'
 import { CatalogSettingsSheet } from '@/features/catalog/settings-sheet'
 import { SummaryStrip } from '@/features/catalog/summary-strip'
+import { formatCount } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 const TABS = [
@@ -34,9 +35,12 @@ export default function CatalogPage() {
   const [tab, setTab] = useState<Tab>('providers')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const summary = useCatalogSummary()
-  const sync = useSyncCatalog()
+  const { sync, syncing: waiting } = useSyncCatalog((outcome) => {
+    if (outcome.ok) toast.success(`Catalog synced: ${formatCount(outcome.models).value} models`)
+    else toast.error(`Catalog sync failed: ${outcome.error}`)
+  })
   const { list, box } = useIndicator(tab)
-  const syncing = sync.isPending || Boolean(summary.data?.syncing)
+  const syncing = waiting || Boolean(summary.data?.syncing)
 
   return (
     <>
@@ -56,12 +60,7 @@ export default function CatalogPage() {
             <Button
               variant="outline"
               disabled={syncing}
-              onClick={() => {
-                sync.mutate(undefined, {
-                  onSuccess: () => toast.success('Catalog sync started'),
-                  onError: (err) => toast.error(`Could not start the sync: ${err.message}`),
-                })
-              }}
+              onClick={sync}
             >
               <RefreshCw
                 className={cn('text-muted-foreground', syncing && 'animate-spin motion-reduce:animate-none')}

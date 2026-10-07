@@ -32,12 +32,13 @@ type catalogSummary struct {
 	Providers    []core.Provider       `json:"providers"`
 	PerProvider  map[core.Provider]int `json:"provider_models"` // same counting as Models
 	Models       int                   `json:"models"`
-	Priced       int             `json:"priced"`
-	Unpriced     int             `json:"unpriced"`
-	Syncing      bool            `json:"syncing"`
-	LastSyncAt   time.Time       `json:"last_sync_at,omitzero"`
-	LastError    string          `json:"last_error,omitempty"`
-	SyncInterval float64         `json:"sync_interval_seconds"`
+	Priced       int                   `json:"priced"`
+	Unpriced     int                   `json:"unpriced"`
+	Syncing      bool                  `json:"syncing"`
+	LastRunAt    time.Time             `json:"last_run_at,omitzero"` // start of the latest run, ok or not
+	LastSyncAt   time.Time             `json:"last_sync_at,omitzero"`
+	LastError    string                `json:"last_error,omitempty"`
+	SyncInterval float64               `json:"sync_interval_seconds"`
 }
 
 func (ds *DiffractLLMServer) getCatalogSummary(c *gin.Context) {
@@ -60,6 +61,7 @@ func (ds *DiffractLLMServer) getCatalogSummary(c *gin.Context) {
 	for _, job := range ds.ModelCatalog.Stats() {
 		if job.Name == modelcatalog.JobCatalogSync {
 			s.Syncing = job.Running
+			s.LastRunAt = job.LastRunAt
 			s.LastSyncAt = job.LastSuccessAt
 			s.LastError = job.LastError
 			s.SyncInterval = job.Interval.Seconds()

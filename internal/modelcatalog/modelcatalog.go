@@ -146,7 +146,17 @@ func (c *ModelCatalog) ReloadCustomPricing() error {
 	return c.loadCustomPricing()
 }
 
-func (c *ModelCatalog) syncCatalog(ctx context.Context) (worker.Detail, error) {
+func (c *ModelCatalog) syncCatalog(ctx context.Context) (detail worker.Detail, err error) {
+	start := time.Now()
+	c.logger.Info("catalog sync started", zap.String("source", c.cfg.SourceURL))
+	defer func() {
+		if err != nil {
+			c.logger.Warn("catalog sync failed", zap.Duration("took", time.Since(start)), zap.Error(err))
+			return
+		}
+		c.logger.Info("catalog sync finished", zap.Any("detail", detail), zap.Duration("took", time.Since(start)))
+	}()
+
 	ctx, cancel := context.WithTimeout(ctx, c.Settings().Timeout())
 	defer cancel()
 

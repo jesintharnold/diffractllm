@@ -19,6 +19,7 @@ export interface CatalogSummary {
   priced: number
   unpriced: number
   syncing: boolean
+  last_run_at?: string // start of the latest run, successful or not
   last_sync_at?: string
   last_error?: string
 }
@@ -29,8 +30,8 @@ export function useCatalogSummary() {
   return useQuery({
     queryKey: [...CATALOG_KEY, 'summary'],
     queryFn: ({ signal }) => apiGet<CatalogSummary>(API.admin.catalog.summary, undefined, signal),
-    // Poll fast while a sync runs, so "Last sync" flips as soon as it lands.
-    refetchInterval: (q) => (q.state.data?.syncing ? 2_000 : 30_000),
+    refetchInterval: 30_000, // picks up scheduled syncs; Sync now watches its own run
+
   })
 }
 
@@ -125,12 +126,48 @@ export function useSaveCatalogSettings() {
   })
 }
 
-export function useSyncCatalog() {
+const SUMMARY_KEY = [...CATALOG_KEY, 'summary'] as const
+const WATCH_EVERY_MS = 5_000
+const GIVE_UP_MS = 5 * 60_000 // the longest fetch timeout the settings allow
+
+export type SyncOutcome = { ok: true; models: number } | { ok: false; error: string }
+
+// Sync now: queue the sync, then watch the summary until that run has finished, and report
+// how it went. The run is "ours" once last_run_at moves past its value at the click.
+export function useSyncCatalog(onDone: (outcome: SyncOutcome) => void) {
   const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: () => apiSend<{ status: string }>('POST', API.admin.catalog.sync),
-    onSuccess: () => {
+
+  const start = useMutation({
+    mutationFn: async (): Promise<SyncOutcome> => {
+      const before = queryClient.getQueryData<CatalogSummary>(SUMMARY_KEY)?.last_run_at
+      await apiSend<{ status: string }>('POST', API.admin.catalog.sync)
+      const deadline = Date.now() + GIVE_UP_MS
+      while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, WATCH_EVERY_MS))
+        const s = await queryClient.query({
+          queryKey: SUMMARY_KEY,
+          queryFn: ({ signal }) => apiGet<CatalogSummary>(API.admin.catalog.summary, undefined, signal),
+          staleTime: 0,
+        })
+        if (!s.syncing && s.last_run_at && s.last_run_at !== before) {
+          return s.last_error ? { ok: false, error: s.last_error } : { ok: true, models: s.models }
+        }
+      }
+      return { ok: false, error: 'no result after 5 minutes' }
+    },
+    onSuccess: (outcome) => {
       void queryClient.invalidateQueries({ queryKey: CATALOG_KEY })
+      onDone(outcome)
+    },
+    onError: (err) => {
+      onDone({ ok: false, error: err.message })
     },
   })
+
+  return {
+    sync: () => {
+      start.mutate()
+    },
+    syncing: start.isPending,
+  }
 }
