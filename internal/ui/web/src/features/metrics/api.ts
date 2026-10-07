@@ -47,6 +47,7 @@ export function useHasTraffic() {
 // requests rejected before routing; `result` tells a cancelled request (client_abort) from a 200.
 export interface RequestLogRow {
   id: string
+  request_id?: string
   started_at: string
   request_kind: string
   provider: string

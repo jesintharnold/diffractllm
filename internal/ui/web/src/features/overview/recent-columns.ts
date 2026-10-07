@@ -4,6 +4,7 @@ import { useSyncExternalStore } from 'react'
 // across the columns in proportion, so no single column opens a gap.
 export const COLUMNS = [
   { key: 'time', label: 'Time', width: 'w-[140px]' },
+  { key: 'requestId', label: 'Request ID', width: 'w-[260px]' },
   { key: 'type', label: 'Type', width: 'w-[128px]' },
   { key: 'provider', label: 'Provider', width: 'w-[112px]' },
   { key: 'model', label: 'Model', width: 'w-[200px]' },
@@ -27,7 +28,9 @@ function load(): ColumnKey[] {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null') as unknown
     if (Array.isArray(saved)) {
-      const keep = ALL.filter((k) => saved.includes(k))
+      // New columns should appear for existing viewers too; they could not have opted out of
+      // a column that did not exist when their preference was saved.
+      const keep = ALL.filter((k) => k === 'requestId' || saved.includes(k))
       if (keep.length > 0) return keep
     }
   } catch {

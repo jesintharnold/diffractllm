@@ -15,8 +15,9 @@ import (
 )
 
 var (
-	ErrNotFound     = errors.New("not found")
-	ErrInvalidQuery = errors.New("invalid query")
+	ErrNotFound           = errors.New("not found")
+	ErrInvalidQuery       = errors.New("invalid query")
+	ErrAmbiguousRequestID = errors.New("request id matches multiple events")
 )
 
 const (
@@ -61,6 +62,7 @@ type RequestLogPage struct {
 
 type RequestLogRow struct {
 	ID           string    `json:"id"`
+	RequestID    string    `json:"request_id,omitempty"`
 	StartedAt    time.Time `json:"started_at"`
 	RequestKind  string    `json:"request_kind"`
 	Provider     string    `json:"provider"`
@@ -206,7 +208,7 @@ func (ds *DuckDBStore) GetRequestSummaryByTime(ctx context.Context, from, to tim
 }
 
 func (ds *DuckDBStore) GetRequestLogsByTime(ctx context.Context, from, to time.Time, offset, limit int) (*RequestLogPage, error) {
-	q := `SELECT id, started_at, coalesce(request_kind, ''), coalesce(llm_provider, ''),
+	q := `SELECT id, coalesce(request_id, ''), started_at, coalesce(request_kind, ''), coalesce(llm_provider, ''),
 		coalesce(llm_model, llm_requested_model, ''), timing_total_us, coalesce(usage_input_tokens, 0), coalesce(usage_output_tokens, 0), cost_nano_usd,
 		outcome_http_status, outcome_result, coalesce(governance_client_id, ''), count(*) OVER ()
 	FROM events WHERE started_at >= $1 AND started_at < $2
@@ -222,7 +224,7 @@ func (ds *DuckDBStore) GetRequestLogsByTime(ctx context.Context, from, to time.T
 	for rows.Next() {
 		var r RequestLogRow
 		var latencyUS, nano int64
-		if err := rows.Scan(&r.ID, &r.StartedAt, &r.RequestKind, &r.Provider, &r.Model, &latencyUS, &r.InputTokens,
+		if err := rows.Scan(&r.ID, &r.RequestID, &r.StartedAt, &r.RequestKind, &r.Provider, &r.Model, &latencyUS, &r.InputTokens,
 			&r.OutputTokens, &nano, &r.HTTPStatus, &r.Result, &r.ClientID, &page.Total); err != nil {
 			return nil, fmt.Errorf("request logs: %w", err)
 		}
@@ -232,6 +234,37 @@ func (ds *DuckDBStore) GetRequestLogsByTime(ctx context.Context, from, to time.T
 		page.Rows = append(page.Rows, r)
 	}
 	return page, rows.Err()
+}
+
+// GetRequestDetailByRequestID resolves a gateway request ID only when it identifies
+// one event. Client-supplied X-Request-ID values are not guaranteed to be unique.
+func (ds *DuckDBStore) GetRequestDetailByRequestID(ctx context.Context, requestID string) (*RequestDetail, error) {
+	rows, err := ds.db.QueryContext(ctx, `
+		SELECT id FROM events WHERE request_id = $1
+		ORDER BY started_at DESC, id DESC LIMIT 2`, requestID)
+	if err != nil {
+		return nil, fmt.Errorf("request detail by request id %s: %w", requestID, err)
+	}
+	defer rows.Close()
+
+	ids := make([]string, 0, 2)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("request detail by request id %s: %w", requestID, err)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("request detail by request id %s: %w", requestID, err)
+	}
+	if len(ids) == 0 {
+		return nil, ErrNotFound
+	}
+	if len(ids) > 1 {
+		return nil, ErrAmbiguousRequestID
+	}
+	return ds.GetRequestDetailByID(ctx, ids[0])
 }
 
 func (ds *DuckDBStore) GetRequestDetailByID(ctx context.Context, id string) (*RequestDetail, error) {

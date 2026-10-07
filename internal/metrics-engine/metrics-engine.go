@@ -3,6 +3,7 @@ package metricsengine
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -192,7 +193,11 @@ func (m *MetricsEngine) GetRequestDetailByID(ctx context.Context, id string) (*R
 	}
 	ctx, cancel := context.WithTimeout(ctx, m.config.QueryTimeout)
 	defer cancel()
-	return m.store.GetRequestDetailByID(ctx, id)
+	detail, err := m.store.GetRequestDetailByID(ctx, id)
+	if !errors.Is(err, ErrNotFound) {
+		return detail, err
+	}
+	return m.store.GetRequestDetailByRequestID(ctx, id)
 }
 
 func (m *MetricsEngine) GetPayloadByID(ctx context.Context, id string) (*Payload, error) {

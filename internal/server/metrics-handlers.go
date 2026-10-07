@@ -34,6 +34,8 @@ func (ds *DiffractLLMServer) metricsErr(c *gin.Context, err error) {
 		adminErr(c, http.StatusBadRequest, err.Error())
 	case errors.Is(err, metricsengine.ErrNotFound):
 		adminErr(c, http.StatusNotFound, "request not found")
+	case errors.Is(err, metricsengine.ErrAmbiguousRequestID):
+		adminErr(c, http.StatusConflict, "request id matches multiple metrics events; use the event id")
 	case errors.Is(err, context.DeadlineExceeded):
 		adminErr(c, http.StatusGatewayTimeout, "metrics query timed out")
 	default:

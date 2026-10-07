@@ -50,6 +50,14 @@ function Cell({ column, row, zone }: { column: ColumnKey; row: RequestLogRow; zo
           {formatInZone(new Date(row.started_at), zone, 'MMM dd HH:mm:ss')}
         </span>
       )
+    case 'requestId':
+      return row.request_id ? (
+        <span className="block truncate font-mono text-xs" title={row.request_id}>
+          {row.request_id}
+        </span>
+      ) : (
+        <Dash />
+      )
     case 'type':
       return <KindTag kind={row.request_kind} />
     case 'provider':

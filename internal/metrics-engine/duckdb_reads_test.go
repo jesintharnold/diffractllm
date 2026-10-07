@@ -19,6 +19,7 @@ func seedEvent(id string, at time.Duration, result Result, status int, latency t
 	e := &Event{
 		SchemaVersion:   SchemaVersion,
 		ID:              id,
+		RequestID:       "request-" + id,
 		Kind:            KindLLM,
 		RequestKind:     core.ChatRequest,
 		RequestEndpoint: "/openai/v1/chat/completions",
@@ -131,6 +132,7 @@ func TestRequestLogsPageNewestFirst(t *testing.T) {
 	require.Len(t, page.Rows, 2)
 	r := page.Rows[1]
 	assert.Equal(t, "e1", r.ID)
+	assert.Equal(t, "request-e1", r.RequestID)
 	assert.Equal(t, "openai", r.Provider)
 	assert.Equal(t, "gpt-4o", r.Model)
 	assert.Equal(t, 100.0, r.LatencyMS)
@@ -138,6 +140,31 @@ func TestRequestLogsPageNewestFirst(t *testing.T) {
 	assert.Equal(t, int64(902), r.OutputTokens)
 	assert.InDelta(t, 0.0015, r.CostUSD, 1e-12)
 	assert.Equal(t, "acme", r.ClientID)
+}
+
+func TestRequestDetailCanBeFoundByGatewayRequestID(t *testing.T) {
+	store := newTestStore(t)
+	e := seedEvent("event-1", 0, ResultOK, 200, time.Millisecond, "openai")
+	e.RequestID = "gateway-request-1"
+	require.NoError(t, store.Write(context.Background(), []*Event{e}))
+	m := newTestEngine(store, 10)
+
+	detail, err := m.GetRequestDetailByID(context.Background(), "gateway-request-1")
+	require.NoError(t, err)
+	assert.Equal(t, "event-1", detail.ID)
+	assert.Equal(t, "gateway-request-1", detail.RequestID)
+}
+
+func TestRequestDetailRejectsAmbiguousGatewayRequestID(t *testing.T) {
+	store := newTestStore(t)
+	first := seedEvent("event-1", 0, ResultOK, 200, time.Millisecond, "openai")
+	first.RequestID = "reused-request-id"
+	second := seedEvent("event-2", time.Minute, ResultOK, 200, time.Millisecond, "openai")
+	second.RequestID = "reused-request-id"
+	require.NoError(t, store.Write(context.Background(), []*Event{first, second}))
+
+	_, err := newTestEngine(store, 10).GetRequestDetailByID(context.Background(), "reused-request-id")
+	assert.ErrorIs(t, err, ErrAmbiguousRequestID)
 }
 
 func TestRequestDetailWithCostBreakdown(t *testing.T) {

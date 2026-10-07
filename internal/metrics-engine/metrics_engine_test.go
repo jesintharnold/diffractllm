@@ -333,7 +333,7 @@ func TestReopeningTheStoreDoesNotRerunMigrations(t *testing.T) {
 	require.NoError(t, second.Init(path, context.Background()))
 	defer second.Close()
 
-	assert.Equal(t, 1, countRows(t, second.db, "schema_migrations"))
+	assert.Equal(t, 2, countRows(t, second.db, "schema_migrations"))
 }
 
 // Many request goroutines append while the flush job drains: nothing is lost or counted twice.

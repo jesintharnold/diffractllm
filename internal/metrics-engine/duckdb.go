@@ -25,6 +25,7 @@ type OLAPStore interface {
 	GetRequestSummaryByTime(ctx context.Context, from, to time.Time, bucket time.Duration) (*TimeSummary, error)
 	GetRequestLogsByTime(ctx context.Context, from, to time.Time, offset, limit int) (*RequestLogPage, error)
 	GetRequestDetailByID(ctx context.Context, id string) (*RequestDetail, error)
+	GetRequestDetailByRequestID(ctx context.Context, requestID string) (*RequestDetail, error)
 	GetPayloadByID(ctx context.Context, id string) (*Payload, error)
 	GetTopVirtualKeys(ctx context.Context, from, to time.Time, limit int) ([]VirtualKeyUsage, error)
 	GetProviderUsage(ctx context.Context, from, to time.Time) ([]ProviderUsage, error)
