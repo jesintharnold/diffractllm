@@ -10,6 +10,7 @@ import (
 	"slices"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/gin-gonic/gin"
@@ -605,7 +606,8 @@ type modelOption struct {
 
 type catalogEntry struct {
 	core.ModelMetadata
-	Pricing *core.Pricing `json:"pricing,omitempty"`
+	ModelType string        `json:"model_type"` // "chat", not the enum's number
+	Pricing   *core.Pricing `json:"pricing,omitempty"`
 }
 
 type catalogPage struct {
@@ -658,20 +660,54 @@ func (ds *DiffractLLMServer) listModels(c *gin.Context) {
 }
 
 func (ds *DiffractLLMServer) listModelCatalog(c *gin.Context) {
-	provider := core.Provider(c.Query("provider"))
-	if provider == "" {
-		adminErr(c, http.StatusBadRequest, "provider is required")
+	var providers []core.Provider
+	if provider := core.Provider(c.Query("provider")); provider != "" {
+		if !ds.ProviderRegistry.Has(provider) {
+			adminErr(c, http.StatusBadRequest, "provider has no registered adapter in this build")
+			return
+		}
+		providers = []core.Provider{provider}
+	} else {
+		configured, err := ds.configuredProviders()
+		if err != nil {
+			adminErr(c, http.StatusInternalServerError, "listing providers")
+			return
+		}
+		providers = configured
+	}
+
+	pricing := c.Query("pricing")
+	if pricing != "" && pricing != "priced" && pricing != "unpriced" {
+		adminErr(c, http.StatusBadRequest, "pricing must be priced or unpriced")
 		return
 	}
-	if !ds.ProviderRegistry.Has(provider) {
-		adminErr(c, http.StatusBadRequest, "provider has no registered adapter in this build")
-		return
-	}
+	query := strings.ToLower(strings.TrimSpace(c.Query("q")))
+	modelType := c.Query("type")
 
 	limit, offset := pageParams(c, 100, 500)
 
-	entries := ds.ModelCatalog.Models(provider)
-	sort.Slice(entries, func(i, j int) bool { return entries[i].ModelName < entries[j].ModelName })
+	var entries []core.ModelMetadata
+	for _, provider := range providers {
+		for _, m := range ds.ModelCatalog.Models(provider) {
+			if query != "" && !strings.Contains(strings.ToLower(m.ModelName), query) &&
+				!strings.Contains(string(m.Provider), query) {
+				continue
+			}
+			if modelType != "" && m.ModelType.String() != modelType {
+				continue
+			}
+			if pricing != "" && (ds.ModelCatalog.BasePrice(m.CatalogKey()) != nil) != (pricing == "priced") {
+				continue
+			}
+			entries = append(entries, m)
+		}
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		if entries[i].Provider != entries[j].Provider {
+			return entries[i].Provider < entries[j].Provider
+		}
+		return entries[i].ModelName < entries[j].ModelName
+	})
 
 	total := len(entries)
 	if offset > total {
@@ -687,6 +723,7 @@ func (ds *DiffractLLMServer) listModelCatalog(c *gin.Context) {
 	for i := range window {
 		models = append(models, catalogEntry{
 			ModelMetadata: window[i],
+			ModelType:     window[i].ModelType.String(),
 			Pricing:       ds.ModelCatalog.BasePrice(window[i].CatalogKey()),
 		})
 	}

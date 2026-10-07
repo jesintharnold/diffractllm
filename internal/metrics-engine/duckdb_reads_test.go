@@ -233,6 +233,21 @@ func TestTopVirtualKeysRankBySpend(t *testing.T) {
 	assert.Equal(t, "vk-b", keys[0].VirtualKeyID)
 }
 
+// One row per provider, biggest spend first; the rejection with no provider is left out.
+func TestProviderUsage(t *testing.T) {
+	m, _ := seededEngine(t)
+	usage, err := m.GetProviderUsage(context.Background(), t0, t0.Add(time.Hour))
+	require.NoError(t, err)
+
+	require.Len(t, usage, 2)
+	assert.Equal(t, "openai", usage[0].Provider)
+	assert.Equal(t, int64(3), usage[0].Requests)
+	assert.Equal(t, int64(3*2186), usage[0].Tokens)
+	assert.InDelta(t, 3*0.0015, usage[0].SpendUSD, 1e-12)
+	assert.Equal(t, "azure", usage[1].Provider)
+	assert.Equal(t, int64(2), usage[1].Requests)
+}
+
 func TestBudgetSpendByTime(t *testing.T) {
 	m := governedEngine(t)
 	s, err := m.GetBudgetSpendByTime(context.Background(), "b1", t0, t0.Add(2*time.Hour))

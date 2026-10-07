@@ -27,6 +27,7 @@ type OLAPStore interface {
 	GetRequestDetailByID(ctx context.Context, id string) (*RequestDetail, error)
 	GetPayloadByID(ctx context.Context, id string) (*Payload, error)
 	GetTopVirtualKeys(ctx context.Context, from, to time.Time, limit int) ([]VirtualKeyUsage, error)
+	GetProviderUsage(ctx context.Context, from, to time.Time) ([]ProviderUsage, error)
 	GetBudgetSpendByTime(ctx context.Context, budgetID string, from, to time.Time, bucket time.Duration) (*BudgetSpend, error)
 }
 

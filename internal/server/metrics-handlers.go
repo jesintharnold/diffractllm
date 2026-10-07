@@ -140,6 +140,19 @@ func (ds *DiffractLLMServer) getMetricsTopVirtualKeys(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"rows": keys})
 }
 
+func (ds *DiffractLLMServer) getMetricsProviders(c *gin.Context) {
+	from, to, ok := timeRange(c)
+	if !ok {
+		return
+	}
+	usage, err := ds.metrics.GetProviderUsage(c.Request.Context(), from, to)
+	if err != nil {
+		ds.metricsErr(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"rows": usage})
+}
+
 func (ds *DiffractLLMServer) getMetricsBudgetSpend(c *gin.Context) {
 	from, to, ok := timeRange(c)
 	if !ok {

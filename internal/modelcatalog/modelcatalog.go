@@ -79,6 +79,9 @@ type ModelCatalog struct {
 	customMu sync.Mutex
 	client   *http.Client
 
+	settings   atomic.Pointer[Settings] // console-editable, see settings.go
+	settingsMu sync.Mutex
+
 	workers *worker.Group
 }
 
@@ -87,7 +90,7 @@ func NewModelCatalog(store *dbstore.Store, cfg config.ModelCatalogConfig, logger
 		store:  store,
 		cfg:    cfg,
 		logger: logger,
-		client: &http.Client{Timeout: 10 * time.Second},
+		client: &http.Client{Timeout: maxFetchTimeout}, // each sync narrows it to the setting
 	}
 }
 
@@ -95,18 +98,25 @@ func (c *ModelCatalog) Start(ctx context.Context) error {
 	if err := c.loadAll(); err != nil {
 		return fmt.Errorf("catalog load: %w", err)
 	}
+	if err := c.loadSettings(); err != nil {
+		return fmt.Errorf("catalog settings: %w", err)
+	}
+	settings := c.Settings()
 	firstBoot := !c.Ready()
 
 	c.workers = worker.NewGroup("catalog", c.logger)
 	err := c.workers.Add(
 		&worker.Job{
 			Name:       JobCatalogSync,
-			Interval:   c.cfg.SyncInterval,
-			RunAtStart: firstBoot,
+			Interval:   settings.Interval(),
+			RunAtStart: firstBoot, // an empty catalog syncs once even with auto sync off
 			Run:        c.syncCatalog,
 		},
 	)
 	if err != nil {
+		return err
+	}
+	if err := c.workers.SetPaused(JobCatalogSync, !settings.AutoSync); err != nil {
 		return err
 	}
 	return c.workers.Start(ctx)
@@ -137,6 +147,9 @@ func (c *ModelCatalog) ReloadCustomPricing() error {
 }
 
 func (c *ModelCatalog) syncCatalog(ctx context.Context) (worker.Detail, error) {
+	ctx, cancel := context.WithTimeout(ctx, c.Settings().Timeout())
+	defer cancel()
+
 	src := &CatalogSource{URL: c.cfg.SourceURL}
 	models, variants, err := src.Fetch(ctx, c.client)
 	if err != nil {

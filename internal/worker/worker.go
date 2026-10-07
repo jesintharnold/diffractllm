@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"go.uber.org/zap"
@@ -37,6 +38,21 @@ type Job struct {
 	mu         sync.Mutex
 	stats      JobStats
 	trigger    chan struct{}
+	reschedule chan time.Duration
+	paused     atomic.Bool // skips ticks only; a Trigger still runs
+}
+
+func (j *Job) interval() time.Duration {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	return j.Interval
+}
+
+func (j *Job) setInterval(d time.Duration) {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	j.Interval = d
+	j.stats.Interval = d
 }
 
 func (j *Job) Stats() JobStats {
@@ -112,16 +128,21 @@ func (j *Job) exec(ctx context.Context, log *zap.Logger) error {
 }
 
 func (j *Job) loop(ctx context.Context, stop <-chan struct{}, log *zap.Logger) {
-	ticker := time.NewTicker(j.Interval)
+	ticker := time.NewTicker(j.interval())
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ticker.C:
-			j.exec(ctx, log)
+			if !j.paused.Load() {
+				j.exec(ctx, log)
+			}
 		case <-j.trigger:
 			j.exec(ctx, log)
-			ticker.Reset(j.Interval)
+			ticker.Reset(j.interval())
+		case d := <-j.reschedule:
+			j.setInterval(d)
+			ticker.Reset(d)
 		case <-stop:
 			if j.RunAtStop {
 				drainCtx, cancel := context.WithTimeout(context.Background(), DrainTimeout)
@@ -172,6 +193,7 @@ func (g *Group) Add(jobs ...*Job) error {
 		}
 
 		job.trigger = make(chan struct{}, 1)
+		job.reschedule = make(chan time.Duration, 1)
 		job.stats.Name = job.Name
 		job.stats.Interval = job.Interval
 		g.jobs[job.Name] = job
@@ -258,6 +280,48 @@ func (g *Group) Trigger(name string) error {
 	case j.trigger <- struct{}{}:
 	default:
 	}
+	return nil
+}
+
+func (g *Group) job(name string) (*Job, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	j, ok := g.jobs[name]
+	if !ok {
+		return nil, fmt.Errorf("worker %s: no job named %q", g.name, name)
+	}
+	return j, nil
+}
+
+
+func (g *Group) Reschedule(name string, interval time.Duration) error {
+	if interval <= 0 {
+		return fmt.Errorf("worker %s: job %q needs a positive interval", g.name, name)
+	}
+	j, err := g.job(name)
+	if err != nil {
+		return err
+	}
+	j.setInterval(interval)
+	for { 
+		select {
+		case j.reschedule <- interval:
+			return nil
+		default:
+			select {
+			case <-j.reschedule:
+			default:
+			}
+		}
+	}
+}
+
+func (g *Group) SetPaused(name string, paused bool) error {
+	j, err := g.job(name)
+	if err != nil {
+		return err
+	}
+	j.paused.Store(paused)
 	return nil
 }
 

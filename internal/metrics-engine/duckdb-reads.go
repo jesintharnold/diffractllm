@@ -394,6 +394,40 @@ func (ds *DuckDBStore) GetTopVirtualKeys(ctx context.Context, from, to time.Time
 	return out, rows.Err()
 }
 
+type ProviderUsage struct {
+	Provider string  `json:"provider"`
+	Requests int64   `json:"requests"`
+	Tokens   int64   `json:"tokens"`
+	SpendUSD float64 `json:"spend_usd"`
+}
+
+func (ds *DuckDBStore) GetProviderUsage(ctx context.Context, from, to time.Time) ([]ProviderUsage, error) {
+	q := `SELECT llm_provider, count(*),
+		coalesce(sum(coalesce(usage_input_tokens, 0) + coalesce(usage_output_tokens, 0)), 0)::BIGINT,
+		coalesce(sum(cost_nano_usd), 0)::BIGINT
+	FROM events
+	WHERE coalesce(llm_provider, '') <> '' AND started_at >= $1 AND started_at < $2
+	GROUP BY llm_provider ORDER BY 4 DESC, 1`
+
+	rows, err := ds.db.QueryContext(ctx, q, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("provider usage: %w", err)
+	}
+	defer rows.Close()
+
+	out := []ProviderUsage{}
+	for rows.Next() {
+		var u ProviderUsage
+		var nano int64
+		if err := rows.Scan(&u.Provider, &u.Requests, &u.Tokens, &nano); err != nil {
+			return nil, fmt.Errorf("provider usage: %w", err)
+		}
+		u.SpendUSD = usd(nano)
+		out = append(out, u)
+	}
+	return out, rows.Err()
+}
+
 func (ds *DuckDBStore) GetBudgetSpendByTime(ctx context.Context, budgetID string, from, to time.Time, bucket time.Duration) (*BudgetSpend, error) {
 	q := `SELECT (epoch_us(started_at) - $1) // $2 AS idx, sum(cost_nano_usd)::BIGINT
 	FROM events WHERE governance_budget_id = $3 AND started_at >= $4 AND started_at < $5

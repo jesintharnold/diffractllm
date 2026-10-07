@@ -206,6 +206,15 @@ func (m *MetricsEngine) GetPayloadByID(ctx context.Context, id string) (*Payload
 
 const maxTopLimit = 50
 
+func (m *MetricsEngine) GetProviderUsage(ctx context.Context, from, to time.Time) ([]ProviderUsage, error) {
+	if err := m.checkRange(from, to); err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(ctx, m.config.QueryTimeout)
+	defer cancel()
+	return m.store.GetProviderUsage(ctx, from.UTC(), to.UTC())
+}
+
 func (m *MetricsEngine) GetTopVirtualKeys(ctx context.Context, from, to time.Time, limit int) ([]VirtualKeyUsage, error) {
 	if err := m.checkRange(from, to); err != nil {
 		return nil, err

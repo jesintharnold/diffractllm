@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"diffractllm/internal/core"
+	"diffractllm/internal/modelcatalog"
 	"diffractllm/internal/providers"
 	"io"
 	"net/http"
@@ -144,8 +145,14 @@ func (ds *DiffractLLMServer) GenericRequestHandler(w http.ResponseWriter, r *htt
 
 	pricing := ds.ModelCatalog.ResolvePrice(rctx.VirtualKeyID, rctx.Modelkey, core.EmptySelectorKey)
 	if pricing == nil {
-		writeErr(rctx, desc, core.NewUnpricedModel(rctx.Modelkey))
-		return
+		// Catalog setting "When a model has no price": reject (default) or serve and bill $0.
+		if ds.ModelCatalog.MissingPrice() != modelcatalog.MissingPriceChargeZero {
+			writeErr(rctx, desc, core.NewUnpricedModel(rctx.Modelkey))
+			return
+		}
+		ds.logger.Warn("serving an unpriced model at zero cost",
+			zap.String("request_id", rctx.RequestID), zap.String("model", rctx.Modelkey.SlashKey()))
+		pricing = &core.Pricing{}
 	}
 	rctx.Pricing = pricing
 
