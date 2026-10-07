@@ -60,15 +60,45 @@ func catalogServer(t *testing.T) (http.Handler, *modelcatalog.ModelCatalog, *dbs
 	return h, catalog, store
 }
 
-func put(t *testing.T, h http.Handler, url string, body any) (int, map[string]any) {
+func send(t *testing.T, h http.Handler, method, url string, body any) (int, []byte) {
 	t.Helper()
 	data, err := json.Marshal(body)
 	require.NoError(t, err)
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPut, url, bytes.NewReader(data)))
+	h.ServeHTTP(rec, httptest.NewRequest(method, url, bytes.NewReader(data)))
+	return rec.Code, rec.Body.Bytes()
+}
+
+func put(t *testing.T, h http.Handler, url string, body any) (int, map[string]any) {
+	t.Helper()
+	code, raw := send(t, h, http.MethodPut, url, body)
 	var out map[string]any
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &out), rec.Body.String())
-	return rec.Code, out
+	require.NoError(t, json.Unmarshal(raw, &out), string(raw))
+	return code, out
+}
+
+// Overrides come back with model_type as a name on create, update and list.
+func TestCustomPricingModelTypeIsAName(t *testing.T) {
+	h, _, _ := catalogServer(t)
+
+	code, raw := send(t, h, http.MethodPost, "/v1/admin/pricing/custom", map[string]any{
+		"name": "test global", "model_name": "gpt-4o", "model_type": "chat", "scope_type": "global",
+		"pricing": map[string]any{"input_cost_per_token": 0.000002},
+	})
+	require.Equal(t, http.StatusCreated, code, string(raw))
+	var created map[string]any
+	require.NoError(t, json.Unmarshal(raw, &created))
+	id := created["id"].(string)
+	t.Cleanup(func() { send(t, h, http.MethodDelete, "/v1/admin/pricing/custom/"+id, nil) })
+	assert.Equal(t, "chat", created["model_type"])
+
+	code, raw = send(t, h, http.MethodPut, "/v1/admin/pricing/custom/"+id, map[string]any{"input_cost_per_token": 0.0000015})
+	require.Equal(t, http.StatusOK, code, string(raw))
+	assert.Contains(t, string(raw), `"model_type":"chat"`)
+
+	code, raw = send(t, h, http.MethodGet, "/v1/admin/pricing/custom", nil)
+	require.Equal(t, http.StatusOK, code)
+	assert.Contains(t, string(raw), `"model_type":"chat"`)
 }
 
 func TestCatalogSettingsRoundTrip(t *testing.T) {

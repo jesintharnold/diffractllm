@@ -16,6 +16,7 @@ async function parse<T>(res: Response): Promise<T> {
     const body = (await res.json().catch(() => null)) as { error?: string } | null
     throw new ApiError(res.status, body?.error ?? res.statusText)
   }
+  if (res.status === 204) return undefined as T // DELETE: no body
   return (await res.json()) as T
 }
 
@@ -31,8 +32,12 @@ export async function apiGet<T>(
   return parse<T>(await fetch(url, { signal, headers: { Accept: 'application/json' } }))
 }
 
-// POST / PUT with an optional JSON body; same error mapping as apiGet.
-export async function apiSend<T>(method: 'POST' | 'PUT', path: string, body?: unknown): Promise<T> {
+// POST / PUT / DELETE with an optional JSON body; same error mapping as apiGet.
+export async function apiSend<T>(
+  method: 'POST' | 'PUT' | 'DELETE',
+  path: string,
+  body?: unknown,
+): Promise<T> {
   const res = await fetch(new URL(path, window.location.origin), {
     method,
     headers: {

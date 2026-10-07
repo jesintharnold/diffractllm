@@ -1,6 +1,7 @@
 package core
 
 import (
+	"encoding/json"
 	"math/bits"
 )
 
@@ -95,6 +96,8 @@ func ParseCapabilityStrings(cap []string) Capability {
 }
 
 type ModelType uint8
+
+func (t ModelType) MarshalJSON() ([]byte, error) { return json.Marshal(t.String()) }
 
 const (
 	ModelTypeUnknown ModelType = iota

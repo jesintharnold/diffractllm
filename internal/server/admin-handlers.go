@@ -606,8 +606,7 @@ type modelOption struct {
 
 type catalogEntry struct {
 	core.ModelMetadata
-	ModelType string        `json:"model_type"` // "chat", not the enum's number
-	Pricing   *core.Pricing `json:"pricing,omitempty"`
+	Pricing *core.Pricing `json:"pricing,omitempty"`
 }
 
 type catalogPage struct {
@@ -723,7 +722,6 @@ func (ds *DiffractLLMServer) listModelCatalog(c *gin.Context) {
 	for i := range window {
 		models = append(models, catalogEntry{
 			ModelMetadata: window[i],
-			ModelType:     window[i].ModelType.String(),
 			Pricing:       ds.ModelCatalog.BasePrice(window[i].CatalogKey()),
 		})
 	}

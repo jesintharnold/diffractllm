@@ -12,6 +12,11 @@ export const API = {
     budget: (budgetId: string) => `/v1/admin/budgets/${id(budgetId)}`,
     virtualKeys: '/v1/admin/virtual-keys',
     virtualKey: (keyId: string) => `/v1/admin/virtual-keys/${id(keyId)}`,
+    models: '/v1/admin/models',
+    pricing: {
+      overrides: '/v1/admin/pricing/custom',
+      override: (overrideId: string) => `/v1/admin/pricing/custom/${id(overrideId)}`,
+    },
     catalog: {
       summary: '/v1/admin/catalog/summary',
       settings: '/v1/admin/catalog/settings',

@@ -73,7 +73,7 @@ export interface CatalogModel {
   model_name: string
   model_type: string
   limits: { context_window?: number; max_output_tokens?: number }
-  pricing?: TokenPricing
+  pricing?: TokenPricing & Record<string, number | undefined> // every core.Pricing field it sets
 }
 
 export interface ModelFilters {
