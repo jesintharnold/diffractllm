@@ -11,6 +11,14 @@ export class ApiError extends Error {
 
 export type QueryParams = Record<string, string | number | undefined>
 
+async function parse<T>(res: Response): Promise<T> {
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { error?: string } | null
+    throw new ApiError(res.status, body?.error ?? res.statusText)
+  }
+  return (await res.json()) as T
+}
+
 export async function apiGet<T>(
   path: string,
   params?: QueryParams,
@@ -18,13 +26,20 @@ export async function apiGet<T>(
 ): Promise<T> {
   const url = new URL(path, window.location.origin)
   for (const [key, value] of Object.entries(params ?? {})) {
-    if (value !== undefined) url.searchParams.set(key, String(value))
+    if (value !== undefined && value !== '') url.searchParams.set(key, String(value))
   }
+  return parse<T>(await fetch(url, { signal, headers: { Accept: 'application/json' } }))
+}
 
-  const res = await fetch(url, { signal, headers: { Accept: 'application/json' } })
-  if (!res.ok) {
-    const body = (await res.json().catch(() => null)) as { error?: string } | null
-    throw new ApiError(res.status, body?.error ?? res.statusText)
-  }
-  return (await res.json()) as T
+// POST / PUT with an optional JSON body; same error mapping as apiGet.
+export async function apiSend<T>(method: 'POST' | 'PUT', path: string, body?: unknown): Promise<T> {
+  const res = await fetch(new URL(path, window.location.origin), {
+    method,
+    headers: {
+      Accept: 'application/json',
+      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
+  return parse<T>(res)
 }

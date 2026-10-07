@@ -1,4 +1,5 @@
 import { Columns3, RefreshCw } from 'lucide-react'
+import { KindTag } from '@/components/kind-tag'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -27,10 +28,6 @@ const ROWS = 10
 
 const text = (f: Formatted) => (f.unit ? `${f.value} ${f.unit}` : f.value)
 
-// image_generation → IMAGE, image_edit → IMAGE EDIT (the tag is uppercased by CSS).
-const kindLabel = (kind: string) =>
-  kind ? kind.replace(/_generation$/, '').replaceAll('_', ' ') : 'unknown'
-
 // A cancelled request answered 200 before the client left, so the result decides, not the code.
 function statusOf(row: RequestLogRow): { label: string; tone: string } {
   if (row.result === 'client_abort') return { label: 'cancelled', tone: 'text-muted-foreground' }
@@ -54,11 +51,7 @@ function Cell({ column, row, zone }: { column: ColumnKey; row: RequestLogRow; zo
         </span>
       )
     case 'type':
-      return (
-        <span className="inline-flex items-center rounded-[4px] border border-foreground/25 bg-foreground/[0.08] px-2 py-[3px] text-[11px] leading-[15px] font-semibold tracking-[0.05em] text-foreground uppercase">
-          {kindLabel(row.request_kind)}
-        </span>
-      )
+      return <KindTag kind={row.request_kind} />
     case 'provider':
       return row.provider ? (
         <span className="flex items-center gap-2">

@@ -1,5 +1,6 @@
 import { createBrowserRouter } from 'react-router'
 import { AppShell } from '@/components/layout/app-shell'
+import CatalogPage from '@/pages/catalog'
 import ComingSoonPage from '@/pages/coming-soon'
 import NotFoundPage from '@/pages/not-found'
 import OverviewPage from '@/pages/overview'
@@ -12,7 +13,7 @@ export const router = createBrowserRouter([
     element: <AppShell />,
     children: [
       { index: true, element: <OverviewPage /> },
-      later('models/catalog', 'Catalog'),
+      { path: 'models/catalog', element: <CatalogPage /> },
       later('models/pricing', 'Pricing'),
       later('models/api-keys', 'API keys'),
       later('models/api-keys/:provider', 'Provider'),

@@ -5,6 +5,7 @@ import { RouterProvider } from 'react-router'
 import { queryClient } from '@/app/query-client'
 import { router } from '@/app/router'
 import { TimezoneProvider } from '@/components/timezone-provider'
+import { Toaster } from '@/components/ui/sonner'
 import './index.css'
 
 const root = document.getElementById('root')
@@ -15,6 +16,7 @@ createRoot(root).render(
     <QueryClientProvider client={queryClient}>
       <TimezoneProvider>
         <RouterProvider router={router} />
+        <Toaster position="bottom-right" />
       </TimezoneProvider>
     </QueryClientProvider>
   </StrictMode>,

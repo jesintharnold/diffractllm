@@ -12,6 +12,12 @@ export const API = {
     budget: (budgetId: string) => `/v1/admin/budgets/${id(budgetId)}`,
     virtualKeys: '/v1/admin/virtual-keys',
     virtualKey: (keyId: string) => `/v1/admin/virtual-keys/${id(keyId)}`,
+    catalog: {
+      summary: '/v1/admin/catalog/summary',
+      settings: '/v1/admin/catalog/settings',
+      models: '/v1/admin/models/catalog',
+      sync: '/v1/admin/sync/catalog',
+    },
     metrics: {
       stats: '/v1/admin/metrics/stats',
       requests: '/v1/admin/metrics/requests',
@@ -19,6 +25,7 @@ export const API = {
       request: (eventId: string) => `/v1/admin/metrics/requests/${id(eventId)}`,
       payload: (eventId: string) => `/v1/admin/metrics/requests/${id(eventId)}/payload`,
       topVirtualKeys: '/v1/admin/metrics/virtual-keys/top',
+      providers: '/v1/admin/metrics/providers',
       budgetSpend: (budgetId: string) => `/v1/admin/metrics/budgets/${id(budgetId)}`,
     },
   },

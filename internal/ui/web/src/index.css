@@ -39,6 +39,7 @@
   --success: #12603f; /* good */
   --warning: #7e4211; /* warn */
   --scrim: #0e141ca6;
+  --scrim-soft: #4e5a6b33; /* light backdrop behind drawers: the page stays readable */
   --knob: #ffffff;
   --nav-selected: #0e141c0f; /* selected sidebar row: text at 6% */
 
@@ -110,6 +111,7 @@
   --success: #45b183;
   --warning: #dc8a3b;
   --scrim: #07090dcc;
+  --scrim-soft: #39414f59;
   --knob: #ffffff;
   --nav-selected: #edf1f712; /* selected sidebar row: text at 7% */
 
@@ -182,6 +184,7 @@
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-scrim: var(--scrim);
+  --color-scrim-soft: var(--scrim-soft);
   --color-knob: var(--knob);
   --color-nav-selected: var(--nav-selected);
 
