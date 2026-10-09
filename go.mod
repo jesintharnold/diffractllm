@@ -5,7 +5,7 @@ go 1.25.0
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.1
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.14.1
-	github.com/duckdb/duckdb-go/v2 v2.10505.0
+	github.com/duckdb/duckdb-go/v2 v2.10506.0
 	github.com/go-viper/mapstructure/v2 v2.5.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/stretchr/testify v1.12.1
@@ -18,12 +18,12 @@ require (
 	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic/loader v0.5.1 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
-	github.com/duckdb/duckdb-go-bindings v0.10505.0 // indirect
-	github.com/duckdb/duckdb-go-bindings/lib/darwin-amd64 v0.10505.0 // indirect
-	github.com/duckdb/duckdb-go-bindings/lib/darwin-arm64 v0.10505.0 // indirect
-	github.com/duckdb/duckdb-go-bindings/lib/linux-amd64 v0.10505.0 // indirect
-	github.com/duckdb/duckdb-go-bindings/lib/linux-arm64 v0.10505.0 // indirect
-	github.com/duckdb/duckdb-go-bindings/lib/windows-amd64 v0.10505.0 // indirect
+	github.com/duckdb/duckdb-go-bindings v0.10506.0 // indirect
+	github.com/duckdb/duckdb-go-bindings/lib/darwin-amd64 v0.10506.0 // indirect
+	github.com/duckdb/duckdb-go-bindings/lib/darwin-arm64 v0.10506.0 // indirect
+	github.com/duckdb/duckdb-go-bindings/lib/linux-amd64 v0.10506.0 // indirect
+	github.com/duckdb/duckdb-go-bindings/lib/linux-arm64 v0.10506.0 // indirect
+	github.com/duckdb/duckdb-go-bindings/lib/windows-amd64 v0.10506.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.12 // indirect
 	github.com/gin-contrib/sse v1.1.0 // indirect
