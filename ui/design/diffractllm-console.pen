@@ -1187,105 +1187,6 @@
                   "fontFamily": "$font-mono",
                   "fontSize": 15,
                   "fontWeight": "500"
-                },
-                {
-                  "type": "text",
-                  "id": "OKXIo",
-                  "name": "Sub",
-                  "fill": "$muted",
-                  "textGrowth": "fixed-width",
-                  "width": "fill_container",
-                  "content": "3 credentials · adapter registered",
-                  "fontFamily": "$font-sans",
-                  "fontSize": 11,
-                  "fontWeight": "normal"
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "type": "rectangle",
-          "id": "YeQuL",
-          "name": "Rule",
-          "fill": "$line",
-          "width": "fill_container",
-          "height": 1
-        },
-        {
-          "type": "frame",
-          "id": "T69TR",
-          "name": "Stats",
-          "width": "fill_container",
-          "gap": 10,
-          "children": [
-            {
-              "type": "frame",
-              "id": "R0sLLQ",
-              "name": "stat m",
-              "width": "fill_container",
-              "layout": "vertical",
-              "gap": 4,
-              "children": [
-                {
-                  "type": "text",
-                  "id": "i7qKFf",
-                  "name": "lm",
-                  "fill": "$muted",
-                  "textGrowth": "fixed-width",
-                  "width": "fill_container",
-                  "content": "MODELS",
-                  "fontFamily": "$font-sans",
-                  "fontSize": 9,
-                  "fontWeight": "600",
-                  "letterSpacing": 0.6
-                },
-                {
-                  "type": "text",
-                  "id": "W4U8I",
-                  "name": "vm",
-                  "fill": "$text",
-                  "textGrowth": "fixed-width",
-                  "width": "fill_container",
-                  "content": "68",
-                  "fontFamily": "$font-mono",
-                  "fontSize": 14,
-                  "fontWeight": "500"
-                }
-              ]
-            },
-            {
-              "type": "frame",
-              "id": "TnTGY",
-              "name": "stat s",
-              "width": "fill_container",
-              "layout": "vertical",
-              "gap": 4,
-              "children": [
-                {
-                  "type": "text",
-                  "id": "c4pXq",
-                  "name": "ls",
-                  "fill": "$muted",
-                  "textGrowth": "fixed-width",
-                  "width": "fill_container",
-                  "content": "ENABLED",
-                  "fontFamily": "$font-sans",
-                  "fontSize": 9,
-                  "fontWeight": "600",
-                  "letterSpacing": 0.6
-                },
-                {
-                  "type": "text",
-                  "id": "H9Yer",
-                  "name": "vs",
-                  "fill": "$text",
-                  "textGrowth": "fixed-width",
-                  "width": "fill_container",
-                  "content": "3 of 3",
-                  "fontFamily": "$font-mono",
-                  "fontSize": 14,
-                  "fontWeight": "500"
                 }
               ]
             }
@@ -13381,7 +13282,7 @@
                           "id": "iv48z",
                           "name": "a",
                           "fill": "$accent",
-                          "content": "Rotate →",
+                          "content": "Review →",
                           "fontFamily": "$font-sans",
                           "fontSize": 11,
                           "fontWeight": "500"
@@ -13401,9 +13302,9 @@
                       "alignItems": "center",
                       "children": [
                         {
-                          "id": "KehRV",
+                          "id": "oNfCt",
                           "type": "ref",
-                          "ref": "V8J44v",
+                          "ref": "U9PT10",
                           "name": "logo"
                         },
                         {
@@ -13419,7 +13320,7 @@
                               "id": "PTgLh",
                               "name": "t",
                               "fill": "$text",
-                              "content": "cohere-prod is disabled",
+                              "content": "openai-batch is disabled",
                               "fontFamily": "$font-sans",
                               "fontSize": 12,
                               "fontWeight": "500"
@@ -13429,7 +13330,7 @@
                               "id": "LxQoX",
                               "name": "s",
                               "fill": "$muted",
-                              "content": "cohere · Routing skips it, so cohere has no live credential.",
+                              "content": "openai · Routing skips it until it is turned back on.",
                               "fontFamily": "$font-sans",
                               "fontSize": 11,
                               "fontWeight": "normal"
@@ -13455,7 +13356,7 @@
                   "id": "eqHx8",
                   "name": "SectionLabel",
                   "fill": "$muted",
-                  "content": "CONFIGURED PROVIDERS · 5",
+                  "content": "CONFIGURED PROVIDERS · 2",
                   "fontFamily": "$font-sans",
                   "fontSize": 11,
                   "fontWeight": "600",
@@ -13484,6 +13385,7 @@
                           "ref": "w1vs3S",
                           "name": "tile openai",
                           "width": "fill_container",
+                          "stroke": "$warn",
                           "descendants": {
                             "LIrI9": {
                               "children": [
@@ -13498,18 +13400,9 @@
                             "y16fdZ": {
                               "content": "openai"
                             },
-                            "OKXIo": {
-                              "content": "3 credentials · adapter registered"
-                            },
-                            "W4U8I": {
-                              "content": "68"
-                            },
-                            "H9Yer": {
-                              "content": "3 of 3"
-                            },
                             "JcPqw": {
-                              "content": "All credentials active",
-                              "fill": "$muted"
+                              "content": "1 credential disabled",
+                              "fill": "$warn"
                             }
                           }
                         },
@@ -13534,15 +13427,6 @@
                             "y16fdZ": {
                               "content": "azure"
                             },
-                            "OKXIo": {
-                              "content": "2 credentials · adapter registered"
-                            },
-                            "W4U8I": {
-                              "content": "41"
-                            },
-                            "H9Yer": {
-                              "content": "2 of 2"
-                            },
                             "JcPqw": {
                               "content": "1 credential expires in 3 days",
                               "fill": "$warn"
@@ -13550,137 +13434,15 @@
                           }
                         },
                         {
-                          "id": "NjA8f",
-                          "type": "ref",
-                          "ref": "w1vs3S",
-                          "name": "tile anthropic",
-                          "width": "fill_container",
-                          "descendants": {
-                            "LIrI9": {
-                              "children": [
-                                {
-                                  "id": "POeNO",
-                                  "type": "ref",
-                                  "ref": "R88VnP",
-                                  "name": "logo"
-                                }
-                              ]
-                            },
-                            "y16fdZ": {
-                              "content": "anthropic"
-                            },
-                            "OKXIo": {
-                              "content": "1 credential · adapter registered"
-                            },
-                            "W4U8I": {
-                              "content": "12"
-                            },
-                            "H9Yer": {
-                              "content": "1 of 1"
-                            },
-                            "JcPqw": {
-                              "content": "All credentials active",
-                              "fill": "$muted"
-                            }
-                          }
-                        },
-                        {
-                          "id": "QxgNH",
-                          "type": "ref",
-                          "ref": "w1vs3S",
-                          "name": "tile cohere",
-                          "width": "fill_container",
-                          "stroke": "$warn",
-                          "descendants": {
-                            "LIrI9": {
-                              "children": [
-                                {
-                                  "id": "YBH00",
-                                  "type": "ref",
-                                  "ref": "V8J44v",
-                                  "name": "logo"
-                                }
-                              ]
-                            },
-                            "y16fdZ": {
-                              "content": "cohere"
-                            },
-                            "OKXIo": {
-                              "content": "1 credential · adapter registered"
-                            },
-                            "W4U8I": {
-                              "content": "9"
-                            },
-                            "H9Yer": {
-                              "content": "0 of 1"
-                            },
-                            "JcPqw": {
-                              "content": "1 credential disabled",
-                              "fill": "$warn"
-                            }
-                          }
-                        }
-                      ]
-                    },
-                    {
-                      "type": "frame",
-                      "id": "o7MO4u",
-                      "name": "row",
-                      "width": "fill_container",
-                      "gap": 16,
-                      "children": [
-                        {
-                          "id": "E4sL8B",
-                          "type": "ref",
-                          "ref": "w1vs3S",
-                          "name": "tile ollama",
-                          "width": "fill_container",
-                          "descendants": {
-                            "LIrI9": {
-                              "children": [
-                                {
-                                  "id": "ET5FT",
-                                  "type": "ref",
-                                  "ref": "lO9LX",
-                                  "name": "logo"
-                                }
-                              ]
-                            },
-                            "y16fdZ": {
-                              "content": "ollama"
-                            },
-                            "OKXIo": {
-                              "content": "1 credential · adapter registered"
-                            },
-                            "W4U8I": {
-                              "content": "6"
-                            },
-                            "H9Yer": {
-                              "content": "1 of 1"
-                            },
-                            "JcPqw": {
-                              "content": "All credentials active",
-                              "fill": "$muted"
-                            }
-                          }
-                        },
-                        {
                           "type": "frame",
-                          "id": "o79Q7t",
+                          "id": "kOYdi",
                           "name": "spacer",
                           "width": "fill_container",
                           "height": 1
                         },
                         {
                           "type": "frame",
-                          "id": "r7hFu",
-                          "name": "spacer",
-                          "width": "fill_container",
-                          "height": 1
-                        },
-                        {
-                          "type": "frame",
-                          "id": "h5ErSz",
+                          "id": "lqdzS",
                           "name": "spacer",
                           "width": "fill_container",
                           "height": 1
@@ -14400,16 +14162,6 @@
                           "gap": 14,
                           "justifyContent": "end",
                           "children": [
-                            {
-                              "type": "text",
-                              "id": "GbITd",
-                              "name": "rot",
-                              "fill": "$warn",
-                              "content": "Rotate",
-                              "fontFamily": "$font-sans",
-                              "fontSize": 11,
-                              "fontWeight": "500"
-                            },
                             {
                               "type": "text",
                               "id": "VK4jU",
@@ -46694,16 +46446,6 @@
                           "children": [
                             {
                               "type": "text",
-                              "id": "E9YEoy",
-                              "name": "rot",
-                              "fill": "$warn",
-                              "content": "Rotate",
-                              "fontFamily": "$font-sans",
-                              "fontSize": 11,
-                              "fontWeight": "500"
-                            },
-                            {
-                              "type": "text",
                               "id": "hxq0N",
                               "name": "e",
                               "fill": "$accent",
@@ -49398,16 +49140,6 @@
                           "gap": 14,
                           "justifyContent": "end",
                           "children": [
-                            {
-                              "type": "text",
-                              "id": "pUtpX",
-                              "name": "rot",
-                              "fill": "$warn",
-                              "content": "Rotate",
-                              "fontFamily": "$font-sans",
-                              "fontSize": 11,
-                              "fontWeight": "500"
-                            },
                             {
                               "type": "text",
                               "id": "J5gfm",
@@ -52301,16 +52033,6 @@
                           "children": [
                             {
                               "type": "text",
-                              "id": "m283cO",
-                              "name": "rot",
-                              "fill": "$warn",
-                              "content": "Rotate",
-                              "fontFamily": "$font-sans",
-                              "fontSize": 11,
-                              "fontWeight": "500"
-                            },
-                            {
-                              "type": "text",
                               "id": "g9E9M",
                               "name": "e",
                               "fill": "$accent",
@@ -53571,7 +53293,7 @@
                           "id": "vFjlt",
                           "name": "t",
                           "fill": "$muted",
-                          "content": "Pick where your models run. You'll add a credential next; the gateway routes through it right away.",
+                          "content": "Pick where your models run. Its page opens next, where you add a credential.",
                           "fontFamily": "$font-sans",
                           "fontSize": 12,
                           "fontWeight": "normal"
@@ -53728,226 +53450,6 @@
                                   ]
                                 }
                               ]
-                            },
-                            {
-                              "type": "frame",
-                              "id": "ROWml",
-                              "name": "opt anthropic",
-                              "width": "fill_container",
-                              "fill": "$sunken",
-                              "cornerRadius": "$radius-control",
-                              "stroke": "$line",
-                              "strokeWidth": 1,
-                              "gap": 10,
-                              "padding": 12,
-                              "alignItems": "center",
-                              "children": [
-                                {
-                                  "type": "frame",
-                                  "id": "FiYNQ",
-                                  "name": "Logo",
-                                  "width": 32,
-                                  "height": 32,
-                                  "fill": "$sunken",
-                                  "cornerRadius": "$radius-control",
-                                  "stroke": "$line",
-                                  "strokeWidth": 1,
-                                  "justifyContent": "center",
-                                  "alignItems": "center",
-                                  "children": [
-                                    {
-                                      "id": "SI7Qg",
-                                      "type": "ref",
-                                      "ref": "R88VnP",
-                                      "name": "logo",
-                                      "width": 18,
-                                      "height": 18
-                                    }
-                                  ]
-                                },
-                                {
-                                  "type": "frame",
-                                  "id": "rMH2q",
-                                  "name": "T",
-                                  "width": "fill_container",
-                                  "layout": "vertical",
-                                  "gap": 2,
-                                  "children": [
-                                    {
-                                      "type": "text",
-                                      "id": "XXCsE",
-                                      "name": "t",
-                                      "fill": "$text",
-                                      "content": "anthropic",
-                                      "fontFamily": "$font-mono",
-                                      "fontSize": 12,
-                                      "fontWeight": "500"
-                                    },
-                                    {
-                                      "type": "text",
-                                      "id": "yByXW",
-                                      "name": "t",
-                                      "fill": "$muted",
-                                      "content": "Claude models",
-                                      "fontFamily": "$font-sans",
-                                      "fontSize": 10,
-                                      "fontWeight": "normal"
-                                    }
-                                  ]
-                                }
-                              ]
-                            }
-                          ]
-                        },
-                        {
-                          "type": "frame",
-                          "id": "dk7ij",
-                          "name": "row",
-                          "width": "fill_container",
-                          "gap": 10,
-                          "children": [
-                            {
-                              "type": "frame",
-                              "id": "r7wJm",
-                              "name": "opt cohere",
-                              "width": "fill_container",
-                              "fill": "$sunken",
-                              "cornerRadius": "$radius-control",
-                              "stroke": "$line",
-                              "strokeWidth": 1,
-                              "gap": 10,
-                              "padding": 12,
-                              "alignItems": "center",
-                              "children": [
-                                {
-                                  "type": "frame",
-                                  "id": "rRmrb",
-                                  "name": "Logo",
-                                  "width": 32,
-                                  "height": 32,
-                                  "fill": "$sunken",
-                                  "cornerRadius": "$radius-control",
-                                  "stroke": "$line",
-                                  "strokeWidth": 1,
-                                  "justifyContent": "center",
-                                  "alignItems": "center",
-                                  "children": [
-                                    {
-                                      "id": "zQkOy",
-                                      "type": "ref",
-                                      "ref": "V8J44v",
-                                      "name": "logo",
-                                      "width": 18,
-                                      "height": 18
-                                    }
-                                  ]
-                                },
-                                {
-                                  "type": "frame",
-                                  "id": "etx21",
-                                  "name": "T",
-                                  "width": "fill_container",
-                                  "layout": "vertical",
-                                  "gap": 2,
-                                  "children": [
-                                    {
-                                      "type": "text",
-                                      "id": "fqunZ",
-                                      "name": "t",
-                                      "fill": "$text",
-                                      "content": "cohere",
-                                      "fontFamily": "$font-mono",
-                                      "fontSize": 12,
-                                      "fontWeight": "500"
-                                    },
-                                    {
-                                      "type": "text",
-                                      "id": "RmHrg",
-                                      "name": "t",
-                                      "fill": "$muted",
-                                      "content": "Command, Embed, Rerank",
-                                      "fontFamily": "$font-sans",
-                                      "fontSize": 10,
-                                      "fontWeight": "normal"
-                                    }
-                                  ]
-                                }
-                              ]
-                            },
-                            {
-                              "type": "frame",
-                              "id": "h7JSkb",
-                              "name": "opt ollama",
-                              "width": "fill_container",
-                              "fill": "$sunken",
-                              "cornerRadius": "$radius-control",
-                              "stroke": "$line",
-                              "strokeWidth": 1,
-                              "gap": 10,
-                              "padding": 12,
-                              "alignItems": "center",
-                              "children": [
-                                {
-                                  "type": "frame",
-                                  "id": "TvvPZ",
-                                  "name": "Logo",
-                                  "width": 32,
-                                  "height": 32,
-                                  "fill": "$sunken",
-                                  "cornerRadius": "$radius-control",
-                                  "stroke": "$line",
-                                  "strokeWidth": 1,
-                                  "justifyContent": "center",
-                                  "alignItems": "center",
-                                  "children": [
-                                    {
-                                      "id": "fUAmr",
-                                      "type": "ref",
-                                      "ref": "lO9LX",
-                                      "name": "logo",
-                                      "width": 18,
-                                      "height": 18
-                                    }
-                                  ]
-                                },
-                                {
-                                  "type": "frame",
-                                  "id": "ob21j",
-                                  "name": "T",
-                                  "width": "fill_container",
-                                  "layout": "vertical",
-                                  "gap": 2,
-                                  "children": [
-                                    {
-                                      "type": "text",
-                                      "id": "zWfFn",
-                                      "name": "t",
-                                      "fill": "$text",
-                                      "content": "ollama",
-                                      "fontFamily": "$font-mono",
-                                      "fontSize": 12,
-                                      "fontWeight": "500"
-                                    },
-                                    {
-                                      "type": "text",
-                                      "id": "WJx0y",
-                                      "name": "t",
-                                      "fill": "$muted",
-                                      "content": "Models on your own server",
-                                      "fontFamily": "$font-sans",
-                                      "fontSize": 10,
-                                      "fontWeight": "normal"
-                                    }
-                                  ]
-                                }
-                              ]
-                            },
-                            {
-                              "type": "frame",
-                              "id": "yf99j",
-                              "name": "spacer",
-                              "width": "fill_container",
-                              "height": 1
                             }
                           ]
                         }
@@ -54277,7 +53779,7 @@
                           "id": "tGxYY",
                           "name": "a",
                           "fill": "$accent",
-                          "content": "Rotate →",
+                          "content": "Review →",
                           "fontFamily": "$font-sans",
                           "fontSize": 11,
                           "fontWeight": "500"
@@ -54297,9 +53799,9 @@
                       "alignItems": "center",
                       "children": [
                         {
-                          "id": "JkXeC",
+                          "id": "Z5jWl",
                           "type": "ref",
-                          "ref": "V8J44v",
+                          "ref": "U9PT10",
                           "name": "logo"
                         },
                         {
@@ -54315,7 +53817,7 @@
                               "id": "FrMaT",
                               "name": "t",
                               "fill": "$text",
-                              "content": "cohere-prod is disabled",
+                              "content": "openai-batch is disabled",
                               "fontFamily": "$font-sans",
                               "fontSize": 12,
                               "fontWeight": "500"
@@ -54325,7 +53827,7 @@
                               "id": "KN5bA",
                               "name": "s",
                               "fill": "$muted",
-                              "content": "cohere · Routing skips it, so cohere has no live credential.",
+                              "content": "openai · Routing skips it until it is turned back on.",
                               "fontFamily": "$font-sans",
                               "fontSize": 11,
                               "fontWeight": "normal"
@@ -54351,7 +53853,7 @@
                   "id": "c4ske",
                   "name": "SectionLabel",
                   "fill": "$muted",
-                  "content": "CONFIGURED PROVIDERS · 5",
+                  "content": "CONFIGURED PROVIDERS · 2",
                   "fontFamily": "$font-sans",
                   "fontSize": 11,
                   "fontWeight": "600",
@@ -54380,6 +53882,7 @@
                           "ref": "w1vs3S",
                           "name": "tile openai",
                           "width": "fill_container",
+                          "stroke": "$warn",
                           "descendants": {
                             "LIrI9": {
                               "children": [
@@ -54394,18 +53897,9 @@
                             "y16fdZ": {
                               "content": "openai"
                             },
-                            "OKXIo": {
-                              "content": "3 credentials · adapter registered"
-                            },
-                            "W4U8I": {
-                              "content": "68"
-                            },
-                            "H9Yer": {
-                              "content": "3 of 3"
-                            },
                             "JcPqw": {
-                              "content": "All credentials active",
-                              "fill": "$muted"
+                              "content": "1 credential disabled",
+                              "fill": "$warn"
                             }
                           }
                         },
@@ -54430,15 +53924,6 @@
                             "y16fdZ": {
                               "content": "azure"
                             },
-                            "OKXIo": {
-                              "content": "2 credentials · adapter registered"
-                            },
-                            "W4U8I": {
-                              "content": "41"
-                            },
-                            "H9Yer": {
-                              "content": "2 of 2"
-                            },
                             "JcPqw": {
                               "content": "1 credential expires in 3 days",
                               "fill": "$warn"
@@ -54446,137 +53931,15 @@
                           }
                         },
                         {
-                          "id": "c1etc",
-                          "type": "ref",
-                          "ref": "w1vs3S",
-                          "name": "tile anthropic",
-                          "width": "fill_container",
-                          "descendants": {
-                            "LIrI9": {
-                              "children": [
-                                {
-                                  "id": "UxR5s",
-                                  "type": "ref",
-                                  "ref": "R88VnP",
-                                  "name": "logo"
-                                }
-                              ]
-                            },
-                            "y16fdZ": {
-                              "content": "anthropic"
-                            },
-                            "OKXIo": {
-                              "content": "1 credential · adapter registered"
-                            },
-                            "W4U8I": {
-                              "content": "12"
-                            },
-                            "H9Yer": {
-                              "content": "1 of 1"
-                            },
-                            "JcPqw": {
-                              "content": "All credentials active",
-                              "fill": "$muted"
-                            }
-                          }
-                        },
-                        {
-                          "id": "F5eIS",
-                          "type": "ref",
-                          "ref": "w1vs3S",
-                          "name": "tile cohere",
-                          "width": "fill_container",
-                          "stroke": "$warn",
-                          "descendants": {
-                            "LIrI9": {
-                              "children": [
-                                {
-                                  "id": "B8P8TH",
-                                  "type": "ref",
-                                  "ref": "V8J44v",
-                                  "name": "logo"
-                                }
-                              ]
-                            },
-                            "y16fdZ": {
-                              "content": "cohere"
-                            },
-                            "OKXIo": {
-                              "content": "1 credential · adapter registered"
-                            },
-                            "W4U8I": {
-                              "content": "9"
-                            },
-                            "H9Yer": {
-                              "content": "0 of 1"
-                            },
-                            "JcPqw": {
-                              "content": "1 credential disabled",
-                              "fill": "$warn"
-                            }
-                          }
-                        }
-                      ]
-                    },
-                    {
-                      "type": "frame",
-                      "id": "XRVFH",
-                      "name": "row",
-                      "width": "fill_container",
-                      "gap": 16,
-                      "children": [
-                        {
-                          "id": "i0OVB",
-                          "type": "ref",
-                          "ref": "w1vs3S",
-                          "name": "tile ollama",
-                          "width": "fill_container",
-                          "descendants": {
-                            "LIrI9": {
-                              "children": [
-                                {
-                                  "id": "f7S9zo",
-                                  "type": "ref",
-                                  "ref": "lO9LX",
-                                  "name": "logo"
-                                }
-                              ]
-                            },
-                            "y16fdZ": {
-                              "content": "ollama"
-                            },
-                            "OKXIo": {
-                              "content": "1 credential · adapter registered"
-                            },
-                            "W4U8I": {
-                              "content": "6"
-                            },
-                            "H9Yer": {
-                              "content": "1 of 1"
-                            },
-                            "JcPqw": {
-                              "content": "All credentials active",
-                              "fill": "$muted"
-                            }
-                          }
-                        },
-                        {
                           "type": "frame",
-                          "id": "qWnMO",
+                          "id": "QGiPn",
                           "name": "spacer",
                           "width": "fill_container",
                           "height": 1
                         },
                         {
                           "type": "frame",
-                          "id": "X0pjGX",
-                          "name": "spacer",
-                          "width": "fill_container",
-                          "height": 1
-                        },
-                        {
-                          "type": "frame",
-                          "id": "T8ngn",
+                          "id": "bXtyI",
                           "name": "spacer",
                           "width": "fill_container",
                           "height": 1
@@ -54735,16 +54098,6 @@
                       "fontWeight": "normal"
                     }
                   ]
-                },
-                {
-                  "type": "text",
-                  "id": "TFdeT",
-                  "name": "t",
-                  "fill": "$muted",
-                  "content": "3 credentials",
-                  "fontFamily": "$font-sans",
-                  "fontSize": 10,
-                  "fontWeight": "normal"
                 }
               ]
             },
@@ -54753,7 +54106,7 @@
               "id": "lsP66",
               "name": "opt azure",
               "width": "fill_container",
-              "fill": "#00000000",
+              "fill": "$nav-selected",
               "cornerRadius": "$radius-control",
               "gap": 10,
               "padding": [
@@ -54814,279 +54167,6 @@
                       "fontWeight": "normal"
                     }
                   ]
-                },
-                {
-                  "type": "text",
-                  "id": "uUQP0",
-                  "name": "t",
-                  "fill": "$muted",
-                  "content": "2 credentials",
-                  "fontFamily": "$font-sans",
-                  "fontSize": 10,
-                  "fontWeight": "normal"
-                }
-              ]
-            },
-            {
-              "type": "frame",
-              "id": "QlDcd",
-              "name": "opt anthropic",
-              "width": "fill_container",
-              "fill": "#00000000",
-              "cornerRadius": "$radius-control",
-              "gap": 10,
-              "padding": [
-                8,
-                10
-              ],
-              "alignItems": "center",
-              "children": [
-                {
-                  "type": "frame",
-                  "id": "LrF8N",
-                  "name": "Logo",
-                  "width": 30,
-                  "height": 30,
-                  "fill": "$sunken",
-                  "cornerRadius": "$radius-control",
-                  "stroke": "$line",
-                  "strokeWidth": 1,
-                  "justifyContent": "center",
-                  "alignItems": "center",
-                  "children": [
-                    {
-                      "id": "tqmDh",
-                      "type": "ref",
-                      "ref": "R88VnP",
-                      "name": "logo",
-                      "width": 18,
-                      "height": 18
-                    }
-                  ]
-                },
-                {
-                  "type": "frame",
-                  "id": "f8nMp",
-                  "name": "T",
-                  "width": "fill_container",
-                  "layout": "vertical",
-                  "gap": 2,
-                  "children": [
-                    {
-                      "type": "text",
-                      "id": "JtEnq",
-                      "name": "t",
-                      "fill": "$text",
-                      "content": "anthropic",
-                      "fontFamily": "$font-mono",
-                      "fontSize": 12,
-                      "fontWeight": "500"
-                    },
-                    {
-                      "type": "text",
-                      "id": "N9x8zu",
-                      "name": "t",
-                      "fill": "$muted",
-                      "content": "Claude models",
-                      "fontFamily": "$font-sans",
-                      "fontSize": 10,
-                      "fontWeight": "normal"
-                    }
-                  ]
-                },
-                {
-                  "type": "text",
-                  "id": "FPVE7",
-                  "name": "t",
-                  "fill": "$muted",
-                  "content": "1 credential",
-                  "fontFamily": "$font-sans",
-                  "fontSize": 10,
-                  "fontWeight": "normal"
-                }
-              ]
-            },
-            {
-              "type": "frame",
-              "id": "GAwaa",
-              "name": "opt cohere",
-              "width": "fill_container",
-              "fill": "$nav-selected",
-              "cornerRadius": "$radius-control",
-              "gap": 10,
-              "padding": [
-                8,
-                10
-              ],
-              "alignItems": "center",
-              "children": [
-                {
-                  "type": "frame",
-                  "id": "iJkJN",
-                  "name": "Logo",
-                  "width": 30,
-                  "height": 30,
-                  "fill": "$sunken",
-                  "cornerRadius": "$radius-control",
-                  "stroke": "$line",
-                  "strokeWidth": 1,
-                  "justifyContent": "center",
-                  "alignItems": "center",
-                  "children": [
-                    {
-                      "id": "s34zRc",
-                      "type": "ref",
-                      "ref": "V8J44v",
-                      "name": "logo",
-                      "width": 18,
-                      "height": 18
-                    }
-                  ]
-                },
-                {
-                  "type": "frame",
-                  "id": "C9SFaw",
-                  "name": "T",
-                  "width": "fill_container",
-                  "layout": "vertical",
-                  "gap": 2,
-                  "children": [
-                    {
-                      "type": "text",
-                      "id": "VJIH7",
-                      "name": "t",
-                      "fill": "$text",
-                      "content": "cohere",
-                      "fontFamily": "$font-mono",
-                      "fontSize": 12,
-                      "fontWeight": "500"
-                    },
-                    {
-                      "type": "text",
-                      "id": "wHbrK",
-                      "name": "t",
-                      "fill": "$muted",
-                      "content": "Command, Embed, Rerank",
-                      "fontFamily": "$font-sans",
-                      "fontSize": 10,
-                      "fontWeight": "normal"
-                    }
-                  ]
-                },
-                {
-                  "type": "text",
-                  "id": "vz2iE",
-                  "name": "t",
-                  "fill": "$muted",
-                  "content": "1 credential",
-                  "fontFamily": "$font-sans",
-                  "fontSize": 10,
-                  "fontWeight": "normal"
-                }
-              ]
-            },
-            {
-              "type": "frame",
-              "id": "oVEgt",
-              "name": "opt ollama",
-              "width": "fill_container",
-              "fill": "#00000000",
-              "cornerRadius": "$radius-control",
-              "gap": 10,
-              "padding": [
-                8,
-                10
-              ],
-              "alignItems": "center",
-              "children": [
-                {
-                  "type": "frame",
-                  "id": "A81Hj",
-                  "name": "Logo",
-                  "width": 30,
-                  "height": 30,
-                  "fill": "$sunken",
-                  "cornerRadius": "$radius-control",
-                  "stroke": "$line",
-                  "strokeWidth": 1,
-                  "justifyContent": "center",
-                  "alignItems": "center",
-                  "children": [
-                    {
-                      "id": "Mmccp",
-                      "type": "ref",
-                      "ref": "lO9LX",
-                      "name": "logo",
-                      "width": 18,
-                      "height": 18
-                    }
-                  ]
-                },
-                {
-                  "type": "frame",
-                  "id": "wVVMX",
-                  "name": "T",
-                  "width": "fill_container",
-                  "layout": "vertical",
-                  "gap": 2,
-                  "children": [
-                    {
-                      "type": "text",
-                      "id": "igKHB",
-                      "name": "t",
-                      "fill": "$text",
-                      "content": "ollama",
-                      "fontFamily": "$font-mono",
-                      "fontSize": 12,
-                      "fontWeight": "500"
-                    },
-                    {
-                      "type": "text",
-                      "id": "Iz6df",
-                      "name": "t",
-                      "fill": "$muted",
-                      "content": "Local models on your own server",
-                      "fontFamily": "$font-sans",
-                      "fontSize": 10,
-                      "fontWeight": "normal"
-                    }
-                  ]
-                },
-                {
-                  "type": "text",
-                  "id": "L3PQ5T",
-                  "name": "t",
-                  "fill": "$muted",
-                  "content": "1 credential",
-                  "fontFamily": "$font-sans",
-                  "fontSize": 10,
-                  "fontWeight": "normal"
-                }
-              ]
-            },
-            {
-              "type": "frame",
-              "id": "B0JZL",
-              "name": "note wrap",
-              "width": "fill_container",
-              "padding": [
-                8,
-                10,
-                6,
-                10
-              ],
-              "children": [
-                {
-                  "type": "text",
-                  "id": "yMK8t",
-                  "name": "t",
-                  "fill": "$muted",
-                  "textGrowth": "fixed-width",
-                  "width": "fill_container",
-                  "content": "Lists the providers this build has an adapter for. Choosing one opens Add credential for it.",
-                  "fontFamily": "$font-sans",
-                  "fontSize": 10,
-                  "fontWeight": "normal"
                 }
               ]
             }
@@ -55798,19 +54878,6 @@
                           "gap": 14,
                           "justifyContent": "end",
                           "children": [
-                            {
-                              "type": "text",
-                              "id": "XVJiP",
-                              "x": 38,
-                              "y": 0,
-                              "name": "rot",
-                              "enabled": false,
-                              "fill": "$muted",
-                              "content": "Rotate",
-                              "fontFamily": "$font-sans",
-                              "fontSize": 11,
-                              "fontWeight": "500"
-                            },
                             {
                               "type": "text",
                               "id": "KYrjw",
