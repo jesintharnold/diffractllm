@@ -77,6 +77,30 @@ func put(t *testing.T, h http.Handler, url string, body any) (int, map[string]an
 	return code, out
 }
 
+func TestListAllCredentials(t *testing.T) {
+	h, _, store := catalogServer(t)
+	row, err := store.CreateCredential(&core.Credential{
+		Provider: core.ProviderOpenAI, Name: "all-creds-test", APIKey: "sk-test-not-real",
+		Enabled: true, Endpoint: "https://api.openai.com", AllowedModels: []string{"*"},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = store.DeleteCredential(row.ID) })
+
+	code, raw := send(t, h, http.MethodGet, "/v1/admin/credentials", nil)
+	require.Equal(t, http.StatusOK, code, string(raw))
+	var creds []core.Credential
+	require.NoError(t, json.Unmarshal(raw, &creds))
+	found := false
+	for _, c := range creds {
+		if c.ID == row.ID {
+			found = true
+			assert.Equal(t, core.ProviderOpenAI, c.Provider)
+			assert.Equal(t, dbstore.SecretMask, c.APIKey)
+		}
+	}
+	assert.True(t, found, "the created credential is missing from the list")
+}
+
 // Overrides come back with model_type as a name on create, update and list.
 func TestCustomPricingModelTypeIsAName(t *testing.T) {
 	h, _, _ := catalogServer(t)

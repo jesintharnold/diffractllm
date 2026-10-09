@@ -142,6 +142,23 @@ func TestRequestLogsPageNewestFirst(t *testing.T) {
 	assert.Equal(t, "acme", r.ClientID)
 }
 
+// Last use spans every retained event; the count only those since `since`.
+func TestCredentialUsage(t *testing.T) {
+	_, store := seededEngine(t)
+
+	rows, err := store.GetCredentialUsage(context.Background(), "azure", t0)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, "cred-1", rows[0].CredentialID)
+	assert.True(t, rows[0].LastUsedAt.Equal(t0.Add(33*time.Minute)))
+	assert.Equal(t, int64(2), rows[0].Requests)
+
+	rows, err = store.GetCredentialUsage(context.Background(), "", t0)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, int64(5), rows[0].Requests) // "old" is before t0; the rejected one has no credential
+}
+
 func TestRequestDetailCanBeFoundByGatewayRequestID(t *testing.T) {
 	store := newTestStore(t)
 	e := seedEvent("event-1", 0, ResultOK, 200, time.Millisecond, "openai")

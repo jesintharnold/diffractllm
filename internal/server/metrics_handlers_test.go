@@ -104,6 +104,10 @@ func TestMetricsEndpoints(t *testing.T) {
 	assert.Equal(t, http.StatusOK, code)
 	assert.Equal(t, []any{}, body["rows"]) // seeded events carry no key: [] not null
 
+	code, body = get(t, h, "/v1/admin/metrics/credentials?provider=openai")
+	assert.Equal(t, http.StatusOK, code)
+	assert.Equal(t, []any{}, body["rows"]) // seeded events were not routed: [] not null
+
 	code, body = get(t, h, "/v1/admin/metrics/budgets/b1?"+hour)
 	assert.Equal(t, http.StatusOK, code)
 	assert.Equal(t, "b1", body["budget_id"])

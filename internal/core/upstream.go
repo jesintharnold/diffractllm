@@ -3,8 +3,7 @@ package core
 import "time"
 
 type NetworkConfig struct {
-	BaseURL              string            `json:"base_url"`
-	Headers              map[string]string `json:"headers,omitempty"`
+	Headers             map[string]string `json:"headers,omitempty"`
 	RequestTimeout       *time.Duration    `json:"request_timeout,omitempty"`
 	MaxRetries           *int              `json:"max_retries,omitempty"`
 	RetryBackoff         *time.Duration    `json:"retry_backoff,omitempty"`
@@ -38,7 +37,7 @@ type Upstream struct {
 }
 
 func (n NetworkConfig) IsZero() bool {
-	return n.BaseURL == "" && len(n.Headers) == 0 &&
+	return len(n.Headers) == 0 &&
 		n.RequestTimeout == nil && n.MaxRetries == nil &&
 		n.RetryBackoff == nil && n.MaxConnsPerHost == nil &&
 		n.StreamIdleTimeout == nil && n.RetryAmbiguousStatus == nil &&

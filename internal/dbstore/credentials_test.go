@@ -312,6 +312,75 @@ func TestUpdateCredentialKeepsEveryOmittedField(t *testing.T) {
 	assert.Equal(t, plainAPIKey, *got.APIKey)
 }
 
+// A nil expires_at means "unchanged", so clearing needs its own flag.
+func TestUpdateCredentialClearsTheExpiry(t *testing.T) {
+	s := store(t)
+	expiry := time.Now().Add(72 * time.Hour).UTC()
+	row := newCredential(t, s, core.ProviderOpenAI, func(c *core.Credential) { c.ExpiryAt = &expiry })
+
+	_, err := s.UpdateCredential(row.ID, UpdateCredentialRequest{Name: tptr("renamed")})
+	require.NoError(t, err)
+	got, err := s.GetCredential(row.ID)
+	require.NoError(t, err)
+	require.NotNil(t, got.ExpiryAt, "an update without clear_expiry dropped the expiry")
+
+	_, err = s.UpdateCredential(row.ID, UpdateCredentialRequest{ClearExpiry: true})
+	require.NoError(t, err)
+	got, err = s.GetCredential(row.ID)
+	require.NoError(t, err)
+	assert.Nil(t, got.ExpiryAt)
+}
+
+// Switching an azure credential off the service principal must not drag its secret along:
+// API key mode rejects a client secret, so the edit would fail validation.
+func TestUpdateCredentialSwitchesAzureAuthMode(t *testing.T) {
+	s := store(t)
+	row := newCredential(t, s, core.ProviderAzure, func(c *core.Credential) {
+		c.APIKey = ""
+		c.Settings.Azure = &core.AzureSettings{
+			AuthMode: core.AzureAuthServicePrincipal, TenantID: "t", ClientID: "c", ClientSecret: "s3cret",
+		}
+	})
+
+	// Same mode, secret omitted: kept.
+	_, err := s.UpdateCredential(row.ID, UpdateCredentialRequest{Settings: &core.CredentialSettings{
+		Azure: &core.AzureSettings{AuthMode: core.AzureAuthServicePrincipal, TenantID: "t", ClientID: "c"},
+	}})
+	require.NoError(t, err)
+	got, err := s.GetCredential(row.ID)
+	require.NoError(t, err)
+	require.NotNil(t, got.AzureClientSecret)
+	assert.Equal(t, "s3cret", *got.AzureClientSecret)
+
+	// To API key mode: the secret is dropped instead of failing validation.
+	_, err = s.UpdateCredential(row.ID, UpdateCredentialRequest{
+		APIKey:   tptr("new-key"),
+		Settings: &core.CredentialSettings{Azure: &core.AzureSettings{AuthMode: core.AzureAuthKeyMode}},
+	})
+	require.NoError(t, err)
+	got, err = s.GetCredential(row.ID)
+	require.NoError(t, err)
+	assert.Equal(t, string(core.AzureAuthKeyMode), *got.AzureAuthMode)
+	assert.True(t, got.AzureClientSecret == nil || *got.AzureClientSecret == "")
+}
+
+// Every provider's credentials come back in one list, secrets masked.
+func TestListCredentialsRedactedCoversEveryProvider(t *testing.T) {
+	s := store(t)
+	newCredential(t, s, core.ProviderOpenAI)
+	newCredential(t, s, core.ProviderAzure, func(c *core.Credential) {
+		c.Settings.Azure = &core.AzureSettings{AuthMode: core.AzureAuthKeyMode}
+	})
+
+	rows, err := s.ListCredentialsRedacted()
+	require.NoError(t, err)
+	require.Len(t, rows, 2)
+	for _, r := range rows {
+		require.NotNil(t, r.APIKey)
+		assert.Equal(t, SecretMask, *r.APIKey)
+	}
+}
+
 // Sending a field explicitly still changes it.
 func TestUpdateCredentialAppliesWhatIsSent(t *testing.T) {
 	s := store(t)

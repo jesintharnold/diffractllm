@@ -18,20 +18,28 @@ export const COLUMNS = [
 export type ColumnKey = (typeof COLUMNS)[number]['key']
 
 const ALL: ColumnKey[] = COLUMNS.map((c) => c.key)
-const STORAGE_KEY = 'diffractllm.overview.recent-columns'
+const STORAGE_KEY = 'diffractllm.overview.recent-columns.hidden'
+const LEGACY_KEY = 'diffractllm.overview.recent-columns' // the shown list, before Request ID
 
 const listeners = new Set<() => void>()
 let cached: ColumnKey[] | null = null
 
+const shown = (hidden: unknown[]) => ALL.filter((k) => !hidden.includes(k))
+
 // Per-viewer preference only: storage can be blocked, so every access is guarded.
 function load(): ColumnKey[] {
   try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null') as unknown
-    if (Array.isArray(saved)) {
-      // New columns should appear for existing viewers too; they could not have opted out of
-      // a column that did not exist when their preference was saved.
-      const keep = ALL.filter((k) => k === 'requestId' || saved.includes(k))
+    const hidden = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null') as unknown
+    if (Array.isArray(hidden)) {
+      const keep = shown(hidden)
       if (keep.length > 0) return keep
+    }
+    const legacy = JSON.parse(localStorage.getItem(LEGACY_KEY) ?? 'null') as unknown
+    if (Array.isArray(legacy)) {
+      localStorage.removeItem(LEGACY_KEY)
+      const keep = shown(ALL.filter((k) => k !== 'requestId' && !legacy.includes(k)))
+      save(keep, false)
+      return keep
     }
   } catch {
     // unreadable or blocked: fall through to the default
@@ -51,14 +59,14 @@ function subscribe(listener: () => void) {
   }
 }
 
-function save(next: ColumnKey[]) {
+function save(next: ColumnKey[], notify = true) {
   cached = next
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(ALL.filter((k) => !next.includes(k))))
   } catch {
     // not persisted; the choice still holds for this session
   }
-  for (const listener of listeners) listener()
+  if (notify) for (const listener of listeners) listener()
 }
 
 // Visible columns plus the ways to change them. The last visible column cannot be switched off.

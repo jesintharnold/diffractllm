@@ -115,6 +115,14 @@ func (s *Store) UpdateProviderConfig(provider core.Provider, network core.Networ
 		if err != nil {
 			return err
 		}
+		if proxy != nil && row.Proxy != nil {
+			if proxy.Username == SecretMask {
+				proxy.Username = row.Proxy.Username
+			}
+			if proxy.Password == SecretMask {
+				proxy.Password = row.Proxy.Password
+			}
+		}
 		row.Network = network
 		row.Proxy = proxy
 		row.IsConfigured = true

@@ -461,6 +461,35 @@ func (ds *DuckDBStore) GetProviderUsage(ctx context.Context, from, to time.Time)
 	return out, rows.Err()
 }
 
+type CredentialUsage struct {
+	CredentialID string    `json:"credential_id"`
+	LastUsedAt   time.Time `json:"last_used_at"`
+	Requests     int64     `json:"requests"` // since `since`
+}
+
+func (ds *DuckDBStore) GetCredentialUsage(ctx context.Context, provider string, since time.Time) ([]CredentialUsage, error) {
+	q := `SELECT routing_credential_id, max(started_at), count(*) FILTER (WHERE started_at >= $2)
+	FROM events
+	WHERE coalesce(routing_credential_id, '') <> '' AND ($1 = '' OR llm_provider = $1)
+	GROUP BY routing_credential_id`
+
+	rows, err := ds.db.QueryContext(ctx, q, provider, since)
+	if err != nil {
+		return nil, fmt.Errorf("credential usage: %w", err)
+	}
+	defer rows.Close()
+
+	out := []CredentialUsage{}
+	for rows.Next() {
+		var u CredentialUsage
+		if err := rows.Scan(&u.CredentialID, &u.LastUsedAt, &u.Requests); err != nil {
+			return nil, fmt.Errorf("credential usage: %w", err)
+		}
+		out = append(out, u)
+	}
+	return out, rows.Err()
+}
+
 func (ds *DuckDBStore) GetBudgetSpendByTime(ctx context.Context, budgetID string, from, to time.Time, bucket time.Duration) (*BudgetSpend, error) {
 	q := `SELECT (epoch_us(started_at) - $1) // $2 AS idx, sum(cost_nano_usd)::BIGINT
 	FROM events WHERE governance_budget_id = $3 AND started_at >= $4 AND started_at < $5

@@ -177,6 +177,14 @@ func (s *Store) ListCredentialsByProviderRedacted(provider core.Provider) ([]Sto
 	return rows, nil
 }
 
+func (s *Store) ListCredentialsRedacted() ([]StoreCredential, error) {
+	var rows []StoreCredential
+	if err := s.redacted().Preload("Provider").Find(&rows).Error; err != nil {
+		return nil, fmt.Errorf("failed to list credentials: %w", err)
+	}
+	return rows, nil
+}
+
 func (s *Store) GetCredentialRedacted(id string) (*StoreCredential, error) {
 	var row StoreCredential
 	if err := s.redacted().Preload("Provider").Where("id = ?", id).First(&row).Error; err != nil {
@@ -209,6 +217,7 @@ type UpdateCredentialRequest struct {
 	APIKey        *string                  `json:"api_key,omitempty"`
 	Enabled       *bool                    `json:"enabled,omitempty"`
 	ExpiryAt      *time.Time               `json:"expires_at,omitempty"`
+	ClearExpiry   bool                     `json:"clear_expiry,omitempty"` // a nil expires_at means "unchanged"
 	AllowedModels *[]string                `json:"allowed_models,omitempty"`
 	BlockedModels *[]string                `json:"blocked_models,omitempty"`
 	Endpoint      *string                  `json:"endpoint,omitempty"`
@@ -225,6 +234,9 @@ func (r UpdateCredentialRequest) applyTo(cred *core.Credential) {
 	}
 	if r.ExpiryAt != nil {
 		cred.ExpiryAt = r.ExpiryAt
+	}
+	if r.ClearExpiry {
+		cred.ExpiryAt = nil
 	}
 	if r.AllowedModels != nil {
 		cred.AllowedModels = *r.AllowedModels
@@ -245,7 +257,10 @@ func (r UpdateCredentialRequest) applyTo(cred *core.Credential) {
 
 	if r.Settings != nil && r.Settings.Azure != nil {
 		azure := *r.Settings.Azure
-		if azure.ClientSecret == "" || azure.ClientSecret == SecretMask {
+		if azure.ClientSecret == SecretMask {
+			azure.ClientSecret = ""
+		}
+		if azure.ClientSecret == "" && azure.AuthMode == core.AzureAuthServicePrincipal {
 			if cred.Settings.Azure != nil {
 				azure.ClientSecret = cred.Settings.Azure.ClientSecret
 			}

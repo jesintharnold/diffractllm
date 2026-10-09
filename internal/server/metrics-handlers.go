@@ -155,6 +155,15 @@ func (ds *DiffractLLMServer) getMetricsProviders(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"rows": usage})
 }
 
+func (ds *DiffractLLMServer) getMetricsCredentials(c *gin.Context) {
+	usage, err := ds.metrics.GetCredentialUsage(c.Request.Context(), c.Query("provider"))
+	if err != nil {
+		ds.metricsErr(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"rows": usage})
+}
+
 func (ds *DiffractLLMServer) getMetricsBudgetSpend(c *gin.Context) {
 	from, to, ok := timeRange(c)
 	if !ok {

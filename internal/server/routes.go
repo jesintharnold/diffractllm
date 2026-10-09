@@ -55,6 +55,7 @@ func (ds *DiffractLLMServer) routeHandlers() (http.Handler, error) {
 	admin.GET("/catalog/summary", ds.getCatalogSummary)
 	admin.GET("/catalog/settings", ds.getCatalogSettings)
 	admin.PUT("/catalog/settings", ds.putCatalogSettings)
+	admin.GET("/credentials", ds.listAllCredentials)
 
 	budgets := admin.Group("/budgets")
 	{
@@ -112,6 +113,7 @@ func (ds *DiffractLLMServer) routeHandlers() (http.Handler, error) {
 		metrics.GET("/requests/:id/payload", ds.getMetricsRequestPayload)
 		metrics.GET("/virtual-keys/top", ds.getMetricsTopVirtualKeys)
 		metrics.GET("/providers", ds.getMetricsProviders)
+		metrics.GET("/credentials", ds.getMetricsCredentials)
 		metrics.GET("/budgets/:id", ds.getMetricsBudgetSpend)
 	}
 

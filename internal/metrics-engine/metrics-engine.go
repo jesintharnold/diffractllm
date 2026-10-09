@@ -220,6 +220,12 @@ func (m *MetricsEngine) GetProviderUsage(ctx context.Context, from, to time.Time
 	return m.store.GetProviderUsage(ctx, from.UTC(), to.UTC())
 }
 
+func (m *MetricsEngine) GetCredentialUsage(ctx context.Context, provider string) ([]CredentialUsage, error) {
+	ctx, cancel := context.WithTimeout(ctx, m.config.QueryTimeout)
+	defer cancel()
+	return m.store.GetCredentialUsage(ctx, provider, time.Now().UTC().Add(-24*time.Hour))
+}
+
 func (m *MetricsEngine) GetTopVirtualKeys(ctx context.Context, from, to time.Time, limit int) ([]VirtualKeyUsage, error) {
 	if err := m.checkRange(from, to); err != nil {
 		return nil, err

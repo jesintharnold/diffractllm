@@ -13,6 +13,14 @@ export const API = {
     virtualKeys: '/v1/admin/virtual-keys',
     virtualKey: (keyId: string) => `/v1/admin/virtual-keys/${id(keyId)}`,
     models: '/v1/admin/models',
+    credentials: '/v1/admin/credentials',
+    providers: {
+      list: '/v1/admin/providers',
+      settings: (name: string) => `/v1/admin/providers/${id(name)}/settings`,
+      credentials: (name: string) => `/v1/admin/providers/${id(name)}/credentials`,
+      credential: (name: string, credId: string) =>
+        `/v1/admin/providers/${id(name)}/credentials/${id(credId)}`,
+    },
     pricing: {
       overrides: '/v1/admin/pricing/custom',
       override: (overrideId: string) => `/v1/admin/pricing/custom/${id(overrideId)}`,
@@ -31,6 +39,7 @@ export const API = {
       payload: (eventId: string) => `/v1/admin/metrics/requests/${id(eventId)}/payload`,
       topVirtualKeys: '/v1/admin/metrics/virtual-keys/top',
       providers: '/v1/admin/metrics/providers',
+      credentials: '/v1/admin/metrics/credentials',
       budgetSpend: (budgetId: string) => `/v1/admin/metrics/budgets/${id(budgetId)}`,
     },
   },

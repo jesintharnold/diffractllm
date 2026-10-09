@@ -5,6 +5,8 @@ import ComingSoonPage from '@/pages/coming-soon'
 import NotFoundPage from '@/pages/not-found'
 import OverviewPage from '@/pages/overview'
 import PricingPage from '@/pages/pricing'
+import ProviderPage from '@/pages/provider'
+import ProvidersPage from '@/pages/providers'
 
 // Routes per ADR-001 §7. Screens not built yet render ComingSoonPage under their real path.
 const later = (path: string, title: string) => ({ path, element: <ComingSoonPage title={title} /> })
@@ -16,8 +18,8 @@ export const router = createBrowserRouter([
       { index: true, element: <OverviewPage /> },
       { path: 'models/catalog', element: <CatalogPage /> },
       { path: 'models/pricing', element: <PricingPage /> },
-      later('models/api-keys', 'API keys'),
-      later('models/api-keys/:provider', 'Provider'),
+      { path: 'models/api-keys', element: <ProvidersPage /> },
+      { path: 'models/api-keys/:provider', element: <ProviderPage /> },
       later('governance/virtual-keys', 'Virtual keys'),
       later('governance/virtual-keys/:id', 'Virtual key'),
       later('governance/budgets', 'Budgets'),

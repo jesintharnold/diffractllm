@@ -20,11 +20,6 @@ func TestNetworkConfigIsZero(t *testing.T) {
 			want:   true,
 		},
 		{
-			name:   "base url set",
-			config: NetworkConfig{BaseURL: "https://api.openai.com"},
-			want:   false,
-		},
-		{
 			name:   "headers set",
 			config: NetworkConfig{Headers: map[string]string{"x-trace": "1"}},
 			want:   false,

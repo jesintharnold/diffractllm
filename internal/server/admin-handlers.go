@@ -347,6 +347,19 @@ func (ds *DiffractLLMServer) listCredentials(c *gin.Context) {
 		adminErr(c, http.StatusInternalServerError, "listing credentials")
 		return
 	}
+	writeCredentials(c, rows)
+}
+
+func (ds *DiffractLLMServer) listAllCredentials(c *gin.Context) {
+	rows, err := ds.dbStore.ListCredentialsRedacted()
+	if err != nil {
+		adminErr(c, http.StatusInternalServerError, "listing credentials")
+		return
+	}
+	writeCredentials(c, rows)
+}
+
+func writeCredentials(c *gin.Context, rows []dbstore.StoreCredential) {
 	out := make([]*core.Credential, len(rows))
 	for i := range rows {
 		out[i] = rows[i].ToCore()
