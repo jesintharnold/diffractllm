@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	_ "time/tzdata"
 
 	"diffractllm/internal/gateway"
 	logger "diffractllm/internal/observability/logging"

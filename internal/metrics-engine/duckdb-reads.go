@@ -172,7 +172,7 @@ func (ds *DuckDBStore) GetOverviewTiles(ctx context.Context, from, to time.Time)
 	return &t, nil
 }
 
-func (ds *DuckDBStore) GetRequestSummaryByTime(ctx context.Context, from, to time.Time, bucket time.Duration) (*TimeSummary, error) {
+func (ds *DuckDBStore) GetRequestSummaryByTime(ctx context.Context, from, to time.Time, bucket time.Duration, loc *time.Location) (*TimeSummary, error) {
 	q := `SELECT (epoch_us(started_at) - $1) // $2 AS idx, coalesce(llm_provider, ''),
 		count(*) FILTER (outcome_result = 'ok'),
 		count(*) FILTER (` + isError + `),
@@ -180,7 +180,7 @@ func (ds *DuckDBStore) GetRequestSummaryByTime(ctx context.Context, from, to tim
 	FROM events WHERE started_at >= $3 AND started_at < $4
 	GROUP BY ALL ORDER BY idx, 2`
 
-	start, n := bucketStart(from, to, bucket)
+	start, n := bucketStartIn(from, to, bucket, loc)
 	s := &TimeSummary{From: from, To: to, BucketSeconds: bucket.Seconds(), Points: make([]TimePoint, n)}
 	for i := range s.Points {
 		s.Points[i] = TimePoint{T: start.Add(time.Duration(i) * bucket), Providers: []ProviderCount{}}
@@ -384,16 +384,32 @@ type BudgetSpend struct {
 	To            time.Time    `json:"to"`
 	BucketSeconds float64      `json:"bucket_seconds"`
 	Points        []SpendPoint `json:"points"`
+	Breakdown []SpendRow `json:"breakdown"`
 }
 
 type SpendPoint struct {
 	T        time.Time `json:"t"`
 	SpendUSD float64   `json:"spend_usd"`
+	Requests int64     `json:"requests"`
+}
+
+type SpendRow struct {
+	T        time.Time `json:"t"`
+	Provider string    `json:"provider"`
+	Model    string    `json:"model"`
+	SpendUSD float64   `json:"spend_usd"`
+	Requests int64     `json:"requests"`
 }
 
 func bucketStart(from, to time.Time, bucket time.Duration) (time.Time, int) {
+	return bucketStartIn(from, to, bucket, time.UTC)
+}
+
+func bucketStartIn(from, to time.Time, bucket time.Duration, loc *time.Location) (time.Time, int) {
+	_, offset := from.In(loc).Zone()
+	shift := int64(offset) * int64(time.Second/time.Microsecond)
 	b := bucket.Microseconds()
-	start := time.UnixMicro(from.UnixMicro() / b * b).UTC()
+	start := time.UnixMicro((from.UnixMicro()+shift)/b*b - shift).UTC()
 	return start, int((to.Sub(start) + bucket - 1) / bucket)
 }
 
@@ -520,13 +536,18 @@ func (ds *DuckDBStore) GetCredentialUsage(ctx context.Context, provider string, 
 	return out, rows.Err()
 }
 
-func (ds *DuckDBStore) GetBudgetSpendByTime(ctx context.Context, budgetID string, from, to time.Time, bucket time.Duration) (*BudgetSpend, error) {
-	q := `SELECT (epoch_us(started_at) - $1) // $2 AS idx, sum(cost_nano_usd)::BIGINT
-	FROM events WHERE governance_budget_id = $3 AND started_at >= $4 AND started_at < $5
-	GROUP BY idx`
 
-	start, n := bucketStart(from, to, bucket)
-	s := &BudgetSpend{BudgetID: budgetID, From: from, To: to, BucketSeconds: bucket.Seconds(), Points: make([]SpendPoint, n)}
+func (ds *DuckDBStore) GetBudgetSpendByTime(ctx context.Context, budgetID string, from, to time.Time, bucket time.Duration, loc *time.Location) (*BudgetSpend, error) {
+	q := `SELECT (epoch_us(started_at) - $1) // $2 AS idx, llm_provider, coalesce(llm_model, llm_requested_model, ''),
+		sum(cost_nano_usd)::BIGINT, count(*)
+	FROM events
+	WHERE governance_budget_id = $3 AND coalesce(llm_provider, '') <> '' AND started_at >= $4 AND started_at < $5
+	GROUP BY 1, 2, 3
+	ORDER BY 1, 4 DESC, 2, 3`
+
+	start, n := bucketStartIn(from, to, bucket, loc)
+	s := &BudgetSpend{BudgetID: budgetID, From: from, To: to, BucketSeconds: bucket.Seconds(), Points: make([]SpendPoint, n), Breakdown: []SpendRow{}}
+	nano := make([]int64, n)
 	for i := range s.Points {
 		s.Points[i].T = start.Add(time.Duration(i) * bucket)
 	}
@@ -537,11 +558,17 @@ func (ds *DuckDBStore) GetBudgetSpendByTime(ctx context.Context, budgetID string
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var idx, nano int64
-		if err := rows.Scan(&idx, &nano); err != nil {
+		var idx, cost, requests int64
+		var provider, model string
+		if err := rows.Scan(&idx, &provider, &model, &cost, &requests); err != nil {
 			return nil, fmt.Errorf("budget spend: %w", err)
 		}
-		s.Points[idx].SpendUSD = usd(nano)
+		nano[idx] += cost
+		s.Points[idx].Requests += requests
+		s.Breakdown = append(s.Breakdown, SpendRow{T: s.Points[idx].T, Provider: provider, Model: model, SpendUSD: usd(cost), Requests: requests})
+	}
+	for i := range s.Points {
+		s.Points[i].SpendUSD = usd(nano[i])
 	}
 	return s, rows.Err()
 }

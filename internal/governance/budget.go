@@ -74,6 +74,18 @@ func (bc *BudgetCache) LookupBudget(budgetID string) (*Budget, bool) {
 	return b.(*Budget), true
 }
 
+func (bc *BudgetCache) Live(budgetID string) (spend, requests int64, windowStart time.Time, ok bool) {
+	b, found := bc.LookupBudget(budgetID)
+	if !found {
+		return 0, 0, time.Time{}, false
+	}
+	cfg := b.Config.Load()
+	if cfg == nil {
+		return 0, 0, time.Time{}, false
+	}
+	return b.WindowCost.Load(), b.WindowReqs.Load(), cfg.LastBudgetRefreshAt, true
+}
+
 func (bc *BudgetCache) LoadBudgets(budgetData []*core.Budget) {
 	tempactiveIDs := make(map[string]struct{}, len(budgetData))
 	for _, dbBudget := range budgetData {

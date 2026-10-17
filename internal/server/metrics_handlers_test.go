@@ -117,6 +117,26 @@ func TestMetricsEndpoints(t *testing.T) {
 	assert.Equal(t, "b1", body["budget_id"])
 	assert.Equal(t, 60.0, body["bucket_seconds"])
 	assert.Len(t, body["points"], 60)
+	assert.Equal(t, []any{}, body["breakdown"]) // no spend for b1: [] not null
+	point := body["points"].([]any)[0].(map[string]any)
+	assert.Contains(t, point, "requests", "each bucket reports its request count")
+
+	code, body = get(t, h, "/v1/admin/metrics/budgets/b1?from=2026-10-01T10:00:00Z&to=2026-10-04T10:00:00Z&bucket=86400&tz=Asia/Kolkata")
+	assert.Equal(t, http.StatusOK, code, body)
+	assert.Equal(t, 86400.0, body["bucket_seconds"])
+	first := body["points"].([]any)[0].(map[string]any)
+	assert.Equal(t, "2026-09-30T18:30:00Z", first["t"])
+
+	for name, query := range map[string]string{
+		"a bucket that is not a number": "bucket=day",
+		"a bucket of zero":              "bucket=0",
+		"a bucket that is not offered":  "bucket=90",
+		"a zone that does not exist":    "bucket=3600&tz=Mars/Olympus",
+	} {
+		code, body = get(t, h, "/v1/admin/metrics/budgets/b1?from=2026-10-01T10:00:00Z&to=2026-10-02T10:00:00Z&"+query)
+		assert.Equal(t, http.StatusBadRequest, code, name)
+		assert.NotEmpty(t, body["error"], name)
+	}
 }
 
 func TestMetricsEndpointsRejectBadParams(t *testing.T) {
@@ -139,4 +159,24 @@ func TestMetricsEndpointsAnswer503WhenDisabled(t *testing.T) {
 	code, body := get(t, metricsServer(t, false), "/v1/admin/metrics/stats?"+hour)
 	assert.Equal(t, http.StatusServiceUnavailable, code)
 	assert.Equal(t, "metrics engine is disabled", body["error"])
+}
+
+func TestRequestSummaryTakesBucketAndZone(t *testing.T) {
+	h := metricsServer(t, true)
+
+	code, body := get(t, h, "/v1/admin/metrics/requests/summary?from=2026-10-01T10:00:00Z&to=2026-10-04T10:00:00Z&bucket=86400&tz=Asia/Kolkata")
+	assert.Equal(t, http.StatusOK, code, body)
+	assert.Equal(t, 86400.0, body["bucket_seconds"])
+	first := body["points"].([]any)[0].(map[string]any)
+	assert.Equal(t, "2026-09-30T18:30:00Z", first["t"], "days start at the viewer's midnight")
+
+	for name, query := range map[string]string{
+		"a bucket that is not a number": "bucket=day",
+		"a bucket that is not offered":  "bucket=90",
+		"a zone that does not exist":    "bucket=3600&tz=Mars/Olympus",
+	} {
+		code, body = get(t, h, "/v1/admin/metrics/requests/summary?from=2026-10-01T10:00:00Z&to=2026-10-02T10:00:00Z&"+query)
+		assert.Equal(t, http.StatusBadRequest, code, name)
+		assert.NotEmpty(t, body["error"], name)
+	}
 }

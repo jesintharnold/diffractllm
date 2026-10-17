@@ -79,7 +79,7 @@ func TestBucketForFollowsBifrost(t *testing.T) {
 
 func TestRequestSummaryPicksTheBucketFromTheRange(t *testing.T) {
 	m, _ := seededEngine(t)
-	s, err := m.GetRequestSummaryByTime(context.Background(), t0, t0.Add(2*time.Hour))
+	s, err := m.GetRequestSummaryByTime(context.Background(), t0, t0.Add(2*time.Hour), BucketView{})
 	require.NoError(t, err)
 
 	assert.Equal(t, 600.0, s.BucketSeconds) // 2h -> 10 minute bars
@@ -101,7 +101,7 @@ func TestRequestSummaryPicksTheBucketFromTheRange(t *testing.T) {
 func TestRequestSummaryAlignsBarsToTheClock(t *testing.T) {
 	m, _ := seededEngine(t)
 	from := t0.Add(90 * time.Second) // 10:01:30
-	s, err := m.GetRequestSummaryByTime(context.Background(), from, from.Add(time.Hour))
+	s, err := m.GetRequestSummaryByTime(context.Background(), from, from.Add(time.Hour), BucketView{})
 	require.NoError(t, err)
 
 	assert.Equal(t, 60.0, s.BucketSeconds)
@@ -262,7 +262,7 @@ func TestReadsRejectBadQueries(t *testing.T) {
 	assert.ErrorIs(t, err, ErrInvalidQuery)
 	_, err = m.GetOverviewTiles(ctx, t0, t0.Add(91*24*time.Hour))
 	assert.ErrorIs(t, err, ErrInvalidQuery)
-	_, err = m.GetRequestSummaryByTime(ctx, t0, t0.Add(59*time.Minute)) // under the 1h minimum
+	_, err = m.GetRequestSummaryByTime(ctx, t0, t0.Add(59*time.Minute), BucketView{}) // under the 1h minimum
 	assert.ErrorIs(t, err, ErrInvalidQuery)
 	_, err = m.GetRequestLogsByTime(ctx, t0, t0.Add(time.Hour), 0, 201)
 	assert.ErrorIs(t, err, ErrInvalidQuery)
@@ -322,22 +322,60 @@ func TestProviderUsage(t *testing.T) {
 
 func TestBudgetSpendByTime(t *testing.T) {
 	m := governedEngine(t)
-	s, err := m.GetBudgetSpendByTime(context.Background(), "b1", t0, t0.Add(2*time.Hour))
+	s, err := m.GetBudgetSpendByTime(context.Background(), "b1", t0, t0.Add(2*time.Hour), BucketView{})
 	require.NoError(t, err)
 
 	assert.Equal(t, "b1", s.BudgetID)
 	assert.Equal(t, 600.0, s.BucketSeconds) // 2h -> 10 minute bars
 	require.Len(t, s.Points, 12)
-	assert.Equal(t, SpendPoint{T: t0, SpendUSD: 0.001}, s.Points[0])
-	assert.Equal(t, SpendPoint{T: t0.Add(60 * time.Minute), SpendUSD: 0.002}, s.Points[6])
+	assert.Equal(t, SpendPoint{T: t0, SpendUSD: 0.001, Requests: 1}, s.Points[0])
+	assert.Equal(t, SpendPoint{T: t0.Add(60 * time.Minute), SpendUSD: 0.002, Requests: 1}, s.Points[6])
 	assert.Zero(t, s.Points[1].SpendUSD) // b2's spend at 10:02 is not here
 
-	s, err = m.GetBudgetSpendByTime(context.Background(), "nope", t0, t0.Add(2*time.Hour))
+	s, err = m.GetBudgetSpendByTime(context.Background(), "nope", t0, t0.Add(2*time.Hour), BucketView{})
 	require.NoError(t, err)
 	require.Len(t, s.Points, 12)
 	for _, p := range s.Points {
 		assert.Zero(t, p.SpendUSD)
+		assert.Zero(t, p.Requests)
 	}
+	assert.NotNil(t, s.Breakdown, "an empty breakdown is [], not null")
+	assert.Empty(t, s.Breakdown)
+}
+
+// Each bucket's spend is also split by provider and model, so the UI can filter to one bucket or
+// sum the whole range from a single response. A refused request has no provider and is left out.
+func TestBudgetSpendBreakdown(t *testing.T) {
+	store := newTestStore(t)
+	mini := governed("m1", 3*time.Minute, "vk", "b9", 500_000, ResultOK)
+	mini.LLM.Provider, mini.LLM.Model = "azure", "gpt-4o-mini"
+	refused := seedEvent("rej", 4*time.Minute, ResultRejected, 400, time.Millisecond, "")
+	refused.Governance = Governance{BudgetID: "b9"}
+	require.NoError(t, store.Write(context.Background(), []*Event{
+		governed("g1", 1*time.Minute, "vk", "b9", 1_000_000, ResultOK),
+		governed("g2", 2*time.Minute, "vk", "b9", 2_000_000, ResultOK),
+		mini,
+		governed("g3", 65*time.Minute, "vk", "b9", 4_000_000, ResultOK),
+		refused,
+	}))
+	m := newTestEngine(store, 10)
+
+	s, err := m.GetBudgetSpendByTime(context.Background(), "b9", t0, t0.Add(2*time.Hour), BucketView{})
+	require.NoError(t, err)
+
+	assert.InDelta(t, 0.0035, s.Points[0].SpendUSD, 1e-12)
+	assert.EqualValues(t, 3, s.Points[0].Requests, "the refused request is not counted")
+	assert.InDelta(t, 0.004, s.Points[6].SpendUSD, 1e-12)
+
+	require.Len(t, s.Breakdown, 3)
+	assert.Equal(t, "openai", s.Breakdown[0].Provider)
+	assert.Equal(t, "gpt-4o", s.Breakdown[0].Model)
+	assert.Equal(t, t0, s.Breakdown[0].T)
+	assert.EqualValues(t, 2, s.Breakdown[0].Requests, "two events of one model share a row")
+	assert.InDelta(t, 0.003, s.Breakdown[0].SpendUSD, 1e-12)
+	assert.Equal(t, "azure", s.Breakdown[1].Provider, "the bigger spend comes first within a bucket")
+	assert.Equal(t, "gpt-4o-mini", s.Breakdown[1].Model)
+	assert.Equal(t, t0.Add(60*time.Minute), s.Breakdown[2].T)
 }
 
 func TestTopAndBudgetRejectBadQueries(t *testing.T) {
@@ -348,8 +386,76 @@ func TestTopAndBudgetRejectBadQueries(t *testing.T) {
 	assert.ErrorIs(t, err, ErrInvalidQuery)
 	_, err = m.GetTopVirtualKeys(ctx, t0, t0.Add(time.Hour), 51)
 	assert.ErrorIs(t, err, ErrInvalidQuery)
-	_, err = m.GetBudgetSpendByTime(ctx, "", t0, t0.Add(time.Hour))
+	_, err = m.GetBudgetSpendByTime(ctx, "", t0, t0.Add(time.Hour), BucketView{})
 	assert.ErrorIs(t, err, ErrInvalidQuery)
-	_, err = m.GetBudgetSpendByTime(ctx, "b1", t0, t0.Add(30*time.Minute))
+	_, err = m.GetBudgetSpendByTime(ctx, "b1", t0, t0.Add(30*time.Minute), BucketView{})
+	assert.ErrorIs(t, err, ErrInvalidQuery)
+}
+
+// A viewer can ask for a bucket size and cut it on their own clock: days start at their midnight and
+// hours at :00, even in a zone that is not a whole hour from UTC.
+func TestBudgetSpendBucketsFollowTheViewersClock(t *testing.T) {
+	kolkata, err := time.LoadLocation("Asia/Kolkata")
+	require.NoError(t, err)
+	store := newTestStore(t)
+	require.NoError(t, store.Write(context.Background(), []*Event{
+		governed("d1", 10*time.Minute, "vk", "b7", 1_000_000, ResultOK),                // 15:40 IST, Oct 1
+		governed("d3", 10*time.Hour+30*time.Minute, "vk", "b7", 3_000_000, ResultOK),   // 02:00 IST, Oct 2 (still Oct 1 in UTC)
+		governed("d2", 24*time.Hour+10*time.Minute, "vk", "b7", 2_000_000, ResultOK),   // 15:40 IST, Oct 2
+	}))
+	m := newTestEngine(store, 10)
+	ctx := context.Background()
+
+	s, err := m.GetBudgetSpendByTime(ctx, "b7", t0, t0.Add(72*time.Hour), BucketView{Bucket: 24 * time.Hour, Zone: kolkata})
+	require.NoError(t, err)
+	assert.Equal(t, 86_400.0, s.BucketSeconds)
+	require.Len(t, s.Points, 4)
+	assert.Equal(t, time.Date(2026, 9, 30, 18, 30, 0, 0, time.UTC), s.Points[0].T, "the first day starts at 00:00 IST")
+	assert.EqualValues(t, 1, s.Points[0].Requests)
+	assert.EqualValues(t, 2, s.Points[1].Requests, "02:00 IST on Oct 2 belongs to that day, not the UTC one")
+	assert.InDelta(t, 0.005, s.Points[1].SpendUSD, 1e-12)
+
+	u, err := m.GetBudgetSpendByTime(ctx, "b7", t0, t0.Add(72*time.Hour), BucketView{Bucket: 24 * time.Hour})
+	require.NoError(t, err)
+	assert.Equal(t, time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC), u.Points[0].T, "no zone means UTC days")
+	assert.EqualValues(t, 2, u.Points[0].Requests)
+
+	h, err := m.GetBudgetSpendByTime(ctx, "b7", t0.Add(7*time.Minute), t0.Add(3*time.Hour), BucketView{Bucket: time.Hour, Zone: kolkata})
+	require.NoError(t, err)
+	assert.Equal(t, time.Date(2026, 10, 1, 9, 30, 0, 0, time.UTC), h.Points[0].T, "hours start at :00 IST, which is :30 UTC")
+}
+
+func TestBudgetSpendRejectsABucketItCannotCut(t *testing.T) {
+	m := governedEngine(t)
+	ctx := context.Background()
+
+	_, err := m.GetBudgetSpendByTime(ctx, "b1", t0, t0.Add(2*time.Hour), BucketView{Bucket: 90 * time.Second})
+	assert.ErrorIs(t, err, ErrInvalidQuery, "only the drill-down sizes are allowed")
+
+	_, err = m.GetBudgetSpendByTime(ctx, "b1", t0, t0.Add(30*24*time.Hour), BucketView{Bucket: time.Minute})
+	assert.ErrorIs(t, err, ErrInvalidQuery, "a month of minutes is too many buckets")
+
+	_, err = m.GetBudgetSpendByTime(ctx, "b1", t0, t0.Add(30*24*time.Hour), BucketView{Bucket: 24 * time.Hour})
+	assert.NoError(t, err)
+}
+
+// The Overview chart drills the same way: a requested bar size, cut on the viewer's clock.
+func TestRequestSummaryFollowsTheRequestedBucketAndZone(t *testing.T) {
+	kolkata, err := time.LoadLocation("Asia/Kolkata")
+	require.NoError(t, err)
+	m, _ := seededEngine(t)
+	ctx := context.Background()
+
+	s, err := m.GetRequestSummaryByTime(ctx, t0, t0.Add(72*time.Hour), BucketView{Bucket: 24 * time.Hour, Zone: kolkata})
+	require.NoError(t, err)
+	assert.Equal(t, 86_400.0, s.BucketSeconds)
+	require.Len(t, s.Points, 4)
+	assert.Equal(t, time.Date(2026, 9, 30, 18, 30, 0, 0, time.UTC), s.Points[0].T, "days start at 00:00 IST")
+
+	d, err := m.GetRequestSummaryByTime(ctx, t0, t0.Add(72*time.Hour), BucketView{})
+	require.NoError(t, err)
+	assert.Equal(t, (8 * time.Hour).Seconds(), d.BucketSeconds, "no options: the server picks, as before")
+
+	_, err = m.GetRequestSummaryByTime(ctx, t0, t0.Add(2*time.Hour), BucketView{Bucket: 90 * time.Second})
 	assert.ErrorIs(t, err, ErrInvalidQuery)
 }

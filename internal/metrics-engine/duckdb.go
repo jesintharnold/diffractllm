@@ -22,7 +22,7 @@ type OLAPStore interface {
 	Write(ctx context.Context, events []*Event) error
 	Close() error
 	GetOverviewTiles(ctx context.Context, from, to time.Time) (*OverviewTiles, error)
-	GetRequestSummaryByTime(ctx context.Context, from, to time.Time, bucket time.Duration) (*TimeSummary, error)
+	GetRequestSummaryByTime(ctx context.Context, from, to time.Time, bucket time.Duration, loc *time.Location) (*TimeSummary, error)
 	GetRequestLogsByTime(ctx context.Context, from, to time.Time, offset, limit int) (*RequestLogPage, error)
 	GetRequestDetailByID(ctx context.Context, id string) (*RequestDetail, error)
 	GetRequestDetailByRequestID(ctx context.Context, requestID string) (*RequestDetail, error)
@@ -31,7 +31,7 @@ type OLAPStore interface {
 	GetProviderUsage(ctx context.Context, from, to time.Time) ([]ProviderUsage, error)
 	GetCredentialUsage(ctx context.Context, provider string, since time.Time) ([]CredentialUsage, error)
 	GetVirtualKeyLastUse(ctx context.Context, since time.Time) ([]VirtualKeyLastUse, error)
-	GetBudgetSpendByTime(ctx context.Context, budgetID string, from, to time.Time, bucket time.Duration) (*BudgetSpend, error)
+	GetBudgetSpendByTime(ctx context.Context, budgetID string, from, to time.Time, bucket time.Duration, loc *time.Location) (*BudgetSpend, error)
 }
 
 //go:embed migrations/*.sql

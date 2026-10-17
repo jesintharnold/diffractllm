@@ -393,3 +393,30 @@ func TestDeleteBudget(t *testing.T) {
 	bc.DeleteBudget("b1")
 	bc.DeleteBudget("never-existed")
 }
+
+// ---------- Live ----------
+
+// Live reads the counters enforcement uses, not the seed the database last wrote.
+func TestBudgetCacheLive(t *testing.T) {
+	start := time.Now().UTC().Add(-3 * time.Hour).Truncate(time.Second)
+	bc := bCache(t, bCfg("b", 1_000, func(b *core.Budget) {
+		b.TotalSpend, b.RequestCount, b.LastBudgetRefreshAt = 100, 2, start
+	}))
+
+	spend, reqs, at, ok := bc.Live("b")
+	require.True(t, ok)
+	assert.EqualValues(t, 100, spend, "seeded from the stored window")
+	assert.EqualValues(t, 2, reqs)
+	assert.Equal(t, start, at)
+
+	live, found := bc.LookupBudget("b")
+	require.True(t, found)
+	live.RecordUsage(40)
+
+	spend, reqs, _, _ = bc.Live("b")
+	assert.EqualValues(t, 140, spend, "spend recorded since the last flush is visible at once")
+	assert.EqualValues(t, 3, reqs)
+
+	_, _, _, ok = bc.Live("missing")
+	assert.False(t, ok)
+}

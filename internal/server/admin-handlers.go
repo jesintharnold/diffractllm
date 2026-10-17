@@ -4,6 +4,7 @@ import (
 	"diffractllm/internal/buildinfo"
 	"diffractllm/internal/core"
 	"diffractllm/internal/dbstore"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -25,14 +26,37 @@ func adminErr(c *gin.Context, code int, msg string) {
 }
 
 // --------- Budget handlers -------------
+func (ds *DiffractLLMServer) budgetErr(c *gin.Context, op string, err error) {
+	switch {
+	case errors.Is(err, dbstore.ErrBudgetNotFound):
+		adminErr(c, http.StatusNotFound, "budget not found")
+	case errors.Is(err, dbstore.ErrBudgetNameTaken):
+		adminErr(c, http.StatusConflict, err.Error())
+	case errors.Is(err, dbstore.ErrBudgetBound):
+		adminErr(c, http.StatusConflict, "this budget cannot be deleted while it is bound to an active key; disable or delete that key first")
+	case errors.Is(err, dbstore.ErrInvalidBudget):
+		adminErr(c, http.StatusBadRequest, strings.TrimPrefix(err.Error(), dbstore.ErrInvalidBudget.Error()+": "))
+	default:
+		ds.logger.Error(op+" budget", zap.Error(err))
+		adminErr(c, http.StatusInternalServerError, op+" budget failed")
+	}
+}
+
+func (ds *DiffractLLMServer) budgetView(row *dbstore.StoreBudget) *core.Budget {
+	b := row.ToCore()
+	if spend, requests, windowStart, ok := ds.governance.BudgetCache.Live(row.ID); ok {
+		b.TotalSpend, b.RequestCount, b.LastBudgetRefreshAt = spend, requests, windowStart
+	}
+	return b
+}
 
 func (ds *DiffractLLMServer) getBudget(c *gin.Context) {
 	row, err := ds.dbStore.GetBudget(c.Param("id"))
 	if err != nil {
-		adminErr(c, http.StatusNotFound, "budget not found")
+		ds.budgetErr(c, "get", err)
 		return
 	}
-	c.JSON(http.StatusOK, row.ToCore())
+	c.JSON(http.StatusOK, ds.budgetView(row))
 }
 
 func (ds *DiffractLLMServer) createBudget(c *gin.Context) {
@@ -45,38 +69,56 @@ func (ds *DiffractLLMServer) createBudget(c *gin.Context) {
 
 	row, err := ds.dbStore.CreateBudget(payload)
 	if err != nil {
-		ds.logger.Error("create budget", zap.Error(err))
-		adminErr(c, http.StatusBadRequest, err.Error())
+		ds.budgetErr(c, "create", err)
 		return
 	}
 	ds.governance.BudgetCache.UpsertBudget(row.ToCore())
 	c.JSON(http.StatusCreated, row.ToCore())
 }
 
+
+type updateBudgetRequest struct {
+	Name           string `json:"name"`
+	BudgetLimit    int64  `json:"budget_limit"` // nano-USD
+	BudgetDuration string `json:"budget_duration"`
+	Enforce        *bool  `json:"enforce"`
+}
+
 func (ds *DiffractLLMServer) updateBudget(c *gin.Context) {
 	id := c.Param("id")
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, adminMaxBody)
 
-	var payload core.Budget
+	var payload updateBudgetRequest
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		adminErr(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	row, err := ds.dbStore.UpdateBudget(id, payload)
+	existing, err := ds.dbStore.GetBudget(id)
 	if err != nil {
-		ds.logger.Error("update budget", zap.Error(err))
-		adminErr(c, http.StatusBadRequest, err.Error())
+		ds.budgetErr(c, "update", err)
+		return
+	}
+	if payload.Name != "" && payload.Name != existing.Name {
+		adminErr(c, http.StatusBadRequest, "a budget's name cannot be changed")
+		return
+	}
+
+	row, err := ds.dbStore.UpdateBudget(id, core.Budget{
+		BudgetLimit: payload.BudgetLimit, BudgetDuration: payload.BudgetDuration, Enforce: payload.Enforce,
+	})
+	if err != nil {
+		ds.budgetErr(c, "update", err)
 		return
 	}
 	ds.governance.BudgetCache.UpsertBudget(row.ToCore())
-	c.JSON(http.StatusOK, row.ToCore())
+	c.JSON(http.StatusOK, ds.budgetView(row))
 }
 
 func (ds *DiffractLLMServer) deleteBudget(c *gin.Context) {
 	id := c.Param("id")
 	if err := ds.dbStore.DeleteBudget(id); err != nil {
-		adminErr(c, http.StatusConflict, err.Error())
+		ds.budgetErr(c, "delete", err)
 		return
 	}
 	ds.governance.BudgetCache.DeleteBudget(id)
@@ -91,7 +133,7 @@ func (ds *DiffractLLMServer) listBudgets(c *gin.Context) {
 	}
 	out := make([]*core.Budget, len(rows))
 	for i := range rows {
-		out[i] = rows[i].ToCore()
+		out[i] = ds.budgetView(&rows[i])
 	}
 	c.JSON(http.StatusOK, out)
 }

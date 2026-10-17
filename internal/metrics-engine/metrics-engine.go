@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	config "diffractllm/configs"
@@ -166,13 +167,17 @@ func (m *MetricsEngine) GetOverviewTiles(ctx context.Context, from, to time.Time
 	return m.store.GetOverviewTiles(ctx, from.UTC(), to.UTC())
 }
 
-func (m *MetricsEngine) GetRequestSummaryByTime(ctx context.Context, from, to time.Time) (*TimeSummary, error) {
+func (m *MetricsEngine) GetRequestSummaryByTime(ctx context.Context, from, to time.Time, view BucketView) (*TimeSummary, error) {
 	if err := m.checkRange(from, to); err != nil {
+		return nil, err
+	}
+	bucket, zone, err := resolveBucket(view, from, to)
+	if err != nil {
 		return nil, err
 	}
 	ctx, cancel := context.WithTimeout(ctx, m.config.QueryTimeout)
 	defer cancel()
-	return m.store.GetRequestSummaryByTime(ctx, from.UTC(), to.UTC(), bucketFor(to.Sub(from)))
+	return m.store.GetRequestSummaryByTime(ctx, from.UTC(), to.UTC(), bucket, zone)
 }
 
 func (m *MetricsEngine) GetRequestLogsByTime(ctx context.Context, from, to time.Time, offset, limit int) (*RequestLogPage, error) {
@@ -245,16 +250,50 @@ func (m *MetricsEngine) GetTopVirtualKeys(ctx context.Context, from, to time.Tim
 	return m.store.GetTopVirtualKeys(ctx, from.UTC(), to.UTC(), limit)
 }
 
-func (m *MetricsEngine) GetBudgetSpendByTime(ctx context.Context, budgetID string, from, to time.Time) (*BudgetSpend, error) {
+
+type BucketView struct {
+	Bucket time.Duration  // 0 picks from the range; otherwise one of drillBuckets
+	Zone   *time.Location // nil is UTC; buckets start on this zone's clock boundaries
+}
+
+var drillBuckets = []time.Duration{
+	time.Minute, 10 * time.Minute, time.Hour, 8 * time.Hour,
+	24 * time.Hour, 72 * time.Hour, 168 * time.Hour, 720 * time.Hour,
+}
+
+const maxBuckets = 1000
+
+func resolveBucket(view BucketView, from, to time.Time) (time.Duration, *time.Location, error) {
+	bucket := view.Bucket
+	if bucket == 0 {
+		bucket = bucketFor(to.Sub(from))
+	} else if !slices.Contains(drillBuckets, bucket) {
+		return 0, nil, fmt.Errorf("%w: bucket must be 1m, 10m, 1h, 8h, 1d, 3d, 7d or 30d", ErrInvalidQuery)
+	}
+	if to.Sub(from)/bucket > maxBuckets {
+		return 0, nil, fmt.Errorf("%w: that range needs more than %d buckets of %s", ErrInvalidQuery, maxBuckets, bucket)
+	}
+	zone := view.Zone
+	if zone == nil {
+		zone = time.UTC
+	}
+	return bucket, zone, nil
+}
+
+func (m *MetricsEngine) GetBudgetSpendByTime(ctx context.Context, budgetID string, from, to time.Time, view BucketView) (*BudgetSpend, error) {
 	if budgetID == "" {
 		return nil, fmt.Errorf("%w: budget id is required", ErrInvalidQuery)
 	}
 	if err := m.checkRange(from, to); err != nil {
 		return nil, err
 	}
+	bucket, zone, err := resolveBucket(view, from, to)
+	if err != nil {
+		return nil, err
+	}
 	ctx, cancel := context.WithTimeout(ctx, m.config.QueryTimeout)
 	defer cancel()
-	return m.store.GetBudgetSpendByTime(ctx, budgetID, from.UTC(), to.UTC(), bucketFor(to.Sub(from)))
+	return m.store.GetBudgetSpendByTime(ctx, budgetID, from.UTC(), to.UTC(), bucket, zone)
 }
 
 func (m *MetricsEngine) capturePayload(e *Event, rctx *core.DiffractLLMContext) {

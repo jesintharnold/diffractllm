@@ -57,6 +57,26 @@ func timeRange(c *gin.Context) (from, to time.Time, ok bool) {
 	return from, to, true
 }
 
+func bucketView(c *gin.Context) (view metricsengine.BucketView, ok bool) {
+	if raw := c.Query("bucket"); raw != "" {
+		seconds, err := strconv.Atoi(raw)
+		if err != nil || seconds <= 0 {
+			adminErr(c, http.StatusBadRequest, "bucket must be a number of seconds")
+			return view, false
+		}
+		view.Bucket = time.Duration(seconds) * time.Second
+	}
+	if tz := c.Query("tz"); tz != "" {
+		zone, err := time.LoadLocation(tz)
+		if err != nil {
+			adminErr(c, http.StatusBadRequest, "tz must be an IANA time zone such as Asia/Kolkata")
+			return view, false
+		}
+		view.Zone = zone
+	}
+	return view, true
+}
+
 func (ds *DiffractLLMServer) getMetricsStats(c *gin.Context) {
 	from, to, ok := timeRange(c)
 	if !ok {
@@ -75,7 +95,11 @@ func (ds *DiffractLLMServer) getMetricsRequestSummary(c *gin.Context) {
 	if !ok {
 		return
 	}
-	summary, err := ds.metrics.GetRequestSummaryByTime(c.Request.Context(), from, to)
+	view, ok := bucketView(c)
+	if !ok {
+		return
+	}
+	summary, err := ds.metrics.GetRequestSummaryByTime(c.Request.Context(), from, to, view)
 	if err != nil {
 		ds.metricsErr(c, err)
 		return
@@ -178,7 +202,11 @@ func (ds *DiffractLLMServer) getMetricsBudgetSpend(c *gin.Context) {
 	if !ok {
 		return
 	}
-	spend, err := ds.metrics.GetBudgetSpendByTime(c.Request.Context(), c.Param("id"), from, to)
+	view, ok := bucketView(c)
+	if !ok {
+		return
+	}
+	spend, err := ds.metrics.GetBudgetSpendByTime(c.Request.Context(), c.Param("id"), from, to, view)
 	if err != nil {
 		ds.metricsErr(c, err)
 		return

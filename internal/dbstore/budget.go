@@ -2,12 +2,41 @@ package dbstore
 
 import (
 	"diffractllm/internal/core"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
+
+// A window shorter than the hourly metrics buckets, or longer than a year, is almost certainly a
+// typo; "90m" would otherwise parse as 90 months.
+const (
+	MinBudgetWindow = time.Hour
+	MaxBudgetWindow = 365 * 24 * time.Hour
+)
+
+var (
+	ErrInvalidBudget   = errors.New("invalid budget")
+	ErrBudgetNotFound  = errors.New("budget not found")
+	ErrBudgetNameTaken = errors.New("a budget with this name already exists")
+	ErrBudgetBound     = errors.New("it is bound to an active key")
+)
+func parseBudgetWindow(duration string) (time.Duration, error) {
+	if duration == "" {
+		return 0, fmt.Errorf("%w: budget_duration is required", ErrInvalidBudget)
+	}
+	d, err := core.ParseDuration(duration)
+	if err != nil {
+		return 0, fmt.Errorf("%w: budget_duration %q: %v", ErrInvalidBudget, duration, err)
+	}
+	if d < MinBudgetWindow || d > MaxBudgetWindow {
+		return 0, fmt.Errorf("%w: budget_duration %q must be between 1 hour and 365 days", ErrInvalidBudget, duration)
+	}
+	return d, nil
+}
 
 type StoreBudget struct {
 	ID                  string        `gorm:"primaryKey;type:text"`
@@ -54,18 +83,17 @@ func (b *StoreBudget) ToCore() *core.Budget {
 		Status:              b.Status,
 		LastBudgetRefreshAt: b.LastBudgetRefreshAt,
 		BudgetParseDuration: b.BudgetParseDuration,
+		CreatedAt:           b.CreatedAt,
+		UpdatedAt:           b.UpdatedAt,
 	}
 }
 
 func (s *Store) CreateBudget(b core.Budget) (*StoreBudget, error) {
 	if b.BudgetLimit <= 0 {
-		return nil, fmt.Errorf("budget_limit must be positive nano-USD, got %d", b.BudgetLimit)
+		return nil, fmt.Errorf("%w: budget_limit must be positive nano-USD, got %d", ErrInvalidBudget, b.BudgetLimit)
 	}
-	if b.BudgetDuration == "" {
-		return nil, fmt.Errorf("budget_duration is required")
-	}
-	if _, err := core.ParseDuration(b.BudgetDuration); err != nil {
-		return nil, fmt.Errorf("invalid budget_duration %q: %w", b.BudgetDuration, err)
+	if _, err := parseBudgetWindow(b.BudgetDuration); err != nil {
+		return nil, err
 	}
 
 	unit := b.BudgetUnit
@@ -94,6 +122,9 @@ func (s *Store) CreateBudget(b core.Budget) (*StoreBudget, error) {
 	}
 
 	if err := s.DB.Create(&budget).Error; err != nil {
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+			return nil, fmt.Errorf("%w: %q", ErrBudgetNameTaken, b.Name)
+		}
 		return nil, fmt.Errorf("create budget: %w", err)
 	}
 
@@ -103,7 +134,10 @@ func (s *Store) CreateBudget(b core.Budget) (*StoreBudget, error) {
 func (s *Store) GetBudget(budgetID string) (*StoreBudget, error) {
 	var b StoreBudget
 	if err := s.DB.Where("id = ?", budgetID).First(&b).Error; err != nil {
-		return nil, fmt.Errorf("budget %q not found: %w", budgetID, err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("budget %q: %w", budgetID, ErrBudgetNotFound)
+		}
+		return nil, fmt.Errorf("get budget %q: %w", budgetID, err)
 	}
 	return &b, nil
 }
@@ -123,14 +157,18 @@ func (s *Store) UpdateBudget(budget_id string, b core.Budget) (*StoreBudget, err
 		return nil, err
 	}
 
+	if b.BudgetLimit < 0 {
+		return nil, fmt.Errorf("%w: budget_limit must be positive nano-USD, got %d", ErrInvalidBudget, b.BudgetLimit)
+	}
+
 	updates := map[string]any{}
 	if b.BudgetLimit != 0 && existingBudget.BudgetLimit != b.BudgetLimit {
 		updates["budget_limit"] = b.BudgetLimit
 	}
 
 	if b.BudgetDuration != "" && existingBudget.BudgetDuration != b.BudgetDuration {
-		if _, err := core.ParseDuration(b.BudgetDuration); err != nil {
-			return nil, fmt.Errorf("invalid budget_duration %q: %w", b.BudgetDuration, err)
+		if _, err := parseBudgetWindow(b.BudgetDuration); err != nil {
+			return nil, err
 		}
 		updates["budget_duration"] = b.BudgetDuration
 	}
@@ -167,7 +205,7 @@ func (s *Store) DeleteBudget(budgetID string) error {
 		return err
 	}
 	if b.Status == "bound" {
-		return fmt.Errorf("cannot delete budget %q: currently bound to an active key", budgetID)
+		return fmt.Errorf("cannot delete budget %q: %w", budgetID, ErrBudgetBound)
 	}
 	return s.DB.Where("id = ?", budgetID).Delete(&StoreBudget{}).Error
 }

@@ -29,7 +29,7 @@ func (b *BudgetHook) Execute(rctx *core.DiffractLLMContext) *core.DiffractLLMErr
 
 	if !budget.CheckBudgetUsage() {
 		b.logger.Warn("budget exceeded", zap.String("client", rctx.ClientID), zap.String("budget_ref", rctx.BudgetRef))
-		return core.NewBudgetExceeded("Budget exceeded for the DiffractLLM API key used")
+		return core.NewBudgetExceeded("window spend reached the budget limit")
 	}
 	b.logger.Info("budget ok", zap.String("client", rctx.ClientID), zap.String("budget_ref", rctx.BudgetRef))
 	return nil

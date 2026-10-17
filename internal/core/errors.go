@@ -355,7 +355,7 @@ func NewBudgetExceeded(message string) *DiffractLLMError {
 	return &DiffractLLMError{
 		ErrorCategory: ErrorCategoryClient,
 		Code:          CodeBudgetExceeded,
-		Message:       "Budget limit exceeded",
+		Message:       "Budget limit reached. Requests resume when the budget window resets.",
 		Type:          "budget_error",
 		StatusCode:    http.StatusBadRequest,
 		Component:     "budget",
