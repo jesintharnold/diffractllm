@@ -12,6 +12,10 @@ export const API = {
     budget: (budgetId: string) => `/v1/admin/budgets/${id(budgetId)}`,
     virtualKeys: '/v1/admin/virtual-keys',
     virtualKey: (keyId: string) => `/v1/admin/virtual-keys/${id(keyId)}`,
+    virtualKeyRouting: (keyId: string) => `/v1/admin/virtual-keys/${id(keyId)}/routing`,
+    virtualKeyRotate: (keyId: string) => `/v1/admin/virtual-keys/${id(keyId)}/rotate`,
+    virtualKeyStatus: (keyId: string) => `/v1/admin/virtual-keys/${id(keyId)}/status`,
+    virtualKeyExpiry: (keyId: string) => `/v1/admin/virtual-keys/${id(keyId)}/expiry`,
     models: '/v1/admin/models',
     credentials: '/v1/admin/credentials',
     providers: {
@@ -38,6 +42,7 @@ export const API = {
       request: (eventId: string) => `/v1/admin/metrics/requests/${id(eventId)}`,
       payload: (eventId: string) => `/v1/admin/metrics/requests/${id(eventId)}/payload`,
       topVirtualKeys: '/v1/admin/metrics/virtual-keys/top',
+      virtualKeyUsage: '/v1/admin/metrics/virtual-keys/usage',
       providers: '/v1/admin/metrics/providers',
       credentials: '/v1/admin/metrics/credentials',
       budgetSpend: (budgetId: string) => `/v1/admin/metrics/budgets/${id(budgetId)}`,

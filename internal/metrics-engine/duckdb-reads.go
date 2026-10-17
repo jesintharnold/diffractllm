@@ -461,6 +461,36 @@ func (ds *DuckDBStore) GetProviderUsage(ctx context.Context, from, to time.Time)
 	return out, rows.Err()
 }
 
+type VirtualKeyLastUse struct {
+	VirtualKeyID string    `json:"virtual_key_id"`
+	LastUsedAt   time.Time `json:"last_used_at"`
+	Requests     int64     `json:"requests"` // since `since`
+}
+
+// Last use per virtual key over all retained events, and requests since `since`.
+func (ds *DuckDBStore) GetVirtualKeyLastUse(ctx context.Context, since time.Time) ([]VirtualKeyLastUse, error) {
+	q := `SELECT governance_virtual_key_id, max(started_at), count(*) FILTER (WHERE started_at >= $1)
+	FROM events
+	WHERE coalesce(governance_virtual_key_id, '') <> ''
+	GROUP BY governance_virtual_key_id`
+
+	rows, err := ds.db.QueryContext(ctx, q, since)
+	if err != nil {
+		return nil, fmt.Errorf("virtual key last use: %w", err)
+	}
+	defer rows.Close()
+
+	out := []VirtualKeyLastUse{}
+	for rows.Next() {
+		var u VirtualKeyLastUse
+		if err := rows.Scan(&u.VirtualKeyID, &u.LastUsedAt, &u.Requests); err != nil {
+			return nil, fmt.Errorf("virtual key last use: %w", err)
+		}
+		out = append(out, u)
+	}
+	return out, rows.Err()
+}
+
 type CredentialUsage struct {
 	CredentialID string    `json:"credential_id"`
 	LastUsedAt   time.Time `json:"last_used_at"`

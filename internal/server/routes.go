@@ -74,7 +74,8 @@ func (ds *DiffractLLMServer) routeHandlers() (http.Handler, error) {
 		keys.PUT("/:id/routing", ds.updateVirtualKeyRouting)
 		keys.POST("/:id/rotate", ds.rotateVirtualKey)
 		keys.PUT("/:id/status", ds.setVirtualKeyStatus)
-		keys.DELETE("/:id", ds.revokeVirtualKey)
+		keys.PUT("/:id/expiry", ds.setVirtualKeyExpiry)
+		keys.DELETE("/:id", ds.deleteVirtualKey)
 	}
 
 	providers := admin.Group("/providers")
@@ -112,6 +113,7 @@ func (ds *DiffractLLMServer) routeHandlers() (http.Handler, error) {
 		metrics.GET("/requests/:id", ds.getMetricsRequest)
 		metrics.GET("/requests/:id/payload", ds.getMetricsRequestPayload)
 		metrics.GET("/virtual-keys/top", ds.getMetricsTopVirtualKeys)
+		metrics.GET("/virtual-keys/usage", ds.getMetricsVirtualKeyUsage)
 		metrics.GET("/providers", ds.getMetricsProviders)
 		metrics.GET("/credentials", ds.getMetricsCredentials)
 		metrics.GET("/budgets/:id", ds.getMetricsBudgetSpend)

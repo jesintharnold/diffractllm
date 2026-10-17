@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -196,14 +197,57 @@ func (ds *DiffractLLMServer) setVirtualKeyStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-func (ds *DiffractLLMServer) revokeVirtualKey(c *gin.Context) {
+// Removes the key for good and frees its budget. To pause one, set its status instead.
+func (ds *DiffractLLMServer) deleteVirtualKey(c *gin.Context) {
 	id := c.Param("id")
-	if err := ds.dbStore.RevokeVirtualKey(id); err != nil {
+	if err := ds.dbStore.DeleteVirtualKey(id); err != nil {
 		adminErr(c, http.StatusNotFound, "virtual key not found")
 		return
 	}
 	ds.governance.KeyCache.DeleteVirtualKeyByID(id)
 	c.Status(http.StatusNoContent)
+}
+
+type setVirtualKeyExpiryRequest struct {
+	ExpiresAt   *time.Time `json:"expires_at"`
+	ClearExpiry bool       `json:"clear_expiry"`
+}
+
+// Sets a new expiry, or removes it with clear_expiry. Exactly one of the two is required.
+func (ds *DiffractLLMServer) setVirtualKeyExpiry(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, adminMaxBody)
+
+	var payload setVirtualKeyExpiryRequest
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		adminErr(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	if (payload.ExpiresAt != nil) == payload.ClearExpiry { // both set, or neither
+		adminErr(c, http.StatusBadRequest, "send expires_at or clear_expiry")
+		return
+	}
+	if payload.ExpiresAt != nil && !payload.ExpiresAt.After(time.Now()) {
+		adminErr(c, http.StatusBadRequest, "expires_at must be in the future")
+		return
+	}
+
+	id := c.Param("id")
+	row, err := ds.dbStore.UpdateVirtualKeyExpiry(id, payload.ExpiresAt)
+	if err != nil {
+		adminErr(c, http.StatusNotFound, "virtual key not found")
+		return
+	}
+	// A disabled key is not in the cache; enabling it later loads the new expiry.
+	if row.IsActive {
+		vk, err := row.ToCore()
+		if err != nil {
+			adminErr(c, http.StatusInternalServerError, "stored, not yet live")
+			return
+		}
+		ds.governance.KeyCache.UpsertVirtualKey(vk)
+	}
+	resp, _ := row.ToResponse()
+	c.JSON(http.StatusOK, resp)
 }
 
 func (ds *DiffractLLMServer) listVirtualKeys(c *gin.Context) {

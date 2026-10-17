@@ -226,6 +226,13 @@ func (m *MetricsEngine) GetCredentialUsage(ctx context.Context, provider string)
 	return m.store.GetCredentialUsage(ctx, provider, time.Now().UTC().Add(-24*time.Hour))
 }
 
+// Last use and 24h request count for every virtual key, for the Virtual keys screens.
+func (m *MetricsEngine) GetVirtualKeyLastUse(ctx context.Context) ([]VirtualKeyLastUse, error) {
+	ctx, cancel := context.WithTimeout(ctx, m.config.QueryTimeout)
+	defer cancel()
+	return m.store.GetVirtualKeyLastUse(ctx, time.Now().UTC().Add(-24*time.Hour))
+}
+
 func (m *MetricsEngine) GetTopVirtualKeys(ctx context.Context, from, to time.Time, limit int) ([]VirtualKeyUsage, error) {
 	if err := m.checkRange(from, to); err != nil {
 		return nil, err

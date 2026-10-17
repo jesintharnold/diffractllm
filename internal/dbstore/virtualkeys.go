@@ -72,11 +72,9 @@ func (key *StoreVirtualKey) ToResponse() (core.VirtualKeyResponse, error) {
 		LoadBalancer:    loadBalancer,
 		ProviderConfigs: key.ProviderConfigs,
 		IsActive:        key.IsActive,
+		ExpiresAt:       key.ExpiresAt,
 		CreatedAt:       key.CreatedAt,
 		UpdatedAt:       key.UpdatedAt,
-	}
-	if key.ExpiresAt != nil {
-		response.ExpiresAt = *key.ExpiresAt
 	}
 	return response, nil
 }
@@ -186,17 +184,22 @@ func (s *Store) SetVirtualKeyActive(id string, active bool) (*StoreVirtualKey, e
 	return s.GetVirtualKey(id)
 }
 
-func (s *Store) RevokeVirtualKey(id string) error {
-	return s.DB.Transaction(func(tx *gorm.DB) error {
+// UpdateVirtualKeyExpiry sets or, with nil, clears the key's expiry. Nothing else changes.
+func (s *Store) UpdateVirtualKeyExpiry(id string, expiresAt *time.Time) (*StoreVirtualKey, error) {
+	err := s.DB.Transaction(func(tx *gorm.DB) error {
 		var key StoreVirtualKey
 		if err := tx.Where("id = ?", id).First(&key).Error; err != nil {
 			return fmt.Errorf("virtual key %q not found: %w", id, err)
 		}
-		if err := tx.Model(&key).Update("is_active", false).Error; err != nil {
-			return fmt.Errorf("failed to revoke key: %w", err)
+		if err := tx.Model(&key).Update("expires_at", expiresAt).Error; err != nil {
+			return fmt.Errorf("update expiry of virtual key %q: %w", id, err)
 		}
-		return tx.Model(&StoreBudget{}).Where("id = ?", key.BudgetID).Update("status", "released").Error
+		return nil
 	})
+	if err != nil {
+		return nil, err
+	}
+	return s.GetVirtualKey(id)
 }
 
 func (s *Store) RotateVirtualKey(id string) (*StoreVirtualKey, string, error) {
@@ -211,7 +214,7 @@ func (s *Store) RotateVirtualKey(id string) (*StoreVirtualKey, string, error) {
 			return fmt.Errorf("virtual key %q not found: %w", id, err)
 		}
 		if !key.IsActive {
-			return fmt.Errorf("virtual key %q is revoked", id)
+			return fmt.Errorf("virtual key %q is disabled", id)
 		}
 		key.APIKey = apiKey
 		key.KeyHash = hash

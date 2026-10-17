@@ -2,6 +2,7 @@ package dbstore
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -119,7 +120,8 @@ func TestListVirtualKeysWithoutKeysOrdersActiveFirst(t *testing.T) {
 	budget := newBudgetRow(t, s, 1_000_000)
 
 	revoked, _ := newKeyRow(t, s, budget.ID)
-	require.NoError(t, s.RevokeVirtualKey(revoked.ID))
+	_, err := s.SetVirtualKeyActive(revoked.ID, false)
+	require.NoError(t, err)
 	active, _ := newKeyRow(t, s, budget.ID)
 
 	rows, err := s.ListVirtualKeysWithoutKeys()
@@ -171,15 +173,16 @@ func TestRotateVirtualKey(t *testing.T) {
 	assert.True(t, fresh.IsActive)
 }
 
-func TestRotateVirtualKeyRefusesARevokedKey(t *testing.T) {
+func TestRotateVirtualKeyRefusesADisabledKey(t *testing.T) {
 	s := store(t)
 	budget := newBudgetRow(t, s, 1_000_000)
 	row, _ := newKeyRow(t, s, budget.ID)
-	require.NoError(t, s.RevokeVirtualKey(row.ID))
+	_, err := s.SetVirtualKeyActive(row.ID, false)
+	require.NoError(t, err)
 
-	_, _, err := s.RotateVirtualKey(row.ID)
+	_, _, err = s.RotateVirtualKey(row.ID)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "revoked")
+	assert.Contains(t, err.Error(), "disabled")
 }
 
 func TestRotateVirtualKeyNotFound(t *testing.T) {
@@ -187,14 +190,15 @@ func TestRotateVirtualKeyNotFound(t *testing.T) {
 	assert.Error(t, err)
 }
 
-// ---------- revoke ----------
+// ---------- disable ----------
 
-func TestRevokeVirtualKey(t *testing.T) {
+func TestDisableVirtualKey(t *testing.T) {
 	s := store(t)
 	budget := newBudgetRow(t, s, 1_000_000)
 	row, _ := newKeyRow(t, s, budget.ID)
 
-	require.NoError(t, s.RevokeVirtualKey(row.ID))
+	_, err := s.SetVirtualKeyActive(row.ID, false)
+	require.NoError(t, err)
 
 	got, err := s.GetVirtualKey(row.ID)
 	require.NoError(t, err)
@@ -202,7 +206,7 @@ func TestRevokeVirtualKey(t *testing.T) {
 
 	active, err := s.ListActiveVirtualKeys()
 	require.NoError(t, err)
-	assert.Empty(t, active, "a revoked key is out of the active set")
+	assert.Empty(t, active, "a disabled key is out of the active set")
 
 	budgetRow, err := s.GetBudget(budget.ID)
 	require.NoError(t, err)
@@ -210,7 +214,7 @@ func TestRevokeVirtualKey(t *testing.T) {
 }
 
 // A budget carries at most one active key: CreateVirtualKeyTx refuses a budget
-// already bound. That is what makes the unconditional release on revoke correct
+// already bound. That is what makes the unconditional release on disable correct
 // - there can never be a second key still billing against it.
 func TestBudgetHoldsOneActiveKeyAtATime(t *testing.T) {
 	s := store(t)
@@ -232,8 +236,9 @@ func TestBudgetHoldsOneActiveKeyAtATime(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "already bound")
 
-	// Revoking frees it, and only then can another key take it.
-	require.NoError(t, s.RevokeVirtualKey(first.ID))
+	// Disabling frees it, and only then can another key take it.
+	_, err = s.SetVirtualKeyActive(first.ID, false)
+	require.NoError(t, err)
 	released, err := s.GetBudget(budget.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "released", released.Status)
@@ -257,8 +262,43 @@ func TestDeleteVirtualKeyReleasesTheBudget(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestRevokeVirtualKeyNotFound(t *testing.T) {
-	assert.Error(t, store(t).RevokeVirtualKey("no-such-key"))
+func TestDeleteVirtualKeyNotFound(t *testing.T) {
+	assert.Error(t, store(t).DeleteVirtualKey("no-such-key"))
+}
+
+// ---------- expiry ----------
+
+// The response omits expires_at for a key that never expires, instead of a zero date.
+func TestVirtualKeyResponseOmitsAMissingExpiry(t *testing.T) {
+	s := store(t)
+	budget := newBudgetRow(t, s, 1_000_000)
+	row, _ := newKeyRow(t, s, budget.ID)
+
+	resp, err := row.ToResponse()
+	require.NoError(t, err)
+	assert.Nil(t, resp.ExpiresAt)
+}
+
+func TestUpdateVirtualKeyExpirySetsAndClears(t *testing.T) {
+	s := store(t)
+	budget := newBudgetRow(t, s, 1_000_000)
+	row, _ := newKeyRow(t, s, budget.ID)
+	at := time.Now().Add(72 * time.Hour).UTC().Truncate(time.Second)
+
+	updated, err := s.UpdateVirtualKeyExpiry(row.ID, &at)
+	require.NoError(t, err)
+	require.NotNil(t, updated.ExpiresAt)
+	assert.True(t, updated.ExpiresAt.Equal(at))
+	assert.True(t, updated.IsActive, "only the expiry changes")
+
+	cleared, err := s.UpdateVirtualKeyExpiry(row.ID, nil)
+	require.NoError(t, err)
+	assert.Nil(t, cleared.ExpiresAt)
+}
+
+func TestUpdateVirtualKeyExpiryNotFound(t *testing.T) {
+	_, err := store(t).UpdateVirtualKeyExpiry("no-such-key", nil)
+	assert.Error(t, err)
 }
 
 // ---------- routing updates ----------

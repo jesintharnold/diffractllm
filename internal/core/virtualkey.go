@@ -239,7 +239,7 @@ type VirtualKeyResponse struct {
 	LoadBalancer    LBKind           `json:"load_balancer"`
 	ProviderConfigs []ProviderConfig `json:"provider_configs"`
 	IsActive        bool             `json:"is_active"`
-	ExpiresAt       time.Time        `json:"expires_at"`
+	ExpiresAt       *time.Time       `json:"expires_at,omitempty"`
 	CreatedAt       time.Time        `json:"created_at"`
 	UpdatedAt       time.Time        `json:"updated_at"`
 }

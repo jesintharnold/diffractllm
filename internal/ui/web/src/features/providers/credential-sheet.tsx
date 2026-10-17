@@ -1,4 +1,3 @@
-import { format } from 'date-fns'
 import { ChevronRight, Loader2, Lock, Plus, Trash2, TriangleAlert, X } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
@@ -79,14 +78,6 @@ const toAliases = (rows: Deployment[]): Record<string, Alias> =>
   )
 
 const isAll = (models: string[]) => models.length === 0 || models.includes('*')
-// The date input speaks local yyyy-mm-dd; a credential expires at the end of that day.
-// A credential expires at the end of the chosen day, local time.
-const endOfDayISO = (d: Date) => {
-  const end = new Date(d)
-  end.setHours(23, 59, 59, 0)
-  return end.toISOString()
-}
-
 function DeploymentsTable({
   rows,
   onChange,
@@ -331,7 +322,7 @@ function CredentialForm({
     allModels,
     allowed,
     blocked,
-    expiry && format(expiry, 'yyyy-MM-dd'),
+    expiry?.toISOString() ?? null,
     enabled,
   ])
   const [initialSnapshot] = useState(snapshot)
@@ -417,7 +408,7 @@ function CredentialForm({
           ...(azure ? { settings: settings() } : {}),
           ...(usesKey && apiKey ? { api_key: apiKey } : {}),
           ...(expiry
-            ? { expires_at: endOfDayISO(expiry) }
+            ? { expires_at: expiry.toISOString() }
             : editing.expires_at
               ? { clear_expiry: true }
               : {}),
@@ -434,7 +425,7 @@ function CredentialForm({
           aliases,
           settings: settings(),
           ...(usesKey && apiKey ? { api_key: apiKey } : {}),
-          ...(expiry ? { expires_at: endOfDayISO(expiry) } : {}),
+          ...(expiry ? { expires_at: expiry.toISOString() } : {}),
         })
       }
       await Promise.all([request, new Promise((r) => setTimeout(r, MIN_SAVING_MS))])

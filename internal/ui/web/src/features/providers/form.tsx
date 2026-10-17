@@ -1,6 +1,7 @@
-import { format } from 'date-fns'
-import { Calendar as CalendarIcon, ChevronDown, Plus, Search, X } from 'lucide-react'
+import { addHours, startOfDay } from 'date-fns'
+import { Calendar as CalendarIcon, ChevronDown, Clock, Plus, Search, X } from 'lucide-react'
 import { useDeferredValue, useState, type ReactNode } from 'react'
+import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 import {
   Command,
@@ -9,51 +10,122 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command'
+import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Switch } from '@/components/ui/switch'
 import { useProviderModels } from '@/features/providers/api'
+import {
+  DAY_END,
+  EXPIRY_PRESET_HOURS,
+  atTime,
+  expiryField,
+  expiryOn,
+  isHHmm,
+  timeOf,
+} from '@/features/providers/expiry'
 import { inputLike } from '@/features/providers/form-utils'
 import { cn } from '@/lib/utils'
 
 // Form pieces shared by the credential and provider-settings drawers (design 04.3–04.5).
 
-// Expiry date in the app's calendar (as in the time-range picker); null means it never expires.
+// Expiry as a moment: a quick "in N hours", or a day from the calendar at a time of day (default
+// 23:59). Picking closes the popover; editing the time of a chosen day applies at once. Null never expires.
 export function ExpiryPicker({
   value,
   onChange,
+  compact,
+  disabled,
 }: {
   value: Date | null
   onChange: (d: Date | null) => void
+  // A small inline button instead of a full-width field, for a row of read-only facts.
+  compact?: boolean
+  disabled?: boolean
 }) {
   const [open, setOpen] = useState(false)
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
+  const [time, setTime] = useState(DAY_END)
+  const now = new Date()
+  const today = startOfDay(now)
   const pick = (d: Date | null) => {
     onChange(d)
     setOpen(false)
   }
+  const clock = isHHmm(time) ? time : DAY_END // a half-typed time falls back to the end of the day
+  const timeInPast = value !== null && isHHmm(time) && atTime(value, time) <= now
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        if (next) setTime(value ? timeOf(value) : DAY_END)
+        setOpen(next)
+      }}
+    >
       <PopoverTrigger asChild>
-        <button type="button" className={cn(inputLike, 'text-left')}>
+        <button
+          type="button"
+          disabled={disabled}
+          className={cn(
+            compact
+              ? 'flex items-center gap-1.5 rounded-md border px-2 py-1 font-mono text-xs transition-colors outline-none hover:border-ring/60 focus-visible:ring-3 focus-visible:ring-ring/50 data-[state=open]:border-ring disabled:opacity-50'
+              : cn(inputLike, 'text-left'),
+          )}
+        >
           <CalendarIcon className="size-3.5 shrink-0 text-muted-foreground" />
-          <span className={cn('flex-1 truncate', !value && 'text-muted-foreground')}>
-            {value ? format(value, 'MMM d, yyyy') : 'No expiry'}
+          <span className={cn('truncate', !compact && 'flex-1', !value && 'text-muted-foreground')}>
+            {value ? expiryField(value, now) : 'No expiry'}
           </span>
           <ChevronDown className="size-3.5 text-muted-foreground" />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-auto p-0">
+      <PopoverContent align={compact ? 'end' : 'start'} className="w-auto p-0">
+        <div className="flex flex-col gap-1.5 border-b px-3 pt-3 pb-2.5">
+          <span className="text-[11px] font-medium text-muted-foreground">Expires in</span>
+          <div className="grid grid-cols-4 gap-1.5">
+            {EXPIRY_PRESET_HOURS.map((h) => (
+              <Button
+                key={h}
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 text-[11px]"
+                onClick={() => {
+                  pick(addHours(new Date(), h))
+                }}
+              >
+                {h}h
+              </Button>
+            ))}
+          </div>
+        </div>
         <Calendar
           mode="single"
           selected={value ?? undefined}
           defaultMonth={value ?? today}
           disabled={{ before: today }}
           onSelect={(d) => {
-            if (d) pick(d)
+            if (d) pick(expiryOn(d, clock))
           }}
           className="p-3 [--cell-size:--spacing(8)]"
         />
+        <label className="flex items-center justify-between px-3 pb-2">
+          <span className="text-[11px] font-medium text-muted-foreground">Expires at</span>
+          <span className="relative">
+            <Clock className="pointer-events-none absolute top-1/2 left-2.5 size-3 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={time}
+              inputMode="numeric"
+              maxLength={5}
+              placeholder={DAY_END}
+              aria-invalid={(time.length === 5 && !isHHmm(time)) || timeInPast}
+              onChange={(e) => {
+                const t = e.target.value
+                setTime(t)
+                if (value && isHHmm(t) && atTime(value, t) > new Date()) onChange(atTime(value, t))
+              }}
+              className="h-7 w-24 pl-7 font-mono text-xs md:text-xs"
+            />
+          </span>
+        </label>
         <div className="flex items-center justify-between border-t px-3 py-2">
           <button
             type="button"
@@ -67,7 +139,7 @@ export function ExpiryPicker({
           <button
             type="button"
             onClick={() => {
-              pick(today)
+              pick(expiryOn(today, clock))
             }}
             className="text-xs font-medium text-primary"
           >

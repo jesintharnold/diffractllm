@@ -159,6 +159,34 @@ func TestCredentialUsage(t *testing.T) {
 	assert.Equal(t, int64(5), rows[0].Requests) // "old" is before t0; the rejected one has no credential
 }
 
+// Last use spans every retained event; the count only those since `since`.
+func TestVirtualKeyLastUse(t *testing.T) {
+	store := newTestStore(t)
+	keyed := func(id string, at time.Duration, vk string) *Event {
+		e := seedEvent(id, at, ResultOK, 200, time.Millisecond, "openai")
+		e.Governance.VirtualKeyID = vk
+		return e
+	}
+	require.NoError(t, store.Write(context.Background(), []*Event{
+		keyed("a1", -2*time.Hour, "vk-a"),
+		keyed("a2", 10*time.Minute, "vk-a"),
+		keyed("b1", -30*time.Hour, "vk-b"),
+		seedEvent("anon", 5*time.Minute, ResultRejected, 401, time.Millisecond, ""), // no key
+	}))
+
+	rows, err := store.GetVirtualKeyLastUse(context.Background(), t0.Add(-time.Hour))
+	require.NoError(t, err)
+	byID := map[string]VirtualKeyLastUse{}
+	for _, r := range rows {
+		byID[r.VirtualKeyID] = r
+	}
+	require.Len(t, byID, 2, "events without a key are not counted")
+	assert.True(t, byID["vk-a"].LastUsedAt.Equal(t0.Add(10*time.Minute)))
+	assert.Equal(t, int64(1), byID["vk-a"].Requests, "only a2 is inside the window")
+	assert.True(t, byID["vk-b"].LastUsedAt.Equal(t0.Add(-30*time.Hour)), "last use is not limited to the window")
+	assert.Equal(t, int64(0), byID["vk-b"].Requests)
+}
+
 func TestRequestDetailCanBeFoundByGatewayRequestID(t *testing.T) {
 	store := newTestStore(t)
 	e := seedEvent("event-1", 0, ResultOK, 200, time.Millisecond, "openai")
