@@ -100,10 +100,22 @@ export interface RequestSummary {
   }[]
 }
 
-export function useRequestSummary(window: RangeWindow) {
-  const params = windowParams(window)
+// `bucket` (seconds) picks the bar size when zoomed in; `zone` makes bars start on the viewer's
+// hours and midnights. Without them the server picks from the range and cuts on UTC.
+export function useRequestSummary(
+  window: RangeWindow,
+  view: { bucket?: number; zone?: string } = {},
+) {
+  const params = { ...windowParams(window), bucket: view.bucket, tz: view.zone }
   return useQuery({
-    queryKey: ['metrics', 'summary', params.from, params.to],
+    queryKey: [
+      'metrics',
+      'summary',
+      params.from,
+      params.to,
+      params.bucket ?? 'auto',
+      params.tz ?? 'utc',
+    ],
     queryFn: ({ signal }) =>
       apiGet<RequestSummary>(API.admin.metrics.requestSummary, params, signal),
     placeholderData: keepPreviousData,

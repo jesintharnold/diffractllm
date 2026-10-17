@@ -21,15 +21,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { PRESETS, isValidSpan, specLabel, type RangeSpec, type RangeWindow } from '@/lib/time-range'
 import {
-  PRESETS,
-  isValidSpan,
-  presetLabel,
-  type RangeSpec,
-  type RangeWindow,
-} from '@/lib/time-range'
-import {
-  formatInZone,
   listTimeZones,
   to24Hour,
   useTimezone,
@@ -55,10 +48,7 @@ export function TimeRangePicker({
   const [custom, setCustom] = useState(false)
   const { zone } = useTimezone()
 
-  const label =
-    spec.kind === 'preset'
-      ? presetLabel(spec.preset)
-      : `Custom · ${formatInZone(spec.from, zone)} → ${formatInZone(spec.to, zone)}`
+  const label = specLabel(spec, zone)
 
   const onOpenChange = (next: boolean) => {
     setOpen(next)

@@ -1,5 +1,6 @@
 import { useMemo, useSyncExternalStore } from 'react'
 import { useClock } from '@/lib/clock'
+import { formatInZone } from '@/lib/timezone'
 
 // The window every metrics screen reads. Held in memory, not the URL: it survives moving
 // between pages (Overview → Catalog → Overview) and resets to 24h on a full reload.
@@ -38,6 +39,13 @@ export function isValidSpan(from: Date, to: Date): boolean {
 
 export function presetLabel(key: PresetKey): string {
   return PRESETS.find((p) => p.key === key)?.label ?? key
+}
+
+// The range as the picker and the charts name it: "Last 24 hrs", or "Custom · Oct 4, 09:00 → Oct 9, 18:30".
+export function specLabel(spec: RangeSpec, zone: string): string {
+  return spec.kind === 'preset'
+    ? presetLabel(spec.preset)
+    : `Custom · ${formatInZone(spec.from, zone)} → ${formatInZone(spec.to, zone)}`
 }
 
 export function resolveRange(spec: RangeSpec, nowMs: number): RangeWindow {

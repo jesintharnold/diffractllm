@@ -10,8 +10,8 @@ import {
   CommandSeparator,
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { useBudgets, type Budget } from '@/features/keys/api'
-import { money, periodUnit } from '@/features/keys/budget'
+import { useBudgets, type Budget } from '@/features/budgets/api'
+import { money, periodUnit } from '@/features/budgets/budget'
 import { inputLike } from '@/features/providers/form-utils'
 import { cn } from '@/lib/utils'
 

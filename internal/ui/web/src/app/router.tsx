@@ -1,5 +1,7 @@
 import { createBrowserRouter } from 'react-router'
 import { AppShell } from '@/components/layout/app-shell'
+import BudgetPage from '@/pages/budget'
+import BudgetsPage from '@/pages/budgets'
 import CatalogPage from '@/pages/catalog'
 import ComingSoonPage from '@/pages/coming-soon'
 import NotFoundPage from '@/pages/not-found'
@@ -24,8 +26,8 @@ export const router = createBrowserRouter([
       { path: 'models/api-keys/:provider', element: <ProviderPage /> },
       { path: 'governance/virtual-keys', element: <VirtualKeysPage /> },
       { path: 'governance/virtual-keys/:id', element: <VirtualKeyPage /> },
-      later('governance/budgets', 'Budgets'),
-      later('governance/budgets/:id', 'Budget'),
+      { path: 'governance/budgets', element: <BudgetsPage /> },
+      { path: 'governance/budgets/:id', element: <BudgetPage /> },
       later('governance/settings', 'Governance settings'),
       later('observability/requests', 'Requests'),
       later('observability/requests/:id', 'Request'),

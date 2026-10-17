@@ -2,8 +2,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import type { Formatted } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
-// KPI tile (design: MetricTile). Label left, as written (keeps "p95"), value centered;
-// tabular digits keep values steady. No value and not loading (e.g. a failed load) shows "—".
+// KPI tile (design: MetricTile). Label left, as written (keeps "p95"), value centered; the unit
+// (%, ms, M) is set at the value's size like the "$". No value and not loading shows "—".
 export function MetricTile({
   label,
   value,
@@ -32,14 +32,10 @@ export function MetricTile({
             —
           </span>
         ) : (
-          <>
-            <span className="text-2xl leading-[1.1] font-semibold tabular-nums @min-[150px]:text-3xl">
-              {value.value}
-            </span>
-            {value.unit && (
-              <span className="pb-0.5 text-sm font-medium text-muted-foreground">{value.unit}</span>
-            )}
-          </>
+          <span className="text-2xl leading-[1.1] font-semibold tabular-nums @min-[150px]:text-3xl">
+            {value.value}
+            {value.unit}
+          </span>
         )}
       </div>
     </div>

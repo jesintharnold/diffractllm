@@ -1,5 +1,6 @@
 import { Columns3, RefreshCw } from 'lucide-react'
 import { KindTag } from '@/components/kind-tag'
+import { Swatch } from '@/components/swatch'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -63,11 +64,7 @@ function Cell({ column, row, zone }: { column: ColumnKey; row: RequestLogRow; zo
     case 'provider':
       return row.provider ? (
         <span className="flex items-center gap-2">
-          <span
-            className="size-[9px] shrink-0 rounded-full"
-            style={{ background: providerColor(row.provider) }}
-            aria-hidden
-          />
+          <Swatch color={providerColor(row.provider)} />
           {providerLabel(row.provider)}
         </span>
       ) : (

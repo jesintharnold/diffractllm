@@ -1,5 +1,5 @@
 // Display formatting via Intl.NumberFormat (compact notation, percent, currency, units).
-// Formatters return the number and its unit apart, so tiles can style the unit smaller.
+// Formatters return the number and its unit apart, so a table can put a space between them.
 export interface Formatted {
   value: string
   unit?: string

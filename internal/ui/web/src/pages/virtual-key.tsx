@@ -3,23 +3,32 @@ import { ArrowLeft, KeyRound, Loader2, RefreshCw, Trash2 } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { toast } from 'sonner'
+import { SquareMeter } from '@/components/charts/square-meter'
 import { PageBody } from '@/components/layout/page-body'
 import { PageHeader } from '@/components/layout/page-header'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
-  useBudget,
   useDeleteKey,
   useKey,
   useKeyUsage,
   useRotateKey,
   useSetKeyExpiry,
   useUpdateRouting,
-  type Budget,
   type CreatedKey,
   type VirtualKey,
 } from '@/features/keys/api'
-import { money, periodLabel, resetsIn, spendRatio } from '@/features/keys/budget'
+import { useBudget, type Budget } from '@/features/budgets/api'
+import {
+  STATE_BG,
+  STATE_TEXT,
+  isEnforced,
+  limitState,
+  money,
+  periodLabel,
+  resetsIn,
+  usedRatio,
+} from '@/features/budgets/budget'
 import { RoutingEditor } from '@/features/keys/routing'
 import {
   fromConfigs,
@@ -127,7 +136,8 @@ function RoutingCard({ k }: { k: VirtualKey }) {
 function BudgetCard({ budgetId }: { budgetId: string }) {
   const budget = useBudget(budgetId)
   const b: Budget | undefined = budget.data
-  const ratio = b ? spendRatio(b) : 0
+  const ratio = b ? usedRatio(b) : 0
+  const state = limitState(ratio)
   return (
     <section className="flex flex-col gap-3.5 rounded-xl border bg-card p-5">
       <div className="flex items-center justify-between">
@@ -151,7 +161,7 @@ function BudgetCard({ budgetId }: { budgetId: string }) {
             <span
               className={cn(
                 'font-mono text-[28px] leading-8 font-medium',
-                ratio >= 1 ? 'text-destructive' : ratio >= 0.8 ? 'text-warning' : 'text-foreground',
+                state === 'ok' ? 'text-foreground' : STATE_TEXT[state],
               )}
             >
               {money(b.total_spend ?? 0)}
@@ -160,28 +170,18 @@ function BudgetCard({ budgetId }: { budgetId: string }) {
               of {money(b.budget_limit)} · {periodLabel(b.budget_duration)}
             </span>
           </div>
-          <div
-            className="h-1.5 overflow-hidden rounded-full bg-muted"
-            role="progressbar"
-            aria-label="Budget used"
-            aria-valuenow={Math.round(ratio * 100)}
-            aria-valuemin={0}
-            aria-valuemax={100}
-          >
-            <div
-              className={cn(
-                'h-full rounded-full transition-[width] duration-500',
-                ratio >= 1 ? 'bg-destructive' : ratio >= 0.8 ? 'bg-warning' : 'bg-primary',
-              )}
-              style={{ width: `${String(Math.round(ratio * 100))}%` }}
-            />
-          </div>
+          <SquareMeter
+            ratio={ratio}
+            fill={STATE_BG[state]}
+            label="Budget used"
+            cells={25}
+            size={9}
+            spread
+          />
           <div className="flex flex-col gap-2.5">
             <Row label="window resets">{resetsIn(b)}</Row>
             <Row label="requests">{formatCount(b.request_count ?? 0).value}</Row>
-            <Row label="on exhaustion">
-              {b.enforce === false ? 'tracking only' : 'reject with 429'}
-            </Row>
+            <Row label="enforcement">{isEnforced(b) ? 'enforced' : 'not enforced'}</Row>
           </div>
         </>
       )}

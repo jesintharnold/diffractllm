@@ -18,7 +18,6 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import {
-  useBudgets,
   useKeyList,
   useKeyUsage,
   useSetKeyStatus,
@@ -26,7 +25,8 @@ import {
   type VirtualKey,
 } from '@/features/keys/api'
 import { keyIssues } from '@/features/keys/attention'
-import { money } from '@/features/keys/budget'
+import { useBudgets } from '@/features/budgets/api'
+import { money } from '@/features/budgets/budget'
 import { CreateKeySheet } from '@/features/keys/create-sheet'
 import { SecretSheet } from '@/features/keys/secret-sheet'
 import { expiryDue, expiryText } from '@/features/providers/attention'

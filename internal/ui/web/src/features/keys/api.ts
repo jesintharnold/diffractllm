@@ -33,20 +33,6 @@ export interface KeyList {
   skipped_ids: string[]
 }
 
-// core.Budget. Money is nano-USD: divide by 1e9 for dollars.
-export interface Budget {
-  id: string
-  name: string
-  budget_limit: number
-  budget_unit: string
-  budget_duration: string
-  last_budget_refresh_at: string
-  enforce?: boolean
-  total_spend?: number
-  request_count?: number
-  status?: 'unbound' | 'bound' | 'released'
-}
-
 export interface KeyUsage {
   virtual_key_id: string
   last_used_at: string
@@ -75,7 +61,6 @@ export interface RoutingUpdate {
 }
 
 const KEYS = ['governance', 'virtual-keys'] as const // shared with the pricing override picker
-const BUDGETS = ['governance', 'budgets'] as const
 const USAGE = ['metrics', 'virtual-key-usage'] as const
 
 export function useKeyList() {
@@ -89,22 +74,6 @@ export function useKey(id: string) {
   return useQuery({
     queryKey: [...KEYS, id],
     queryFn: ({ signal }) => apiGet<VirtualKey>(API.admin.virtualKey(id), undefined, signal),
-    retry: false,
-  })
-}
-
-export function useBudgets() {
-  return useQuery({
-    queryKey: BUDGETS,
-    queryFn: ({ signal }) => apiGet<Budget[]>(API.admin.budgets, undefined, signal),
-  })
-}
-
-export function useBudget(id: string) {
-  return useQuery({
-    queryKey: [...BUDGETS, id],
-    queryFn: ({ signal }) => apiGet<Budget>(API.admin.budget(id), undefined, signal),
-    enabled: id !== '',
     retry: false,
   })
 }

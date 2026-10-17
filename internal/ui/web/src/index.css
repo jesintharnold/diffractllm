@@ -56,6 +56,8 @@
   --provider-other-2: #9c2f72;
   --provider-other-3: #3a47b8;
   --chart-error: #800000;
+  --bar: #1f9a78; /* spend histogram cells */
+  --bar-active: #0f6e54;
   --chart-cancelled: #6b7280;
   --primary-soft: color-mix(in oklch, #664d0a 80%, #ffffff); /* range calendar selection */
 
@@ -128,6 +130,8 @@
   --provider-other-2: #e58fc4;
   --provider-other-3: #7c8cf8;
   --chart-error: #9b1c1c;
+  --bar: #3db594;
+  --bar-active: #7be3c4;
   --chart-cancelled: #5b6475;
   --primary-soft: color-mix(in oklch, #d7a93a 72%, #11151d); /* range calendar selection */
 
@@ -187,6 +191,8 @@
   --color-scrim-soft: var(--scrim-soft);
   --color-knob: var(--knob);
   --color-nav-selected: var(--nav-selected);
+  --color-bar: var(--bar);
+  --color-bar-active: var(--bar-active);
 
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);

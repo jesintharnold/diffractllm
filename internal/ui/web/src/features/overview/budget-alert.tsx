@@ -43,7 +43,7 @@ export function BudgetAlert() {
     over
       ? `has reached its ${cap} cap`
       : `is at ${String(Math.floor(ratio * 100))}% of its ${cap} cap`,
-    enforced ? 'enforced, requests are rejected past 100%' : 'monitor only',
+    enforced ? 'enforced, requests are blocked at the limit' : 'not enforced',
     reset ? `resets ${untilText(reset, now)}` : null,
     hot.length > 1 ? `+${String(hot.length - 1)} more` : null,
   ].filter(Boolean)
