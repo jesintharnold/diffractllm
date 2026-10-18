@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { API } from '@/app/endpoints'
 import { apiGet, apiSend } from '@/lib/api'
 import { runAndWatch } from '@/lib/run-and-watch'
@@ -68,41 +68,4 @@ export interface GovernanceSettings {
   budget_flush_interval_seconds: number
   usage_flush_interval_seconds: number
   usage_buffer_size: number
-}
-
-export interface GovernanceSettingsView {
-  settings: GovernanceSettings // saved: yaml defaults with the console's overrides on top
-  defaults: GovernanceSettings // server.yaml
-}
-
-const SETTINGS_KEY = ['governance', 'settings'] as const
-
-export function useGovernanceSettings() {
-  return useQuery({
-    queryKey: SETTINGS_KEY,
-    queryFn: ({ signal }) =>
-      apiGet<GovernanceSettingsView>(API.admin.governance.settings, undefined, signal),
-  })
-}
-
-// Save sends the whole form in one request; Reset removes every override.
-export function useSaveGovernanceSettings() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (next: GovernanceSettings) =>
-      apiSend<GovernanceSettingsView>('PUT', API.admin.governance.settings, next),
-    onSuccess: (view) => {
-      queryClient.setQueryData(SETTINGS_KEY, view)
-    },
-  })
-}
-
-export function useResetGovernanceSettings() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: () => apiSend<GovernanceSettingsView>('DELETE', API.admin.governance.settings),
-    onSuccess: (view) => {
-      queryClient.setQueryData(SETTINGS_KEY, view)
-    },
-  })
 }

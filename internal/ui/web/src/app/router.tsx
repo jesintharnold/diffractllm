@@ -6,10 +6,13 @@ import CatalogPage from '@/pages/catalog'
 import ComingSoonPage from '@/pages/coming-soon'
 import GovernanceSettingsPage from '@/pages/governance-settings'
 import NotFoundPage from '@/pages/not-found'
+import ObservabilitySettingsPage from '@/pages/observability-settings'
 import OverviewPage from '@/pages/overview'
 import PricingPage from '@/pages/pricing'
 import ProviderPage from '@/pages/provider'
 import ProvidersPage from '@/pages/providers'
+import RequestPage from '@/pages/request'
+import RequestsPage from '@/pages/requests'
 import VirtualKeyPage from '@/pages/virtual-key'
 import VirtualKeysPage from '@/pages/virtual-keys'
 
@@ -30,9 +33,9 @@ export const router = createBrowserRouter([
       { path: 'governance/budgets', element: <BudgetsPage /> },
       { path: 'governance/budgets/:id', element: <BudgetPage /> },
       { path: 'governance/settings', element: <GovernanceSettingsPage /> },
-      later('observability/requests', 'Requests'),
-      later('observability/requests/:id', 'Request'),
-      later('observability/settings', 'Observability settings'),
+      { path: 'observability/requests', element: <RequestsPage /> },
+      { path: 'observability/requests/:id', element: <RequestPage /> },
+      { path: 'observability/settings', element: <ObservabilitySettingsPage /> },
       later('settings/gateway', 'Gateway settings'),
       { path: '*', element: <NotFoundPage /> },
     ],

@@ -114,7 +114,7 @@ func TestRequestSummaryAlignsBarsToTheClock(t *testing.T) {
 
 func TestRequestLogsPageNewestFirst(t *testing.T) {
 	m, _ := seededEngine(t)
-	page, err := m.GetRequestLogsByTime(context.Background(), t0, t0.Add(time.Hour), 0, 2)
+	page, err := m.GetRequestLogsByTime(context.Background(), t0, t0.Add(time.Hour), 0, 2, RequestFilter{})
 	require.NoError(t, err)
 
 	assert.Equal(t, int64(6), page.Total)
@@ -127,7 +127,7 @@ func TestRequestLogsPageNewestFirst(t *testing.T) {
 	assert.Empty(t, page.Rows[1].Provider, "rejected before routing: no provider")
 	assert.Equal(t, time.UTC, page.Rows[0].StartedAt.Location())
 
-	page, err = m.GetRequestLogsByTime(context.Background(), t0, t0.Add(time.Hour), 4, 2)
+	page, err = m.GetRequestLogsByTime(context.Background(), t0, t0.Add(time.Hour), 4, 2, RequestFilter{})
 	require.NoError(t, err)
 	require.Len(t, page.Rows, 2)
 	r := page.Rows[1]
@@ -140,6 +140,54 @@ func TestRequestLogsPageNewestFirst(t *testing.T) {
 	assert.Equal(t, int64(902), r.OutputTokens)
 	assert.InDelta(t, 0.0015, r.CostUSD, 1e-12)
 	assert.Equal(t, "acme", r.ClientID)
+}
+
+func TestRequestLogsFilter(t *testing.T) {
+	m, _ := seededEngine(t)
+	ids := func(f RequestFilter) []string {
+		page, err := m.GetRequestLogsByTime(context.Background(), t0, t0.Add(time.Hour), 0, 10, f)
+		require.NoError(t, err)
+		out := make([]string, len(page.Rows))
+		for i, r := range page.Rows {
+			out[i] = r.ID
+		}
+		assert.Equal(t, int64(len(out)), page.Total, "total follows the filter")
+		return out
+	}
+
+	// Status uses the meanings the tiles count: a rejection is an error, an abort is not.
+	assert.Equal(t, []string{"e5", "e4"}, ids(RequestFilter{Status: StatusError}))
+	assert.Equal(t, []string{"e6"}, ids(RequestFilter{Status: StatusCancelled}))
+	assert.Equal(t, []string{"e3", "e2", "e1"}, ids(RequestFilter{Status: StatusSuccess}))
+
+	assert.Equal(t, []string{"e6", "e3"}, ids(RequestFilter{Provider: "azure"}))
+	assert.Equal(t, []string{"e6", "e4", "e3", "e2", "e1"}, ids(RequestFilter{Model: "gpt-4o"}))
+	assert.Len(t, ids(RequestFilter{ClientID: "acme"}), 6)
+	assert.Empty(t, ids(RequestFilter{ClientID: "other"}))
+	assert.Equal(t, []string{"e4"}, ids(RequestFilter{Status: StatusError, Provider: "openai"}))
+
+	// Search ignores case and looks at the id, request id, client and both model names.
+	assert.Equal(t, []string{"e4"}, ids(RequestFilter{Search: "REQUEST-E4"}))
+	assert.Equal(t, []string{"e5"}, ids(RequestFilter{Search: "e5"}))
+	assert.Len(t, ids(RequestFilter{Search: "ACME"}), 6)
+	assert.Len(t, ids(RequestFilter{Search: "gpt"}), 5)
+	assert.Empty(t, ids(RequestFilter{Search: "'; DROP TABLE events; --"}))
+}
+
+func TestRequestLogsRejectsAnUnknownStatus(t *testing.T) {
+	m, _ := seededEngine(t)
+	_, err := m.GetRequestLogsByTime(context.Background(), t0, t0.Add(time.Hour), 0, 10, RequestFilter{Status: "weird"})
+	assert.ErrorIs(t, err, ErrInvalidQuery)
+}
+
+func TestRequestFilterOptions(t *testing.T) {
+	m, _ := seededEngine(t)
+	got, err := m.GetRequestFilterOptions(context.Background(), t0, t0.Add(time.Hour))
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{"azure", "openai"}, got.Providers) // the rejection has none: no empty entry
+	assert.Equal(t, []string{"gpt-4o"}, got.Models)
+	assert.Equal(t, []string{"acme"}, got.Clients)
 }
 
 // Last use spans every retained event; the count only those since `since`.
@@ -264,7 +312,7 @@ func TestReadsRejectBadQueries(t *testing.T) {
 	assert.ErrorIs(t, err, ErrInvalidQuery)
 	_, err = m.GetRequestSummaryByTime(ctx, t0, t0.Add(59*time.Minute), BucketView{}) // under the 1h minimum
 	assert.ErrorIs(t, err, ErrInvalidQuery)
-	_, err = m.GetRequestLogsByTime(ctx, t0, t0.Add(time.Hour), 0, 201)
+	_, err = m.GetRequestLogsByTime(ctx, t0, t0.Add(time.Hour), 0, 201, RequestFilter{})
 	assert.ErrorIs(t, err, ErrInvalidQuery)
 }
 

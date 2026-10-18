@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"diffractllm/internal/core"
@@ -207,14 +208,66 @@ func (ds *DuckDBStore) GetRequestSummaryByTime(ctx context.Context, from, to tim
 	return s, rows.Err()
 }
 
-func (ds *DuckDBStore) GetRequestLogsByTime(ctx context.Context, from, to time.Time, offset, limit int) (*RequestLogPage, error) {
+// RequestFilter narrows the request log; an empty field matches everything. Search finds a piece of
+// the event id, request id, client, requested model or served model, ignoring case.
+type RequestFilter struct {
+	Search   string
+	Status   string // "", "success", "error" or "cancelled": the same meanings the tiles count
+	Provider string
+	Model    string // the model shown in the log: the served one, else the requested one
+	ClientID string
+}
+
+const (
+	StatusSuccess   = "success"
+	StatusError     = "error"
+	StatusCancelled = "cancelled"
+)
+
+// where builds the WHERE clause for the log over [from, to), returning it with its arguments.
+func (f RequestFilter) where(from, to time.Time) (string, []any) {
+	args := []any{from, to}
+	arg := func(v any) string {
+		args = append(args, v)
+		return fmt.Sprintf("$%d", len(args))
+	}
+	clauses := []string{"started_at >= $1", "started_at < $2"}
+	switch f.Status {
+	case StatusSuccess:
+		clauses = append(clauses, "outcome_result = 'ok'")
+	case StatusError:
+		clauses = append(clauses, isError)
+	case StatusCancelled:
+		clauses = append(clauses, isCancelled)
+	}
+	if f.Provider != "" {
+		clauses = append(clauses, "llm_provider = "+arg(f.Provider))
+	}
+	if f.Model != "" {
+		clauses = append(clauses, "coalesce(llm_model, llm_requested_model, '') = "+arg(f.Model))
+	}
+	if f.ClientID != "" {
+		clauses = append(clauses, "governance_client_id = "+arg(f.ClientID))
+	}
+	if f.Search != "" {
+		needle := arg(strings.ToLower(f.Search))
+		clauses = append(clauses, `(contains(lower(id), `+needle+`) OR contains(lower(coalesce(request_id, '')), `+needle+`)
+			OR contains(lower(coalesce(governance_client_id, '')), `+needle+`)
+			OR contains(lower(coalesce(llm_requested_model, '')), `+needle+`) OR contains(lower(coalesce(llm_model, '')), `+needle+`))`)
+	}
+	return strings.Join(clauses, " AND "), args
+}
+
+func (ds *DuckDBStore) GetRequestLogsByTime(ctx context.Context, from, to time.Time, offset, limit int, filter RequestFilter) (*RequestLogPage, error) {
+	where, args := filter.where(from, to)
+	args = append(args, limit, offset)
 	q := `SELECT id, coalesce(request_id, ''), started_at, coalesce(request_kind, ''), coalesce(llm_provider, ''),
 		coalesce(llm_model, llm_requested_model, ''), timing_total_us, coalesce(usage_input_tokens, 0), coalesce(usage_output_tokens, 0), cost_nano_usd,
 		outcome_http_status, outcome_result, coalesce(governance_client_id, ''), count(*) OVER ()
-	FROM events WHERE started_at >= $1 AND started_at < $2
-	ORDER BY started_at DESC, id DESC LIMIT $3 OFFSET $4`
+	FROM events WHERE ` + where + fmt.Sprintf(`
+	ORDER BY started_at DESC, id DESC LIMIT $%d OFFSET $%d`, len(args)-1, len(args))
 
-	rows, err := ds.db.QueryContext(ctx, q, from, to, limit, offset)
+	rows, err := ds.db.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, fmt.Errorf("request logs: %w", err)
 	}
@@ -234,6 +287,57 @@ func (ds *DuckDBStore) GetRequestLogsByTime(ctx context.Context, from, to time.T
 		page.Rows = append(page.Rows, r)
 	}
 	return page, rows.Err()
+}
+
+// RequestFilterOptions lists the values the log filters can take in a window, so the console
+// offers only choices that match something.
+type RequestFilterOptions struct {
+	Providers []string `json:"providers"`
+	Models    []string `json:"models"`
+	Clients   []string `json:"clients"`
+}
+
+const maxFilterOptions = 200
+
+func (ds *DuckDBStore) GetRequestFilterOptions(ctx context.Context, from, to time.Time) (*RequestFilterOptions, error) {
+	out := &RequestFilterOptions{}
+	for _, c := range []struct {
+		expr string
+		dst  *[]string
+	}{
+		{"llm_provider", &out.Providers},
+		{"coalesce(llm_model, llm_requested_model)", &out.Models},
+		{"governance_client_id", &out.Clients},
+	} {
+		values, err := ds.distinct(ctx, c.expr, from, to)
+		if err != nil {
+			return nil, err
+		}
+		*c.dst = values
+	}
+	return out, nil
+}
+
+// distinct lists the non-empty values of expr over [from, to), sorted. expr is always one of
+// the constants above, never request input.
+func (ds *DuckDBStore) distinct(ctx context.Context, expr string, from, to time.Time) ([]string, error) {
+	rows, err := ds.db.QueryContext(ctx, fmt.Sprintf(
+		`SELECT DISTINCT %[1]s AS v FROM events WHERE started_at >= $1 AND started_at < $2 AND %[1]s <> '' ORDER BY v LIMIT %d`,
+		expr, maxFilterOptions), from, to)
+	if err != nil {
+		return nil, fmt.Errorf("request filter options: %w", err)
+	}
+	defer rows.Close()
+
+	values := []string{}
+	for rows.Next() {
+		var v string
+		if err := rows.Scan(&v); err != nil {
+			return nil, fmt.Errorf("request filter options: %w", err)
+		}
+		values = append(values, v)
+	}
+	return values, rows.Err()
 }
 
 // GetRequestDetailByRequestID resolves a gateway request ID only when it identifies

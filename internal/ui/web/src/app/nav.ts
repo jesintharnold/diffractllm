@@ -1,9 +1,7 @@
 import {
-  Activity,
   Bell,
   Boxes,
   CircleDollarSign,
-  GitBranch,
   KeyRound,
   KeySquare,
   LayoutDashboard,
@@ -49,8 +47,6 @@ export const NAV: NavSection[] = [
     title: 'Observability',
     items: [
       { title: 'Requests', to: '/observability/requests', icon: List },
-      { title: 'Traces', to: '/observability/traces', icon: GitBranch, disabled: true },
-      { title: 'Metrics', to: '/observability/metrics', icon: Activity, disabled: true },
       { title: 'Alerts', to: '/observability/alerts', icon: Bell, disabled: true },
       { title: 'Settings', to: '/observability/settings', icon: SlidersHorizontal },
     ],

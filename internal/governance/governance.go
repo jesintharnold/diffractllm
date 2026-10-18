@@ -7,7 +7,6 @@ import (
 	"diffractllm/internal/worker"
 	"errors"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -37,19 +36,12 @@ type Governance struct {
 	logger      *zap.Logger
 	workers     *worker.Group
 	config      jobsIntervalconfig
-	defaults    Settings // server.yaml
-	settingsMu  sync.Mutex
 }
 
-func NewGovernance(store *dbstore.Store, logger *zap.Logger, defaults Settings) (*Governance, error) {
-	if err := defaults.Validate(); err != nil {
-		return nil, fmt.Errorf("governance section of server.yaml: %w", err)
+func NewGovernance(store *dbstore.Store, logger *zap.Logger, running Settings) (*Governance, error) {
+	if err := running.Validate(); err != nil {
+		return nil, fmt.Errorf("governance settings: %w", err)
 	}
-	saved, err := store.GetSettingOverrides(SettingsScope)
-	if err != nil {
-		return nil, err
-	}
-	running := Resolve(defaults, saved, logger)
 
 	keyCache := &VirtualkeyCache{logger: logger}
 	budgetCache := &BudgetCache{logger: logger}
@@ -60,7 +52,6 @@ func NewGovernance(store *dbstore.Store, logger *zap.Logger, defaults Settings) 
 		BudgetCache: budgetCache,
 		UsageBuffer: usageBuffer,
 		logger:      logger,
-		defaults:    defaults,
 		config: jobsIntervalconfig{
 			vkeySyncInterval:        time.Duration(running.VKeySyncSeconds) * time.Second,
 			budgetSyncInterval:      time.Duration(running.BudgetSyncSeconds) * time.Second,

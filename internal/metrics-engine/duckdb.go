@@ -23,7 +23,8 @@ type OLAPStore interface {
 	Close() error
 	GetOverviewTiles(ctx context.Context, from, to time.Time) (*OverviewTiles, error)
 	GetRequestSummaryByTime(ctx context.Context, from, to time.Time, bucket time.Duration, loc *time.Location) (*TimeSummary, error)
-	GetRequestLogsByTime(ctx context.Context, from, to time.Time, offset, limit int) (*RequestLogPage, error)
+	GetRequestLogsByTime(ctx context.Context, from, to time.Time, offset, limit int, filter RequestFilter) (*RequestLogPage, error)
+	GetRequestFilterOptions(ctx context.Context, from, to time.Time) (*RequestFilterOptions, error)
 	GetRequestDetailByID(ctx context.Context, id string) (*RequestDetail, error)
 	GetRequestDetailByRequestID(ctx context.Context, requestID string) (*RequestDetail, error)
 	GetPayloadByID(ctx context.Context, id string) (*Payload, error)
@@ -32,6 +33,7 @@ type OLAPStore interface {
 	GetCredentialUsage(ctx context.Context, provider string, since time.Time) ([]CredentialUsage, error)
 	GetVirtualKeyLastUse(ctx context.Context, since time.Time) ([]VirtualKeyLastUse, error)
 	GetBudgetSpendByTime(ctx context.Context, budgetID string, from, to time.Time, bucket time.Duration, loc *time.Location) (*BudgetSpend, error)
+	Prune(ctx context.Context, eventsBefore, payloadsBefore time.Time) (map[string]int64, error)
 }
 
 //go:embed migrations/*.sql
@@ -262,8 +264,7 @@ func (ds *DuckDBStore) Write(ctx context.Context, events []*Event) error {
 	committed = true
 	return nil
 }
-
-func (ds *DuckDBStore) Prune(ctx context.Context, recordsBefore time.Time) (map[string]int64, error) {
+func (ds *DuckDBStore) Prune(ctx context.Context, eventsBefore, payloadsBefore time.Time) (map[string]int64, error) {
 	result := make(map[string]int64)
 	tx, err := ds.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -271,13 +272,13 @@ func (ds *DuckDBStore) Prune(ctx context.Context, recordsBefore time.Time) (map[
 	}
 	defer tx.Rollback()
 
-	eventRes, err := tx.ExecContext(ctx, `DELETE FROM events WHERE started_at < ?`, recordsBefore)
+	eventRes, err := tx.ExecContext(ctx, `DELETE FROM events WHERE started_at < ?`, eventsBefore)
 	if err != nil {
 		return nil, fmt.Errorf("prune events: %w", err)
 	}
 	result["total_events"], _ = eventRes.RowsAffected()
 
-	payloadRes, err := tx.ExecContext(ctx, `DELETE FROM event_payloads WHERE started_at < ?`, recordsBefore)
+	payloadRes, err := tx.ExecContext(ctx, `DELETE FROM event_payloads WHERE started_at < ?`, payloadsBefore)
 	if err != nil {
 		return nil, fmt.Errorf("prune event payloads: %w", err)
 	}

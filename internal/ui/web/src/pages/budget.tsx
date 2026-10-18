@@ -9,9 +9,10 @@ import {
   Trash2,
   Wallet,
 } from 'lucide-react'
-import { useState, type ReactNode } from 'react'
+import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { toast } from 'sonner'
+import { DetailCard, DetailRow, StatTile } from '@/components/detail'
 import { PageBody } from '@/components/layout/page-body'
 import { PageHeader } from '@/components/layout/page-header'
 import { Button } from '@/components/ui/button'
@@ -47,48 +48,6 @@ const CHIP_TONE: Record<LimitState, string> = {
   reached: 'border-destructive/30 bg-destructive/10 text-destructive',
 }
 
-function Tile({
-  label,
-  value,
-  sub,
-  valueClass,
-}: {
-  label: string
-  value: string
-  sub: string
-  valueClass?: string
-}) {
-  return (
-    <div className="flex flex-col gap-1.5 rounded-xl border bg-card px-[18px] py-4">
-      <span className="text-[10px] font-semibold tracking-[0.06em] text-muted-foreground uppercase">
-        {label}
-      </span>
-      <span className={cn('font-mono text-2xl leading-8 font-medium tabular-nums', valueClass)}>
-        {value}
-      </span>
-      <span className="text-[11px] text-muted-foreground">{sub}</span>
-    </div>
-  )
-}
-
-function Row({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="flex items-center justify-between gap-3 text-xs">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-mono">{children}</span>
-    </div>
-  )
-}
-
-function Card({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section className="flex flex-col gap-3.5 rounded-xl border bg-card p-5">
-      <h2 className="text-sm font-semibold">{title}</h2>
-      {children}
-    </section>
-  )
-}
-
 function Details({ b }: { b: Budget }) {
   const { zone } = useTimezone()
   const seconds = windowSeconds(b.budget_duration)
@@ -96,20 +55,20 @@ function Details({ b }: { b: Budget }) {
   const created = b.created_at ? new Date(b.created_at) : null
   return (
     <div className="flex flex-col gap-4 duration-300 animate-in fade-in-0">
-      <Row label="limit">{money(b.budget_limit)}</Row>
-      <Row label="window">
+      <DetailRow label="limit">{money(b.budget_limit)}</DetailRow>
+      <DetailRow label="window">
         {windowName(b.budget_duration)}
         {seconds !== null && ` · ${windowLength(seconds)}`}
-      </Row>
-      <Row label="window started">
+      </DetailRow>
+      <DetailRow label="window started">
         {formatInZone(new Date(b.last_budget_refresh_at), zone, 'MMM d, HH:mm')}
-      </Row>
-      <Row label="next reset">
+      </DetailRow>
+      <DetailRow label="next reset">
         {end === null ? '—' : formatInZone(new Date(end), zone, 'MMM d, HH:mm')}
-      </Row>
-      <Row label="enforcement">{isEnforced(b) ? 'Enforced' : 'Not enforced'}</Row>
+      </DetailRow>
+      <DetailRow label="enforcement">{isEnforced(b) ? 'Enforced' : 'Not enforced'}</DetailRow>
       {created && created.getFullYear() > 2000 && (
-        <Row label="created">{formatInZone(created, zone, 'MMM d, yyyy')}</Row>
+        <DetailRow label="created">{formatInZone(created, zone, 'MMM d, yyyy')}</DetailRow>
       )}
     </div>
   )
@@ -241,18 +200,18 @@ export default function BudgetPage() {
         ) : (
           <>
             <div className="grid gap-4 duration-300 animate-in fade-in-0 sm:grid-cols-2 xl:grid-cols-4">
-              <Tile
+              <StatTile
                 label="Spent this window"
                 value={money(spent)}
                 valueClass={state === 'ok' ? undefined : STATE_TEXT[state]}
                 sub={`${percent(ratio)} of the ${money(b.budget_limit)} limit`}
               />
-              <Tile
+              <StatTile
                 label="Limit"
                 value={money(b.budget_limit)}
                 sub={`${windowName(b.budget_duration)} · resets every ${windowLength(windowSeconds(b.budget_duration) ?? 0)}`}
               />
-              <Tile
+              <StatTile
                 label="Resets in"
                 value={end === null || end - now <= 0 ? 'now' : span(end - now)}
                 sub={
@@ -261,7 +220,7 @@ export default function BudgetPage() {
                     : `${formatInZone(new Date(end), zone, 'MMM d, HH:mm')}${elapsed === null ? '' : ` · ${percent(elapsed)} of the window elapsed`}`
                 }
               />
-              <Tile
+              <StatTile
                 label="Requests this window"
                 value={formatCount(requests).value}
                 sub={
@@ -277,10 +236,10 @@ export default function BudgetPage() {
                 <SpendSection budgetId={b.id} />
               </div>
               <div className="flex flex-col gap-4">
-                <Card title="Configuration">
+                <DetailCard title="Configuration">
                   <Details b={b} />
-                </Card>
-                <Card title="Key">
+                </DetailCard>
+                <DetailCard title="Key">
                   {key ? (
                     <Link
                       to={`/governance/virtual-keys/${key.id}`}
@@ -302,7 +261,7 @@ export default function BudgetPage() {
                       Not assigned to a key. Choose this budget when you create one.
                     </p>
                   )}
-                </Card>
+                </DetailCard>
               </div>
             </div>
           </>

@@ -11,6 +11,7 @@ import (
 	"diffractllm/internal/modelcatalog"
 	"diffractllm/internal/providerplane"
 	"diffractllm/internal/providers"
+	"diffractllm/internal/settings"
 	"fmt"
 	"net"
 	"net/http"
@@ -45,7 +46,11 @@ type DiffractLLMServer struct {
 
 	dbStore *dbstore.Store
 	metrics *metricsengine.MetricsEngine
+
+	settings *settings.Registry
 }
+
+func (ds *DiffractLLMServer) SetSettings(r *settings.Registry) { ds.settings = r }
 
 func NewDiffractLLMServer(logger *zap.Logger, config *config.ServerConfig, gov *governance.Governance, selectionEngine *dataplane.SelectionEngine, credentialPlane *providerplane.ProviderPlane, catalog *modelcatalog.ModelCatalog,
 	registry *providers.ProviderInstance, transport *dataplane.DiffractLLMTransport, store *dbstore.Store) *DiffractLLMServer {

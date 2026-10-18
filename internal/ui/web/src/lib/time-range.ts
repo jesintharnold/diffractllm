@@ -80,8 +80,9 @@ export function useTimeRange(): [RangeSpec, (next: RangeSpec) => void] {
 }
 
 // The page-level window: resolve once, hand the same object to every query on the page.
-export function useRangeWindow(spec: RangeSpec): RangeWindow {
-  const now = useClock(SLIDE_MS)
+// `slideMs` is how often a preset moves forward; a live table asks for a faster tick.
+export function useRangeWindow(spec: RangeSpec, slideMs = SLIDE_MS): RangeWindow {
+  const now = useClock(slideMs)
   const from = spec.kind === 'custom' ? spec.from.getTime() : null
   const to = spec.kind === 'custom' ? spec.to.getTime() : null
   const preset = spec.kind === 'preset' ? spec.preset : null

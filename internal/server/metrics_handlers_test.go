@@ -85,6 +85,21 @@ func TestMetricsEndpoints(t *testing.T) {
 	assert.Equal(t, 2.0, body["total"])
 	assert.Len(t, body["rows"], 1)
 
+	code, body = get(t, h, "/v1/admin/metrics/requests?"+hour+"&status=error")
+	assert.Equal(t, http.StatusOK, code)
+	assert.Equal(t, 1.0, body["total"])
+	assert.Equal(t, "rej-1", body["rows"].([]any)[0].(map[string]any)["id"])
+
+	code, body = get(t, h, "/v1/admin/metrics/requests?"+hour+"&q=REQUEST-OK")
+	assert.Equal(t, http.StatusOK, code)
+	assert.Equal(t, 1.0, body["total"])
+
+	code, body = get(t, h, "/v1/admin/metrics/requests/filters?"+hour)
+	assert.Equal(t, http.StatusOK, code)
+	assert.Equal(t, []any{}, body["providers"]) // seeded events were not routed: [] not null
+	assert.Equal(t, []any{}, body["models"])
+	assert.Equal(t, []any{}, body["clients"])
+
 	code, body = get(t, h, "/v1/admin/metrics/requests/ok-1")
 	assert.Equal(t, http.StatusOK, code)
 	assert.Equal(t, "ok-1", body["id"])
@@ -147,6 +162,7 @@ func TestMetricsEndpointsRejectBadParams(t *testing.T) {
 		"/v1/admin/metrics/stats?from=2026-10-01T10:00:00Z&to=2026-10-01T10:30:00Z", // under 1h
 		"/v1/admin/metrics/requests?" + hour + "&limit=abc",                         // not a number
 		"/v1/admin/metrics/requests?" + hour + "&limit=500",                         // over max_page
+		"/v1/admin/metrics/requests?" + hour + "&status=weird",                      // not a status
 		"/v1/admin/metrics/virtual-keys/top?" + hour + "&limit=51",
 	} {
 		code, body := get(t, h, url)

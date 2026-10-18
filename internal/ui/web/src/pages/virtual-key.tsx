@@ -1,9 +1,10 @@
 import { format, formatDistanceToNowStrict } from 'date-fns'
 import { ArrowLeft, KeyRound, Loader2, RefreshCw, Trash2 } from 'lucide-react'
-import { useState, type ReactNode } from 'react'
+import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { toast } from 'sonner'
 import { SquareMeter } from '@/components/charts/square-meter'
+import { DetailRow } from '@/components/detail'
 import { PageBody } from '@/components/layout/page-body'
 import { PageHeader } from '@/components/layout/page-header'
 import { Button } from '@/components/ui/button'
@@ -43,15 +44,6 @@ import { formatCount } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 const MIN_SAVING_MS = 600 // a local save answers in milliseconds; keep the spinner visible
-
-function Row({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="flex items-center justify-between gap-3 text-xs">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-mono">{children}</span>
-    </div>
-  )
-}
 
 function RoutingCard({ k }: { k: VirtualKey }) {
   const update = useUpdateRouting()
@@ -179,9 +171,9 @@ function BudgetCard({ budgetId }: { budgetId: string }) {
             spread
           />
           <div className="flex flex-col gap-2.5">
-            <Row label="window resets">{resetsIn(b)}</Row>
-            <Row label="requests">{formatCount(b.request_count ?? 0).value}</Row>
-            <Row label="enforcement">{isEnforced(b) ? 'enforced' : 'not enforced'}</Row>
+            <DetailRow label="window resets">{resetsIn(b)}</DetailRow>
+            <DetailRow label="requests">{formatCount(b.request_count ?? 0).value}</DetailRow>
+            <DetailRow label="enforcement">{isEnforced(b) ? 'enforced' : 'not enforced'}</DetailRow>
           </div>
         </>
       )}
@@ -197,10 +189,10 @@ function IdentityCard({ k }: { k: VirtualKey }) {
     <section className="flex flex-col gap-3.5 rounded-xl border bg-card p-5">
       <h2 className="text-sm font-semibold">Identity</h2>
       <div className="flex flex-col gap-2.5">
-        <Row label="key">{k.display_prefix}…</Row>
-        <Row label="client">{k.client_id}</Row>
-        <Row label="status">{k.is_active ? 'enabled' : 'disabled'}</Row>
-        <Row label="created">{format(new Date(k.created_at), 'MMM d, yyyy')}</Row>
+        <DetailRow label="key">{k.display_prefix}…</DetailRow>
+        <DetailRow label="client">{k.client_id}</DetailRow>
+        <DetailRow label="status">{k.is_active ? 'enabled' : 'disabled'}</DetailRow>
+        <DetailRow label="created">{format(new Date(k.created_at), 'MMM d, yyyy')}</DetailRow>
         <div className="flex items-center justify-between gap-3 text-xs">
           <span className="text-muted-foreground">expires</span>
           <ExpiryPicker
@@ -218,14 +210,14 @@ function IdentityCard({ k }: { k: VirtualKey }) {
             }}
           />
         </div>
-        <Row label="last used">
+        <DetailRow label="last used">
           {u ? formatDistanceToNowStrict(new Date(u.last_used_at), { addSuffix: true }) : '—'}
-        </Row>
-        <Row label="requests · 24h">
+        </DetailRow>
+        <DetailRow label="requests · 24h">
           {usage.isError ? '—' : formatCount(u?.requests ?? 0).value}
-        </Row>
-        <Row label="mode">{k.mode}</Row>
-        <Row label="load balancer">{k.load_balancer.replaceAll('_', ' ')}</Row>
+        </DetailRow>
+        <DetailRow label="mode">{k.mode}</DetailRow>
+        <DetailRow label="load balancer">{k.load_balancer.replaceAll('_', ' ')}</DetailRow>
       </div>
     </section>
   )

@@ -31,8 +31,9 @@ export const API = {
     },
     governance: {
       runJob: (name: string) => `/v1/admin/governance/jobs/${id(name)}/run`,
-      settings: '/v1/admin/governance/settings',
     },
+    // Every settings page (governance, observability, ...) is one scope of the same endpoint.
+    settings: (scope: string) => `/v1/admin/settings/${id(scope)}`,
     catalog: {
       summary: '/v1/admin/catalog/summary',
       settings: '/v1/admin/catalog/settings',
@@ -43,6 +44,7 @@ export const API = {
       stats: '/v1/admin/metrics/stats',
       requests: '/v1/admin/metrics/requests',
       requestSummary: '/v1/admin/metrics/requests/summary',
+      requestFilters: '/v1/admin/metrics/requests/filters',
       request: (eventId: string) => `/v1/admin/metrics/requests/${id(eventId)}`,
       payload: (eventId: string) => `/v1/admin/metrics/requests/${id(eventId)}/payload`,
       topVirtualKeys: '/v1/admin/metrics/virtual-keys/top',

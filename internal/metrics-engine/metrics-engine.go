@@ -16,8 +16,10 @@ import (
 )
 
 const (
-	jobEventsFlush   = "events_flush"
-	maxWriteAttempts = 3
+	jobEventsFlush    = "events_flush"
+	jobEventsPrune    = "events_prune"
+	maxWriteAttempts  = 3
+	defaultPruneEvery = 24 * time.Hour
 )
 
 type MetricsEngine struct {
@@ -43,15 +45,38 @@ func NewMetricsEngine(store OLAPStore, cfg *config.MetricsEngineConfig, logger *
 
 func (m *MetricsEngine) Start(ctx context.Context) error {
 	m.workers = worker.NewGroup("metrics", m.logger)
-	if err := m.workers.Add(&worker.Job{
-		Name:      jobEventsFlush,
-		Interval:  m.config.FlushInterval,
-		RunAtStop: true,
-		Run:       m.flush,
-	}); err != nil {
+	pruneEvery := m.config.PruneInterval
+	if pruneEvery <= 0 {
+		pruneEvery = defaultPruneEvery
+	}
+	if err := m.workers.Add(
+		&worker.Job{
+			Name:      jobEventsFlush,
+			Interval:  m.config.FlushInterval,
+			RunAtStop: true,
+			Run:       m.flush,
+		},
+		&worker.Job{Name: jobEventsPrune, Interval: pruneEvery, Run: m.prune},
+	); err != nil {
 		return err
 	}
-	return m.workers.Start(ctx)
+	if err := m.workers.Start(ctx); err != nil {
+		return err
+	}
+	_ = m.workers.Trigger(jobEventsPrune) // catch up right after a start, not a day later
+	return nil
+}
+
+func (m *MetricsEngine) prune(ctx context.Context) (worker.Detail, error) {
+	if m.config.EventsDays <= 0 || m.config.PayloadsDays <= 0 {
+		return worker.Detail{"skipped": "retention is not set"}, nil
+	}
+	now := time.Now().UTC()
+	deleted, err := m.store.Prune(ctx, now.AddDate(0, 0, -m.config.EventsDays), now.AddDate(0, 0, -m.config.PayloadsDays))
+	if err != nil {
+		return nil, err
+	}
+	return worker.Detail{"events_deleted": deleted["total_events"], "payloads_deleted": deleted["total_payload_events"]}, nil
 }
 
 func (m *MetricsEngine) Shutdown(ctx context.Context) error {
@@ -180,16 +205,30 @@ func (m *MetricsEngine) GetRequestSummaryByTime(ctx context.Context, from, to ti
 	return m.store.GetRequestSummaryByTime(ctx, from.UTC(), to.UTC(), bucket, zone)
 }
 
-func (m *MetricsEngine) GetRequestLogsByTime(ctx context.Context, from, to time.Time, offset, limit int) (*RequestLogPage, error) {
+func (m *MetricsEngine) GetRequestLogsByTime(ctx context.Context, from, to time.Time, offset, limit int, filter RequestFilter) (*RequestLogPage, error) {
 	if err := m.checkRange(from, to); err != nil {
 		return nil, err
 	}
 	if offset < 0 || limit < 1 || limit > m.config.MaxPage {
 		return nil, fmt.Errorf("%w: need offset >= 0 and 1 <= limit <= %d", ErrInvalidQuery, m.config.MaxPage)
 	}
+	switch filter.Status {
+	case "", StatusSuccess, StatusError, StatusCancelled:
+	default:
+		return nil, fmt.Errorf("%w: status must be %s, %s or %s", ErrInvalidQuery, StatusSuccess, StatusError, StatusCancelled)
+	}
 	ctx, cancel := context.WithTimeout(ctx, m.config.QueryTimeout)
 	defer cancel()
-	return m.store.GetRequestLogsByTime(ctx, from.UTC(), to.UTC(), offset, limit)
+	return m.store.GetRequestLogsByTime(ctx, from.UTC(), to.UTC(), offset, limit, filter)
+}
+
+func (m *MetricsEngine) GetRequestFilterOptions(ctx context.Context, from, to time.Time) (*RequestFilterOptions, error) {
+	if err := m.checkRange(from, to); err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(ctx, m.config.QueryTimeout)
+	defer cancel()
+	return m.store.GetRequestFilterOptions(ctx, from.UTC(), to.UTC())
 }
 
 func (m *MetricsEngine) GetRequestDetailByID(ctx context.Context, id string) (*RequestDetail, error) {
@@ -249,7 +288,6 @@ func (m *MetricsEngine) GetTopVirtualKeys(ctx context.Context, from, to time.Tim
 	defer cancel()
 	return m.store.GetTopVirtualKeys(ctx, from.UTC(), to.UTC(), limit)
 }
-
 
 type BucketView struct {
 	Bucket time.Duration  // 0 picks from the range; otherwise one of drillBuckets

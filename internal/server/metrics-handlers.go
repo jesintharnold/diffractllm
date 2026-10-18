@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	metricsengine "diffractllm/internal/metrics-engine"
@@ -122,12 +123,32 @@ func (ds *DiffractLLMServer) listMetricsRequests(c *gin.Context) {
 		adminErr(c, http.StatusBadRequest, "limit must be a number")
 		return
 	}
-	page, err := ds.metrics.GetRequestLogsByTime(c.Request.Context(), from, to, offset, limit)
+	filter := metricsengine.RequestFilter{
+		Search:   strings.TrimSpace(c.Query("q")),
+		Status:   c.Query("status"),
+		Provider: c.Query("provider"),
+		Model:    c.Query("model"),
+		ClientID: c.Query("client"),
+	}
+	page, err := ds.metrics.GetRequestLogsByTime(c.Request.Context(), from, to, offset, limit, filter)
 	if err != nil {
 		ds.metricsErr(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, page)
+}
+
+func (ds *DiffractLLMServer) listMetricsRequestFilters(c *gin.Context) {
+	from, to, ok := timeRange(c)
+	if !ok {
+		return
+	}
+	options, err := ds.metrics.GetRequestFilterOptions(c.Request.Context(), from, to)
+	if err != nil {
+		ds.metricsErr(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, options)
 }
 
 func (ds *DiffractLLMServer) getMetricsRequest(c *gin.Context) {

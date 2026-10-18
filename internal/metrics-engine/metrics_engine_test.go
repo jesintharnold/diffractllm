@@ -389,12 +389,55 @@ func TestPruneDeletesOnlyOldRows(t *testing.T) {
 		event(now),
 	}))
 
-	result, err := store.Prune(context.Background(), now.Add(-24*time.Hour))
+	result, err := store.Prune(context.Background(), now.Add(-24*time.Hour), now.Add(-24*time.Hour))
 	require.NoError(t, err)
 	assert.Equal(t, int64(2), result["total_events"])
 	assert.Equal(t, int64(2), result["total_payload_events"])
 	assert.Equal(t, 1, countRows(t, store.db, "events"))
 	assert.Equal(t, 1, countRows(t, store.db, "event_payloads"))
+}
+
+// Bodies are kept for less time than their events: a payload cutoff later than the events cutoff
+// removes bodies while the events stay.
+func TestPruneUsesASeparateCutoffForPayloads(t *testing.T) {
+	store := newTestStore(t)
+	e := acquireEvent()
+	e.fill(okContext())
+	e.Timing.Start = time.Now().UTC().Add(-48 * time.Hour)
+	e.Payload = &Payload{ClientRequest: json.RawMessage(`{"model":"gpt-4o"}`)}
+	require.NoError(t, store.Write(context.Background(), []*Event{e}))
+
+	result, err := store.Prune(context.Background(), time.Now().UTC().Add(-72*time.Hour), time.Now().UTC().Add(-24*time.Hour))
+
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), result["total_events"])
+	assert.Equal(t, int64(1), result["total_payload_events"])
+	assert.Equal(t, 1, countRows(t, store.db, "events"))
+	assert.Equal(t, 0, countRows(t, store.db, "event_payloads"))
+}
+
+// The prune job turns retention days into cutoffs, and does nothing when retention is not set.
+func TestPruneJobFollowsRetention(t *testing.T) {
+	store := newTestStore(t)
+	m := newTestEngine(store, 10)
+	now := time.Now().UTC()
+	old, fresh := acquireEvent(), acquireEvent()
+	old.fill(okContext())
+	old.Timing.Start = now.Add(-48 * time.Hour)
+	fresh.fill(okContext())
+	fresh.Timing.Start = now
+	require.NoError(t, store.Write(context.Background(), []*Event{old, fresh}))
+
+	detail, err := m.prune(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, "retention is not set", detail["skipped"])
+	assert.Equal(t, 2, countRows(t, store.db, "events"), "no retention configured: nothing is deleted")
+
+	m.config.EventsDays, m.config.PayloadsDays = 1, 1
+	detail, err = m.prune(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), detail["events_deleted"])
+	assert.Equal(t, 1, countRows(t, store.db, "events"))
 }
 
 // The rate a request was billed at is stored with it, so cost stays auditable after a price change.

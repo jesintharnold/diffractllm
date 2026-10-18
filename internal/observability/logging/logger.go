@@ -14,7 +14,14 @@ import (
 var (
 	log          *zap.Logger
 	logsingleton sync.Once
+	atomicLevel  *zap.AtomicLevel
 )
+
+func SetLevel(levelStr string) {
+	if atomicLevel != nil {
+		atomicLevel.SetLevel(parseLevel(strings.ToLower(levelStr)))
+	}
+}
 
 func parseLevel(levelStr string) zapcore.Level {
 	switch levelStr {
@@ -41,9 +48,10 @@ func logNew(loglevel string) *zap.Logger {
 	var loggerInstance *zap.Logger
 	logsingleton.Do(func() {
 
-		level := parseLevel(strings.ToLower(loglevel))
+		level := zap.NewAtomicLevelAt(parseLevel(strings.ToLower(loglevel)))
+		atomicLevel = &level
 		zapConfig := zap.Config{
-			Level:            zap.NewAtomicLevelAt(level),
+			Level:            level,
 			Development:      false,
 			Encoding:         "json",
 			EncoderConfig:    zap.NewProductionEncoderConfig(),

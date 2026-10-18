@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/json"
 	"net/http"
 	"testing"
 	"time"
@@ -61,83 +60,6 @@ func TestRunGovernanceJobBeforeStartIsUnavailable(t *testing.T) {
 
 	assert.Equal(t, http.StatusServiceUnavailable, code)
 	assert.Contains(t, out["error"], "not running")
-}
-
-// settingsServer is the real route tree over a governance with no saved overrides (the store is a
-// process-wide singleton, so the row is cleared before and after).
-func settingsServer(t *testing.T) (http.Handler, *DiffractLLMServer) {
-	t.Helper()
-	wipe := func() { require.NoError(t, testStore(t).DB.Exec("DELETE FROM setting_overrides").Error) }
-	wipe()
-	t.Cleanup(wipe)
-	return budgetServer(t)
-}
-
-func TestGovernanceSettingsStartAtTheYamlDefaults(t *testing.T) {
-	h, _ := settingsServer(t)
-
-	code, raw := send(t, h, http.MethodGet, "/v1/admin/governance/settings", nil)
-
-	require.Equal(t, http.StatusOK, code, string(raw))
-	var view governance.SettingsView
-	require.NoError(t, json.Unmarshal(raw, &view))
-	assert.Equal(t, governance.DefaultSettings(), view.Settings)
-	assert.Equal(t, governance.DefaultSettings(), view.Defaults)
-}
-
-// The whole form goes in one request; what is saved applies from the next start, so the running
-// workers keep their intervals.
-func TestPutGovernanceSettingsSavesInBulkWithoutTouchingTheRunningWorkers(t *testing.T) {
-	h, ds := settingsServer(t)
-	form := governance.DefaultSettings()
-	form.VKeySyncSeconds = 30
-	form.UsageBufferSize = 5000
-
-	code, raw := send(t, h, http.MethodPut, "/v1/admin/governance/settings", form)
-
-	require.Equal(t, http.StatusOK, code, string(raw))
-	var saved governance.SettingsView
-	require.NoError(t, json.Unmarshal(raw, &saved))
-	assert.Equal(t, form, saved.Settings)
-
-	_, raw = send(t, h, http.MethodGet, "/v1/admin/governance/settings", nil)
-	var again governance.SettingsView
-	require.NoError(t, json.Unmarshal(raw, &again))
-	assert.Equal(t, form, again.Settings, "a later read sees what was saved")
-	assert.Equal(t, 10*time.Second, jobStats(ds, governance.JobVirtualKeysSync).Interval, "the running job is unchanged")
-}
-
-func TestPutGovernanceSettingsNamesEveryBadField(t *testing.T) {
-	h, _ := settingsServer(t)
-	form := governance.DefaultSettings()
-	form.VKeySyncSeconds = 0
-	form.UsageBufferSize = 10
-
-	code, out := put(t, h, "/v1/admin/governance/settings", form)
-
-	assert.Equal(t, http.StatusBadRequest, code)
-	fields, _ := out["fields"].(map[string]any)
-	assert.Contains(t, fields, "vkey_sync_interval_seconds")
-	assert.Contains(t, fields, "usage_buffer_size")
-	assert.Len(t, fields, 2, "valid fields are not reported")
-}
-
-func TestDeleteGovernanceSettingsResetsToTheYamlDefaults(t *testing.T) {
-	h, _ := settingsServer(t)
-	form := governance.DefaultSettings()
-	form.BudgetFlushSeconds = 60
-	code, _ := put(t, h, "/v1/admin/governance/settings", form)
-	require.Equal(t, http.StatusOK, code)
-
-	code, raw := send(t, h, http.MethodDelete, "/v1/admin/governance/settings", nil)
-
-	require.Equal(t, http.StatusOK, code, string(raw))
-	var view governance.SettingsView
-	require.NoError(t, json.Unmarshal(raw, &view))
-	assert.Equal(t, governance.DefaultSettings(), view.Settings)
-	_, raw = send(t, h, http.MethodGet, "/v1/admin/governance/settings", nil)
-	require.NoError(t, json.Unmarshal(raw, &view))
-	assert.Equal(t, governance.DefaultSettings(), view.Settings, "the overrides are gone, not just hidden")
 }
 
 func TestRunGovernanceJobOnlyAcceptsPost(t *testing.T) {

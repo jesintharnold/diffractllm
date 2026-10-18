@@ -18,12 +18,14 @@ import (
 	"diffractllm/internal/governance"
 	metricsengine "diffractllm/internal/metrics-engine"
 	"diffractllm/internal/modelcatalog"
+	"diffractllm/internal/observability"
 	logger "diffractllm/internal/observability/logging"
 	"diffractllm/internal/providerplane"
 	"diffractllm/internal/providers"
 	azureprovider "diffractllm/internal/providers/azure"
 	openaiprovider "diffractllm/internal/providers/openai"
 	"diffractllm/internal/server"
+	"diffractllm/internal/settings"
 	"diffractllm/internal/worker"
 
 	"go.uber.org/zap"
@@ -99,13 +101,22 @@ func (gw *gatewayImpl) Initialize() error {
 	}
 	store := source.GetStore()
 
-	gw.logger.Info("boot snapshot loaded", zap.Int("upstreams", len(upstreams)), zap.Int("credentials", len(credentials)), zap.String("store", source.Path()))
-	gw.catalog = modelcatalog.NewModelCatalog(store, *cfg.ModelCatalog, base)
+	reg := settings.NewRegistry(store, base)
+	if _, err := observability.Register(reg, cfg); err != nil {
+		return fmt.Errorf("observability: %w", err)
+	}
 	govDefaults, err := governance.FromConfig(*cfg.Governance)
 	if err != nil {
 		return fmt.Errorf("governance config: %w", err)
 	}
-	gov, err := governance.NewGovernance(store, base, govDefaults)
+	govSettings, err := governance.Register(reg, govDefaults)
+	if err != nil {
+		return err
+	}
+
+	gw.logger.Info("boot snapshot loaded", zap.Int("upstreams", len(upstreams)), zap.Int("credentials", len(credentials)), zap.String("store", source.Path()))
+	gw.catalog = modelcatalog.NewModelCatalog(store, *cfg.ModelCatalog, base)
+	gov, err := governance.NewGovernance(store, base, govSettings.Running())
 	if err != nil {
 		return fmt.Errorf("governance: %w", err)
 	}
@@ -124,6 +135,7 @@ func (gw *gatewayImpl) Initialize() error {
 	gw.server = server.NewDiffractLLMServer(base, cfg.ServerConfig, gov, gw.dataplane, gw.modelplane,
 		gw.catalog, registry, transport, store,
 	)
+	gw.server.SetSettings(reg)
 
 	if mc := cfg.MetricsEngine; mc != nil && mc.Enabled {
 		events := metricsengine.NewDuckDBStore(base, context.Background())
