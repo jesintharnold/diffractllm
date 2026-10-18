@@ -101,7 +101,11 @@ func (gw *gatewayImpl) Initialize() error {
 
 	gw.logger.Info("boot snapshot loaded", zap.Int("upstreams", len(upstreams)), zap.Int("credentials", len(credentials)), zap.String("store", source.Path()))
 	gw.catalog = modelcatalog.NewModelCatalog(store, *cfg.ModelCatalog, base)
-	gov, err := governance.NewGovernance(store, base)
+	govDefaults, err := governance.FromConfig(*cfg.Governance)
+	if err != nil {
+		return fmt.Errorf("governance config: %w", err)
+	}
+	gov, err := governance.NewGovernance(store, base, govDefaults)
 	if err != nil {
 		return fmt.Errorf("governance: %w", err)
 	}

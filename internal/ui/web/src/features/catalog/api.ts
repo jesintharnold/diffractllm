@@ -2,6 +2,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { API } from '@/app/endpoints'
 import type { OverviewTiles } from '@/features/metrics/api'
 import { apiGet, apiSend } from '@/lib/api'
+import { runAndWatch } from '@/lib/run-and-watch'
 
 // Catalog page data. Usage numbers (requests, tokens, spend) always cover the last 24 hours up
 // to now; keys sit under 'metrics' so the Overview's Sync refreshes them too.
@@ -133,27 +134,26 @@ const GIVE_UP_MS = 5 * 60_000 // the longest fetch timeout the settings allow
 export type SyncOutcome = { ok: true; models: number } | { ok: false; error: string }
 
 // Sync now: queue the sync, then watch the summary until that run has finished, and report
-// how it went. The run is "ours" once last_run_at moves past its value at the click.
+// how it went (the watching is shared with the governance buttons, see lib/run-and-watch).
 export function useSyncCatalog(onDone: (outcome: SyncOutcome) => void) {
   const queryClient = useQueryClient()
 
   const start = useMutation({
     mutationFn: async (): Promise<SyncOutcome> => {
-      const before = queryClient.getQueryData<CatalogSummary>(SUMMARY_KEY)?.last_run_at
-      await apiSend<{ status: string }>('POST', API.admin.catalog.sync)
-      const deadline = Date.now() + GIVE_UP_MS
-      while (Date.now() < deadline) {
-        await new Promise((r) => setTimeout(r, WATCH_EVERY_MS))
-        const s = await queryClient.query({
-          queryKey: SUMMARY_KEY,
-          queryFn: ({ signal }) => apiGet<CatalogSummary>(API.admin.catalog.summary, undefined, signal),
-          staleTime: 0,
-        })
-        if (!s.syncing && s.last_run_at && s.last_run_at !== before) {
-          return s.last_error ? { ok: false, error: s.last_error } : { ok: true, models: s.models }
-        }
-      }
-      return { ok: false, error: 'no result after 5 minutes' }
+      const s = await runAndWatch({
+        trigger: () => apiSend<{ status: string }>('POST', API.admin.catalog.sync),
+        read: () =>
+          queryClient.query({
+            queryKey: SUMMARY_KEY,
+            queryFn: ({ signal }) => apiGet<CatalogSummary>(API.admin.catalog.summary, undefined, signal),
+            staleTime: 0,
+          }),
+        probe: (summary) => ({ running: summary.syncing, lastRunAt: summary.last_run_at }),
+        everyMs: WATCH_EVERY_MS,
+        giveUpMs: GIVE_UP_MS,
+      })
+      if (!s) return { ok: false, error: 'no result after 5 minutes' }
+      return s.last_error ? { ok: false, error: s.last_error } : { ok: true, models: s.models }
     },
     onSuccess: (outcome) => {
       void queryClient.invalidateQueries({ queryKey: CATALOG_KEY })

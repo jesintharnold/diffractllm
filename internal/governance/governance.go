@@ -7,6 +7,7 @@ import (
 	"diffractllm/internal/worker"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -36,23 +37,35 @@ type Governance struct {
 	logger      *zap.Logger
 	workers     *worker.Group
 	config      jobsIntervalconfig
+	defaults    Settings // server.yaml
+	settingsMu  sync.Mutex
 }
 
-func NewGovernance(store *dbstore.Store, logger *zap.Logger) (*Governance, error) {
+func NewGovernance(store *dbstore.Store, logger *zap.Logger, defaults Settings) (*Governance, error) {
+	if err := defaults.Validate(); err != nil {
+		return nil, fmt.Errorf("governance section of server.yaml: %w", err)
+	}
+	saved, err := store.GetSettingOverrides(SettingsScope)
+	if err != nil {
+		return nil, err
+	}
+	running := Resolve(defaults, saved, logger)
+
 	keyCache := &VirtualkeyCache{logger: logger}
 	budgetCache := &BudgetCache{logger: logger}
-	usageBuffer := NewUsageBuffer(0, logger)
+	usageBuffer := NewUsageBuffer(int(running.UsageBufferSize), logger)
 	g := &Governance{
 		Store:       store,
 		KeyCache:    keyCache,
 		BudgetCache: budgetCache,
 		UsageBuffer: usageBuffer,
 		logger:      logger,
+		defaults:    defaults,
 		config: jobsIntervalconfig{
-			vkeySyncInterval:        10 * time.Second,
-			budgetSyncInterval:      10 * time.Second,
-			usageFlushInterval:      10 * time.Second,
-			budgetFlushRollInterval: 10 * time.Second,
+			vkeySyncInterval:        time.Duration(running.VKeySyncSeconds) * time.Second,
+			budgetSyncInterval:      time.Duration(running.BudgetSyncSeconds) * time.Second,
+			usageFlushInterval:      time.Duration(running.UsageFlushSeconds) * time.Second,
+			budgetFlushRollInterval: time.Duration(running.BudgetFlushSeconds) * time.Second,
 		},
 	}
 	return g, nil
@@ -79,11 +92,11 @@ func (g *Governance) Start(ctx context.Context) error {
 			Interval:   g.config.vkeySyncInterval,
 			RunAtStart: true,
 			Run: func(ctx context.Context) (worker.Detail, error) {
-				loaded, err := g.syncVirtualKey()
+				loaded, skipped, err := g.syncVirtualKey()
 				if err != nil {
 					return nil, err
 				}
-				return worker.Detail{"virtual_keys_loaded": loaded}, nil
+				return worker.Detail{"virtual_keys_loaded": loaded, "virtual_keys_skipped": skipped}, nil
 			},
 		},
 
@@ -120,8 +133,6 @@ func (g *Governance) Start(ctx context.Context) error {
 
 func (g *Governance) Shutdown(ctx context.Context) error { return g.workers.Shutdown(ctx) }
 
-// RunNow asks one job to run once ahead of its timer and returns without waiting; its result shows
-// in Stats. A name outside the four jobs above fails with worker.ErrUnknownJob.
 func (g *Governance) RunNow(job string) error {
 	if g == nil || g.workers == nil {
 		return ErrNotRunning
@@ -140,29 +151,34 @@ func (g *Governance) Stats() []worker.JobStats {
 	return g.workers.Stats()
 }
 
-func (g *Governance) syncVirtualKey() (int, error) {
+func (g *Governance) syncVirtualKey() (loaded, skipped int, err error) {
 	start := time.Now()
 	g.logger.Debug("virtual key sync started")
-	vkeydetail, err := g.Store.ListVirtualKeys()
+	rows, unreadable, err := g.Store.ListReadableVirtualKeys()
 	if err != nil {
-		return 0, fmt.Errorf("sync virtual keys: %w", err)
+		return 0, 0, fmt.Errorf("sync virtual keys: %w", err)
 	}
 
-	tempVkey := make([]*core.VirtualKey, 0, len(vkeydetail))
-	for i := range vkeydetail {
-		virtualKey, err := vkeydetail[i].ToCore()
-		if err != nil {
-			return 0, fmt.Errorf("sync virtual key %q: %w", vkeydetail[i].ID, err)
+	tempVkey := make([]*core.VirtualKey, 0, len(rows))
+	for i := range rows {
+		virtualKey, err := rows[i].ToCore()
+		if err == nil {
+			err = virtualKey.Validate()
 		}
-		if err := virtualKey.Validate(); err != nil {
-			return 0, fmt.Errorf("sync virtual key %q: %w", vkeydetail[i].ID, err)
+		if err != nil {
+			g.logger.Error("virtual key skipped at sync", zap.String("virtual_key_id", rows[i].ID), zap.Error(err))
+			unreadable = append(unreadable, rows[i].ID)
+			continue
 		}
 		tempVkey = append(tempVkey, virtualKey)
 	}
+	if len(tempVkey) == 0 && len(unreadable) > 0 {
+		return 0, len(unreadable), fmt.Errorf("sync virtual keys: none of the %d keys can be read", len(unreadable))
+	}
 	g.KeyCache.LoadVirtualKeys(tempVkey)
 
-	g.logger.Debug("virtual key sync finished", zap.Int("rows_loaded", len(tempVkey)), zap.Duration("took", time.Since(start)))
-	return len(tempVkey), nil
+	g.logger.Debug("virtual key sync finished", zap.Int("rows_loaded", len(tempVkey)), zap.Int("skipped", len(unreadable)), zap.Duration("took", time.Since(start)))
+	return len(tempVkey), len(unreadable), nil
 }
 
 func (g *Governance) syncBudget() (int, error) {

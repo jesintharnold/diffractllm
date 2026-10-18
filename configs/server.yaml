@@ -39,6 +39,12 @@ modelcatalog:
   source_url: "https://getbifrost.ai/datasheet"
   sync_interval: 5m
 
+governance:
+  vkey_sync_interval: 10s     
+  budget_sync_interval: 10s   
+  budget_flush_interval: 10s   
+  usage_flush_interval: 10s    
+  usage_buffer_size: 100000
 
 metrics_engine:
   enabled: true

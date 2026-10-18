@@ -57,6 +57,9 @@ func (ds *DiffractLLMServer) routeHandlers() (http.Handler, error) {
 	admin.PUT("/catalog/settings", ds.putCatalogSettings)
 	admin.GET("/credentials", ds.listAllCredentials)
 	admin.POST("/governance/jobs/:name/run", ds.runGovernanceJob)
+	admin.GET("/governance/settings", ds.getGovernanceSettings)
+	admin.PUT("/governance/settings", ds.putGovernanceSettings)
+	admin.DELETE("/governance/settings", ds.resetGovernanceSettings)
 
 	budgets := admin.Group("/budgets")
 	{

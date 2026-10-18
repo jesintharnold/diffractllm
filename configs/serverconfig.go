@@ -84,6 +84,24 @@ type MetricsEngineConfig struct {
 	PayloadMaxKB   int           `mapstructure:"payload_max_kb"` // per body; bigger bodies are clipped
 }
 
+type GovernanceConfig struct {
+	VKeySyncInterval    time.Duration `mapstructure:"vkey_sync_interval"`
+	BudgetSyncInterval  time.Duration `mapstructure:"budget_sync_interval"`
+	BudgetFlushInterval time.Duration `mapstructure:"budget_flush_interval"`
+	UsageFlushInterval  time.Duration `mapstructure:"usage_flush_interval"`
+	UsageBufferSize     int           `mapstructure:"usage_buffer_size"`
+}
+
+func DefaultGovernance() GovernanceConfig {
+	return GovernanceConfig{
+		VKeySyncInterval:    10 * time.Second,
+		BudgetSyncInterval:  10 * time.Second,
+		BudgetFlushInterval: 10 * time.Second,
+		UsageFlushInterval:  10 * time.Second,
+		UsageBufferSize:     100_000,
+	}
+}
+
 type GatewayConfig struct {
 	ServerConfig *ServerConfig  `mapstructure:"server"`
 	Upstream     UpstreamConfig `mapstructure:"upstream"`
@@ -91,6 +109,7 @@ type GatewayConfig struct {
 	Observability *Observability       `mapstructure:"observability"`
 	ModelCatalog  *ModelCatalogConfig  `mapstructure:"modelcatalog"`
 	MetricsEngine *MetricsEngineConfig `mapstructure:"metrics_engine"`
+	Governance    *GovernanceConfig    `mapstructure:"governance"`
 }
 
 func Load() (*GatewayConfig, error) {
@@ -160,6 +179,13 @@ func read() (*GatewayConfig, error) {
 
 	viper.SetDefault("modelcatalog.sync_interval", "5m")
 	viper.SetDefault("modelcatalog.source_url", "https://getbifrost.ai/datasheet")
+
+	gov := DefaultGovernance()
+	viper.SetDefault("governance.vkey_sync_interval", gov.VKeySyncInterval.String())
+	viper.SetDefault("governance.budget_sync_interval", gov.BudgetSyncInterval.String())
+	viper.SetDefault("governance.budget_flush_interval", gov.BudgetFlushInterval.String())
+	viper.SetDefault("governance.usage_flush_interval", gov.UsageFlushInterval.String())
+	viper.SetDefault("governance.usage_buffer_size", gov.UsageBufferSize)
 
 	viper.SetDefault("metrics_engine.enabled", true)
 	viper.SetDefault("metrics_engine.dsn", "./data/diffractllm-metrics.duckdb")

@@ -207,6 +207,45 @@ export function Field({
   )
 }
 
+// A number with its unit written inside the field's right edge ("seconds", "MB").
+export function NumberField({
+  label,
+  unit,
+  value,
+  placeholder,
+  onChange,
+  error,
+}: {
+  label: string
+  unit?: string
+  value: string
+  placeholder?: string
+  onChange: (v: string) => void
+  error?: string
+}) {
+  return (
+    <Field label={label} error={error}>
+      <div className="relative">
+        <Input
+          inputMode="decimal"
+          value={value}
+          placeholder={placeholder}
+          aria-invalid={Boolean(error)}
+          onChange={(e) => {
+            onChange(e.target.value)
+          }}
+          className="h-9 pr-12 font-mono text-xs md:text-xs"
+        />
+        {unit && (
+          <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-[11px] text-muted-foreground">
+            {unit}
+          </span>
+        )}
+      </div>
+    </Field>
+  )
+}
+
 export function Segmented<T extends string>({
   value,
   options,

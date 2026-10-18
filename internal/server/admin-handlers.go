@@ -4,6 +4,7 @@ import (
 	"diffractllm/internal/buildinfo"
 	"diffractllm/internal/core"
 	"diffractllm/internal/dbstore"
+	"diffractllm/internal/governance"
 	"diffractllm/internal/worker"
 	"errors"
 	"fmt"
@@ -563,6 +564,49 @@ func (ds *DiffractLLMServer) runGovernanceJob(c *gin.Context) {
 	default:
 		adminErr(c, http.StatusServiceUnavailable, err.Error())
 	}
+}
+
+func (ds *DiffractLLMServer) governanceSettingsErr(c *gin.Context, op string, err error) {
+	var invalid *governance.SettingsError
+	if errors.As(err, &invalid) {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": invalid.Error(), "fields": invalid.Fields})
+		return
+	}
+	ds.logger.Error(op+" governance settings", zap.Error(err))
+	adminErr(c, http.StatusInternalServerError, op+" governance settings failed")
+}
+
+func (ds *DiffractLLMServer) getGovernanceSettings(c *gin.Context) {
+	view, err := ds.governance.SavedSettings()
+	if err != nil {
+		ds.governanceSettingsErr(c, "read", err)
+		return
+	}
+	c.JSON(http.StatusOK, view)
+}
+
+func (ds *DiffractLLMServer) putGovernanceSettings(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, adminMaxBody)
+	var next governance.Settings
+	if err := c.ShouldBindJSON(&next); err != nil {
+		adminErr(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	view, err := ds.governance.SaveSettings(next)
+	if err != nil {
+		ds.governanceSettingsErr(c, "save", err)
+		return
+	}
+	c.JSON(http.StatusOK, view)
+}
+
+func (ds *DiffractLLMServer) resetGovernanceSettings(c *gin.Context) {
+	view, err := ds.governance.ResetSettings()
+	if err != nil {
+		ds.governanceSettingsErr(c, "reset", err)
+		return
+	}
+	c.JSON(http.StatusOK, view)
 }
 
 // ---------- providers ----------

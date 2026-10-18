@@ -40,7 +40,7 @@ func testStore(t *testing.T) *dbstore.Store {
 	require.NoError(t, store.Migrate())
 	require.NoError(t, store.Seed(false))
 
-	for _, table := range []string{"usage_records", "virtual_keys", "budgets"} {
+	for _, table := range []string{"usage_records", "virtual_keys", "budgets", "setting_overrides"} {
 		require.NoError(t, store.DB.Exec("DELETE FROM "+table).Error)
 	}
 	return store
@@ -48,7 +48,7 @@ func testStore(t *testing.T) *dbstore.Store {
 
 func testGovernance(t *testing.T, store *dbstore.Store) *Governance {
 	t.Helper()
-	g, err := NewGovernance(store, zap.NewNop())
+	g, err := NewGovernance(store, zap.NewNop(), DefaultSettings())
 	require.NoError(t, err)
 	return g
 }
@@ -131,9 +131,10 @@ func TestSyncVirtualKeyRoundTrip(t *testing.T) {
 	keyID, plaintext := seedVirtualKey(t, store, budgetID)
 
 	g := testGovernance(t, store)
-	loaded, err := g.syncVirtualKey()
+	loaded, skipped, err := g.syncVirtualKey()
 	require.NoError(t, err)
 	assert.Equal(t, 1, loaded)
+	assert.Zero(t, skipped)
 
 	// The cache is keyed by the plaintext key, not the id.
 	vk, found := g.KeyCache.LookupVkey(plaintext)
@@ -150,35 +151,57 @@ func TestSyncVirtualKeyRoundTrip(t *testing.T) {
 func TestSyncVirtualKeyEmptyTable(t *testing.T) {
 	g := testGovernance(t, testStore(t))
 
-	loaded, err := g.syncVirtualKey()
+	loaded, _, err := g.syncVirtualKey()
 	require.NoError(t, err)
 	assert.Zero(t, loaded)
 	assert.NotNil(t, g.KeyCache.virtual.Load(), "an empty table still publishes a snapshot")
 }
 
-// syncVirtualKey returns on the first bad row, so the previously published
-// snapshot keeps serving rather than being replaced by a partial one.
-func TestSyncVirtualKeyBadRowKeepsThePreviousSnapshot(t *testing.T) {
+// One unreadable key is skipped and counted; every other key still syncs, so a bad row can never
+// hold back the rest (or a revocation).
+func TestSyncVirtualKeySkipsAnUnreadableRow(t *testing.T) {
+	store := testStore(t)
+	goodBudget := seedBudget(t, store, 1_000_000)
+	_, good := seedVirtualKey(t, store, goodBudget)
+
+	otherBudget, err := store.CreateBudget(core.Budget{Name: "other-budget", BudgetLimit: 1_000_000, BudgetDuration: "1D"})
+	require.NoError(t, err)
+	badID, bad := seedVirtualKey(t, store, otherBudget.ID)
+
+	// Garble the stored secret of one key so it cannot be decrypted.
+	require.NoError(t, store.DB.Exec(`UPDATE virtual_keys SET api_key = 'not-a-valid-ciphertext' WHERE id = ?`, badID).Error)
+
+	g := testGovernance(t, store)
+	loaded, skipped, err := g.syncVirtualKey()
+	require.NoError(t, err)
+	assert.Equal(t, 1, loaded)
+	assert.Equal(t, 1, skipped)
+	assert.NotNil(t, mustLookup(t, g, good), "the readable key still syncs")
+	_, found := g.KeyCache.LookupVkey(bad)
+	assert.False(t, found, "the unreadable one cannot authenticate")
+}
+
+// When no row at all is usable the cause is systemic, so the sync fails and the cache is left as
+// it was instead of being replaced by an empty one.
+func TestSyncVirtualKeyFailsWhenNoRowIsUsable(t *testing.T) {
 	store := testStore(t)
 	budgetID := seedBudget(t, store, 1_000_000)
-
 	_, plaintext := seedVirtualKey(t, store, budgetID)
 
 	g := testGovernance(t, store)
-	_, err := g.syncVirtualKey()
+	_, _, err := g.syncVirtualKey()
 	require.NoError(t, err)
 	require.NotNil(t, mustLookup(t, g, plaintext))
 
-	// Corrupt the stored provider configs so ToCore or Validate fails.
+	// Corrupt the stored provider configs so ToCore or Validate fails for the only key.
 	require.NoError(t, store.DB.Exec(
 		`UPDATE virtual_keys SET provider_configs = '[]'`).Error)
 
-	_, err = g.syncVirtualKey()
+	loaded, skipped, err := g.syncVirtualKey()
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "sync virtual key")
-
-	assert.NotNil(t, mustLookup(t, g, plaintext),
-		"a failed sync must not clear the cache")
+	assert.Zero(t, loaded)
+	assert.Equal(t, 1, skipped)
+	assert.NotNil(t, mustLookup(t, g, plaintext), "a failed sync must not clear the cache")
 }
 
 func mustLookup(t *testing.T, g *Governance, key string) *core.VirtualKey {

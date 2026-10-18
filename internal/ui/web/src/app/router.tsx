@@ -4,6 +4,7 @@ import BudgetPage from '@/pages/budget'
 import BudgetsPage from '@/pages/budgets'
 import CatalogPage from '@/pages/catalog'
 import ComingSoonPage from '@/pages/coming-soon'
+import GovernanceSettingsPage from '@/pages/governance-settings'
 import NotFoundPage from '@/pages/not-found'
 import OverviewPage from '@/pages/overview'
 import PricingPage from '@/pages/pricing'
@@ -28,7 +29,7 @@ export const router = createBrowserRouter([
       { path: 'governance/virtual-keys/:id', element: <VirtualKeyPage /> },
       { path: 'governance/budgets', element: <BudgetsPage /> },
       { path: 'governance/budgets/:id', element: <BudgetPage /> },
-      later('governance/settings', 'Governance settings'),
+      { path: 'governance/settings', element: <GovernanceSettingsPage /> },
       later('observability/requests', 'Requests'),
       later('observability/requests/:id', 'Request'),
       later('observability/settings', 'Observability settings'),

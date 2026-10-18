@@ -98,7 +98,7 @@ func registryWithOpenAI() *providers.ProviderInstance {
 func syncedGovernance(t *testing.T) *governance.Governance {
 	t.Helper()
 
-	g, err := governance.NewGovernance(testStore(t), zap.NewNop())
+	g, err := governance.NewGovernance(testStore(t), zap.NewNop(), governance.DefaultSettings())
 	require.NoError(t, err)
 	require.NoError(t, g.Start(context.Background()))
 	t.Cleanup(func() {

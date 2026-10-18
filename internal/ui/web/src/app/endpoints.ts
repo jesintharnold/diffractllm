@@ -29,6 +29,10 @@ export const API = {
       overrides: '/v1/admin/pricing/custom',
       override: (overrideId: string) => `/v1/admin/pricing/custom/${id(overrideId)}`,
     },
+    governance: {
+      runJob: (name: string) => `/v1/admin/governance/jobs/${id(name)}/run`,
+      settings: '/v1/admin/governance/settings',
+    },
     catalog: {
       summary: '/v1/admin/catalog/summary',
       settings: '/v1/admin/catalog/settings',

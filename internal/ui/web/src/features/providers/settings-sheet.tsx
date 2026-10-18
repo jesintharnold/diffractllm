@@ -22,7 +22,7 @@ import {
   type ProxyConfig,
   type ProxyType,
 } from '@/features/providers/api'
-import { Field, Group, Segmented, SwitchRow } from '@/features/providers/form'
+import { Field, Group, NumberField, Segmented, SwitchRow } from '@/features/providers/form'
 import { useTabIndicator } from '@/features/providers/form-utils'
 import { providerLabel } from '@/lib/provider-colors'
 
@@ -113,41 +113,6 @@ function toBody(f: Form): { network_config: NetworkConfig; proxy_config?: ProxyC
       ...(f.proxyPass ? { password: f.proxyPass } : {}),
     },
   }
-}
-
-function NumberField({
-  label,
-  unit,
-  value,
-  placeholder,
-  onChange,
-}: {
-  label: string
-  unit?: string
-  value: string
-  placeholder: string
-  onChange: (v: string) => void
-}) {
-  return (
-    <Field label={label}>
-      <div className="relative">
-        <Input
-          inputMode="decimal"
-          value={value}
-          placeholder={placeholder}
-          onChange={(e) => {
-            onChange(e.target.value)
-          }}
-          className="h-9 pr-12 font-mono text-xs md:text-xs"
-        />
-        {unit && (
-          <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-[11px] text-muted-foreground">
-            {unit}
-          </span>
-        )}
-      </div>
-    </Field>
-  )
 }
 
 function SettingsForm({

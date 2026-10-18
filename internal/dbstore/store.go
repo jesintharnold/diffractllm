@@ -97,6 +97,7 @@ func (s *Store) Migrate() error {
 		&StoreUsageRecord{},
 		&StoreVirtualKey{},
 		&StoreCatalogSettings{},
+		&StoreSettingOverrides{},
 	}
 	return s.DB.AutoMigrate(tables...)
 }

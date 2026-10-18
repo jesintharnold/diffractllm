@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -97,13 +98,36 @@ func (key *StoreVirtualKey) AfterFind(tx *gorm.DB) error {
 		key.APIKey = SecretMask
 		return nil
 	}
-	decKey := tx.Statement.Context.Value(aesKeyPass{}).([]byte)
-	apiKey, err := decryptKey(&key.APIKey, decKey)
+	return key.decrypt(tx.Statement.Context.Value(aesKeyPass{}).([]byte))
+}
+
+func (key *StoreVirtualKey) decrypt(pass []byte) error {
+	apiKey, err := decryptKey(&key.APIKey, pass)
 	if err != nil {
 		return fmt.Errorf("error while decrypting APIKey: %w", err)
 	}
 	key.APIKey = *apiKey
 	return nil
+}
+
+func (s *Store) ListReadableVirtualKeys() (keys []StoreVirtualKey, unreadable []string, err error) {
+	var rows []StoreVirtualKey
+	if err := s.DB.Session(&gorm.Session{SkipHooks: true}).Find(&rows).Error; err != nil {
+		return nil, nil, fmt.Errorf("failed to list virtual keys: %w", err)
+	}
+	pass, _ := s.DB.Statement.Context.Value(aesKeyPass{}).([]byte)
+	keys = make([]StoreVirtualKey, 0, len(rows))
+	for i := range rows {
+		if rows[i].APIKey != "" {
+			if err := rows[i].decrypt(pass); err != nil {
+				s.logger.Error("virtual key unreadable", zap.String("virtual_key_id", rows[i].ID), zap.Error(err))
+				unreadable = append(unreadable, rows[i].ID)
+				continue
+			}
+		}
+		keys = append(keys, rows[i])
+	}
+	return keys, unreadable, nil
 }
 
 func (s *Store) ListActiveVirtualKeys() ([]StoreVirtualKey, error) {
