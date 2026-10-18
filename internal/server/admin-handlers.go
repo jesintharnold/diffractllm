@@ -4,6 +4,7 @@ import (
 	"diffractllm/internal/buildinfo"
 	"diffractllm/internal/core"
 	"diffractllm/internal/dbstore"
+	"diffractllm/internal/worker"
 	"errors"
 	"fmt"
 	"net/http"
@@ -550,6 +551,18 @@ func (ds *DiffractLLMServer) handleModelCatalog(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusAccepted, gin.H{"status": "catalog sync triggered"})
+}
+
+func (ds *DiffractLLMServer) runGovernanceJob(c *gin.Context) {
+	job := c.Param("name")
+	switch err := ds.governance.RunNow(job); {
+	case err == nil:
+		c.JSON(http.StatusAccepted, gin.H{"job": job, "status": "triggered"})
+	case errors.Is(err, worker.ErrUnknownJob):
+		adminErr(c, http.StatusNotFound, "unknown governance job "+job)
+	default:
+		adminErr(c, http.StatusServiceUnavailable, err.Error())
+	}
 }
 
 // ---------- providers ----------

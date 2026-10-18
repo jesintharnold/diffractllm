@@ -45518,7 +45518,7 @@
       "name": "07 · Governance · Settings",
       "clip": true,
       "width": 1440,
-      "height": 721,
+      "height": 753,
       "fill": "$ground",
       "children": [
         {
@@ -45526,7 +45526,7 @@
           "type": "ref",
           "ref": "Ptn7p",
           "name": "Sidebar",
-          "height": "fill_container",
+          "height": 753,
           "descendants": {
             "e1XqJ": {
               "fill": "$nav-selected",
@@ -45547,7 +45547,7 @@
           "id": "FZDzR",
           "name": "Main",
           "width": "fill_container",
-          "height": "fill_container",
+          "height": 753,
           "layout": "vertical",
           "children": [
             {
@@ -45658,34 +45658,88 @@
                       "children": [
                         {
                           "type": "frame",
-                          "id": "WaU2D",
-                          "name": "t",
+                          "id": "IIMeR",
+                          "name": "head",
                           "width": "fill_container",
-                          "layout": "vertical",
-                          "gap": 3,
+                          "gap": 12,
                           "children": [
                             {
-                              "type": "text",
-                              "id": "F2S0C",
-                              "name": "H",
-                              "fill": "$text",
-                              "content": "Virtual key cache",
-                              "fontFamily": "$font-sans",
-                              "fontSize": 14,
-                              "fontWeight": "600"
+                              "type": "frame",
+                              "id": "WaU2D",
+                              "name": "t",
+                              "width": "fill_container",
+                              "layout": "vertical",
+                              "gap": 3,
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "F2S0C",
+                                  "name": "H",
+                                  "fill": "$text",
+                                  "content": "Virtual key cache",
+                                  "fontFamily": "$font-sans",
+                                  "fontSize": 14,
+                                  "fontWeight": "600"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "iIGxg",
+                                  "name": "S",
+                                  "fill": "$muted",
+                                  "textGrowth": "fixed-width",
+                                  "width": "fill_container",
+                                  "content": "Keys are held in a copy-on-write snapshot. A sync swaps the whole snapshot atomically.",
+                                  "lineHeight": 1.45,
+                                  "fontFamily": "$font-sans",
+                                  "fontSize": 11,
+                                  "fontWeight": "normal"
+                                }
+                              ]
                             },
                             {
-                              "type": "text",
-                              "id": "iIGxg",
-                              "name": "S",
-                              "fill": "$muted",
-                              "textGrowth": "fixed-width",
-                              "width": "fill_container",
-                              "content": "Keys are held in a copy-on-write snapshot. A sync swaps the whole snapshot atomically.",
-                              "lineHeight": 1.45,
-                              "fontFamily": "$font-sans",
-                              "fontSize": 11,
-                              "fontWeight": "normal"
+                              "type": "frame",
+                              "id": "zhlhg",
+                              "name": "actions",
+                              "gap": 8,
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "oT5vD",
+                                  "name": "Sync now button",
+                                  "fill": "$raised",
+                                  "cornerRadius": "$radius-control",
+                                  "stroke": "$line",
+                                  "strokeWidth": 1,
+                                  "gap": 6,
+                                  "padding": [
+                                    7,
+                                    10
+                                  ],
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "icon",
+                                      "id": "IYy2E",
+                                      "name": "icon",
+                                      "width": 14,
+                                      "height": 14,
+                                      "icon": "refresh-cw",
+                                      "library": "lucide",
+                                      "fill": "$text"
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "yqcSj",
+                                      "name": "Label",
+                                      "fill": "$text",
+                                      "content": "Sync now",
+                                      "fontFamily": "$font-sans",
+                                      "fontSize": 12,
+                                      "fontWeight": "500"
+                                    }
+                                  ]
+                                }
+                              ]
                             }
                           ]
                         },
@@ -46016,34 +46070,125 @@
                       "children": [
                         {
                           "type": "frame",
-                          "id": "W2MW5",
-                          "name": "t",
+                          "id": "YsKcT",
+                          "name": "head",
                           "width": "fill_container",
-                          "layout": "vertical",
-                          "gap": 3,
+                          "gap": 12,
                           "children": [
                             {
-                              "type": "text",
-                              "id": "i0UmzT",
-                              "name": "H",
-                              "fill": "$text",
-                              "content": "Budgets",
-                              "fontFamily": "$font-sans",
-                              "fontSize": 14,
-                              "fontWeight": "600"
+                              "type": "frame",
+                              "id": "W2MW5",
+                              "name": "t",
+                              "width": "fill_container",
+                              "layout": "vertical",
+                              "gap": 3,
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "i0UmzT",
+                                  "name": "H",
+                                  "fill": "$text",
+                                  "content": "Budgets",
+                                  "fontFamily": "$font-sans",
+                                  "fontSize": 14,
+                                  "fontWeight": "600"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "y193o6",
+                                  "name": "S",
+                                  "fill": "$muted",
+                                  "textGrowth": "fixed-width",
+                                  "width": "fill_container",
+                                  "content": "Spend is accrued in memory and flushed on a timer. A crash loses at most one interval.",
+                                  "lineHeight": 1.45,
+                                  "fontFamily": "$font-sans",
+                                  "fontSize": 11,
+                                  "fontWeight": "normal"
+                                }
+                              ]
                             },
                             {
-                              "type": "text",
-                              "id": "y193o6",
-                              "name": "S",
-                              "fill": "$muted",
-                              "textGrowth": "fixed-width",
-                              "width": "fill_container",
-                              "content": "Spend is accrued in memory and flushed on a timer. A crash loses at most one interval.",
-                              "lineHeight": 1.45,
-                              "fontFamily": "$font-sans",
-                              "fontSize": 11,
-                              "fontWeight": "normal"
+                              "type": "frame",
+                              "id": "urybo",
+                              "name": "actions",
+                              "gap": 8,
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "XlNZG",
+                                  "name": "Sync now button",
+                                  "fill": "$raised",
+                                  "cornerRadius": "$radius-control",
+                                  "stroke": "$line",
+                                  "strokeWidth": 1,
+                                  "gap": 6,
+                                  "padding": [
+                                    7,
+                                    10
+                                  ],
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "icon",
+                                      "id": "WZxmJ",
+                                      "name": "icon",
+                                      "width": 14,
+                                      "height": 14,
+                                      "icon": "refresh-cw",
+                                      "library": "lucide",
+                                      "fill": "$text"
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "YwmT8",
+                                      "name": "Label",
+                                      "fill": "$text",
+                                      "content": "Sync now",
+                                      "fontFamily": "$font-sans",
+                                      "fontSize": 12,
+                                      "fontWeight": "500"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "MvqF2",
+                                  "name": "Flush now button",
+                                  "fill": "$raised",
+                                  "cornerRadius": "$radius-control",
+                                  "stroke": "$line",
+                                  "strokeWidth": 1,
+                                  "gap": 6,
+                                  "padding": [
+                                    7,
+                                    10
+                                  ],
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "icon",
+                                      "id": "CZnEq",
+                                      "name": "icon",
+                                      "width": 14,
+                                      "height": 14,
+                                      "icon": "arrow-down-to-line",
+                                      "library": "lucide",
+                                      "fill": "$text"
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "vnXcL",
+                                      "name": "Label",
+                                      "fill": "$text",
+                                      "content": "Flush now",
+                                      "fontFamily": "$font-sans",
+                                      "fontSize": 12,
+                                      "fontWeight": "500"
+                                    }
+                                  ]
+                                }
+                              ]
                             }
                           ]
                         },
@@ -46425,34 +46570,88 @@
                       "children": [
                         {
                           "type": "frame",
-                          "id": "MWI1T",
-                          "name": "t",
+                          "id": "jRvg8",
+                          "name": "head",
                           "width": "fill_container",
-                          "layout": "vertical",
-                          "gap": 3,
+                          "gap": 12,
                           "children": [
                             {
-                              "type": "text",
-                              "id": "bOgTe",
-                              "name": "H",
-                              "fill": "$text",
-                              "content": "Usage ledger",
-                              "fontFamily": "$font-sans",
-                              "fontSize": 14,
-                              "fontWeight": "600"
+                              "type": "frame",
+                              "id": "MWI1T",
+                              "name": "t",
+                              "width": "fill_container",
+                              "layout": "vertical",
+                              "gap": 3,
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "bOgTe",
+                                  "name": "H",
+                                  "fill": "$text",
+                                  "content": "Usage ledger",
+                                  "fontFamily": "$font-sans",
+                                  "fontSize": 14,
+                                  "fontWeight": "600"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "X98YJ",
+                                  "name": "S",
+                                  "fill": "$muted",
+                                  "textGrowth": "fixed-width",
+                                  "width": "fill_container",
+                                  "content": "Every settled request appends a row. The buffer is drained on shutdown before the process exits.",
+                                  "lineHeight": 1.45,
+                                  "fontFamily": "$font-sans",
+                                  "fontSize": 11,
+                                  "fontWeight": "normal"
+                                }
+                              ]
                             },
                             {
-                              "type": "text",
-                              "id": "X98YJ",
-                              "name": "S",
-                              "fill": "$muted",
-                              "textGrowth": "fixed-width",
-                              "width": "fill_container",
-                              "content": "Every settled request appends a row. The buffer is drained on shutdown before the process exits.",
-                              "lineHeight": 1.45,
-                              "fontFamily": "$font-sans",
-                              "fontSize": 11,
-                              "fontWeight": "normal"
+                              "type": "frame",
+                              "id": "WcOq9",
+                              "name": "actions",
+                              "gap": 8,
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "hd75b",
+                                  "name": "Flush now button",
+                                  "fill": "$raised",
+                                  "cornerRadius": "$radius-control",
+                                  "stroke": "$line",
+                                  "strokeWidth": 1,
+                                  "gap": 6,
+                                  "padding": [
+                                    7,
+                                    10
+                                  ],
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "icon",
+                                      "id": "I0SWDK",
+                                      "name": "icon",
+                                      "width": 14,
+                                      "height": 14,
+                                      "icon": "arrow-down-to-line",
+                                      "library": "lucide",
+                                      "fill": "$text"
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "DYEtk",
+                                      "name": "Label",
+                                      "fill": "$text",
+                                      "content": "Flush now",
+                                      "fontFamily": "$font-sans",
+                                      "fontSize": 12,
+                                      "fontWeight": "500"
+                                    }
+                                  ]
+                                }
+                              ]
                             }
                           ]
                         },

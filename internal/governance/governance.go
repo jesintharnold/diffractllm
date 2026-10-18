@@ -5,12 +5,21 @@ import (
 	"diffractllm/internal/core"
 	"diffractllm/internal/dbstore"
 	"diffractllm/internal/worker"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
+
+const (
+	JobVirtualKeysSync = "virtual_keys_sync"
+	JobBudgetSync      = "budget_sync"
+	JobUsageFlush      = "usage_flush"
+	JobBudgetFlushRoll = "budget_flush_roll"
+)
+var ErrNotRunning = errors.New("governance workers are not running")
 
 type jobsIntervalconfig struct {
 	vkeySyncInterval        time.Duration
@@ -53,7 +62,7 @@ func (g *Governance) Start(ctx context.Context) error {
 	g.workers = worker.NewGroup("governance", g.logger)
 	err := g.workers.Add(
 		&worker.Job{
-			Name:       "budget_sync",
+			Name:       JobBudgetSync,
 			Interval:   g.config.budgetSyncInterval,
 			RunAtStart: true,
 			Run: func(ctx context.Context) (worker.Detail, error) {
@@ -66,7 +75,7 @@ func (g *Governance) Start(ctx context.Context) error {
 		},
 
 		&worker.Job{
-			Name:       "virtual_keys_sync",
+			Name:       JobVirtualKeysSync,
 			Interval:   g.config.vkeySyncInterval,
 			RunAtStart: true,
 			Run: func(ctx context.Context) (worker.Detail, error) {
@@ -79,7 +88,7 @@ func (g *Governance) Start(ctx context.Context) error {
 		},
 
 		&worker.Job{
-			Name:      "usage_flush",
+			Name:      JobUsageFlush,
 			Interval:  g.config.usageFlushInterval,
 			RunAtStop: true,
 			Run: func(ctx context.Context) (worker.Detail, error) {
@@ -93,7 +102,7 @@ func (g *Governance) Start(ctx context.Context) error {
 		},
 
 		&worker.Job{
-			Name:      "budget_flush_roll",
+			Name:      JobBudgetFlushRoll,
 			Interval:  g.config.budgetFlushRollInterval,
 			RunAtStop: true,
 			Run: func(ctx context.Context) (worker.Detail, error) {
@@ -110,6 +119,15 @@ func (g *Governance) Start(ctx context.Context) error {
 }
 
 func (g *Governance) Shutdown(ctx context.Context) error { return g.workers.Shutdown(ctx) }
+
+// RunNow asks one job to run once ahead of its timer and returns without waiting; its result shows
+// in Stats. A name outside the four jobs above fails with worker.ErrUnknownJob.
+func (g *Governance) RunNow(job string) error {
+	if g == nil || g.workers == nil {
+		return ErrNotRunning
+	}
+	return g.workers.Trigger(job)
+}
 
 func (g *Governance) Ready() bool {
 	return g != nil && g.KeyCache.Loaded() && g.BudgetCache != nil

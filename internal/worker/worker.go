@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"runtime/debug"
 	"slices"
@@ -268,14 +269,10 @@ func (g *Group) Shutdown(ctx context.Context) error {
 }
 
 func (g *Group) Trigger(name string) error {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	j, ok := g.jobs[name]
-	if !ok {
-		return fmt.Errorf("worker %s: no job named %q", g.name, name)
+	j, err := g.job(name)
+	if err != nil {
+		return err
 	}
-
-	// Send the trigger
 	select {
 	case j.trigger <- struct{}{}:
 	default:
@@ -283,12 +280,14 @@ func (g *Group) Trigger(name string) error {
 	return nil
 }
 
+var ErrUnknownJob = errors.New("unknown job")
+
 func (g *Group) job(name string) (*Job, error) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	j, ok := g.jobs[name]
 	if !ok {
-		return nil, fmt.Errorf("worker %s: no job named %q", g.name, name)
+		return nil, fmt.Errorf("worker %s: %w %q", g.name, ErrUnknownJob, name)
 	}
 	return j, nil
 }

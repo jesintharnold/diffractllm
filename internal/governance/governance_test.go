@@ -465,6 +465,38 @@ func TestStartRunsEveryJob(t *testing.T) {
 	require.NoError(t, g.Shutdown(shutdownCtx))
 }
 
+// RunNow runs a job ahead of its 10 s timer, refuses what it does not hold, and says so before Start.
+func TestRunNowRunsAJobAheadOfItsTimer(t *testing.T) {
+	store := testStore(t)
+	budgetID := seedBudget(t, store, 1_000_000)
+	g := testGovernance(t, store)
+	require.ErrorIs(t, g.RunNow(JobUsageFlush), ErrNotRunning)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	require.NoError(t, g.Start(ctx))
+	defer func() {
+		shutdownCtx, stop := context.WithTimeout(context.Background(), 5*time.Second)
+		defer stop()
+		_ = g.Shutdown(shutdownCtx)
+	}()
+
+	g.UsageBuffer.Append(UsageRecord{
+		ClientID: gClient, BudgetID: budgetID, Backend: "openai",
+		ModelName: gModel, InputTokens: 10, OutputTokens: 5,
+		Cost: 999, RequestedAt: time.Now().UTC(),
+	})
+	require.NoError(t, g.RunNow(JobUsageFlush))
+
+	require.Eventually(t, func() bool {
+		var rows []dbstore.StoreUsageRecord
+		return store.DB.Find(&rows).Error == nil && len(rows) == 1
+	}, 5*time.Second, 20*time.Millisecond, "the flush must write the row before shutdown does")
+	assert.Zero(t, g.UsageBuffer.Len())
+
+	assert.ErrorIs(t, g.RunNow("catalog_sync"), worker.ErrUnknownJob)
+}
+
 // usage_flush and budget_flush_roll carry RunAtStop, so a shutdown drains what
 // is still buffered instead of losing it.
 func TestShutdownDrainsTheUsageBuffer(t *testing.T) {
