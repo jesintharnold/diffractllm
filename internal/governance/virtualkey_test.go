@@ -7,7 +7,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 
 	"diffractllm/internal/core"
 )
@@ -34,12 +33,12 @@ func vkFixture(id, key string, opts ...func(*core.VirtualKey)) *core.VirtualKey 
 
 func vkCache(t *testing.T, keys ...*core.VirtualKey) *VirtualkeyCache {
 	t.Helper()
-	kc := &VirtualkeyCache{logger: zap.NewNop()}
+	kc := &VirtualkeyCache{}
 	kc.LoadVirtualKeys(keys)
 	return kc
 }
 func TestLookupOnAnUnloadedCache(t *testing.T) {
-	kc := &VirtualkeyCache{logger: zap.NewNop()}
+	kc := &VirtualkeyCache{}
 
 	vk, found := kc.LookupVkey("dk-anything")
 	assert.Nil(t, vk)
@@ -134,7 +133,7 @@ func TestUpsertVirtualKeyWithANewPlaintextLeavesTheOldEntry(t *testing.T) {
 }
 
 func TestUpsertVirtualKeyOnAnUnloadedCache(t *testing.T) {
-	kc := &VirtualkeyCache{logger: zap.NewNop()}
+	kc := &VirtualkeyCache{}
 
 	kc.UpsertVirtualKey(vkFixture("id-1", "dk-aaa"))
 
@@ -177,7 +176,7 @@ func TestDeleteVirtualKeyByIDMiss(t *testing.T) {
 }
 
 func TestDeleteVirtualKeyByIDOnAnUnloadedCache(t *testing.T) {
-	kc := &VirtualkeyCache{logger: zap.NewNop()}
+	kc := &VirtualkeyCache{}
 
 	assert.False(t, kc.DeleteVirtualKeyByID("id-1"))
 }

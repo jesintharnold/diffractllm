@@ -1,6 +1,7 @@
 package governance
 
 import (
+	"diffractllm/internal/observability/logging"
 	"diffractllm/internal/core"
 
 	"go.uber.org/zap"
@@ -11,8 +12,8 @@ type BudgetHook struct {
 	logger      *zap.Logger
 }
 
-func NewBudgetCheckHook(budgetcache *BudgetCache, logger *zap.Logger) *BudgetHook {
-	return &BudgetHook{BudgetCache: budgetcache, logger: logger}
+func NewBudgetCheckHook(budgetcache *BudgetCache) *BudgetHook {
+	return &BudgetHook{BudgetCache: budgetcache, logger: logging.For("governance")}
 }
 
 func (b *BudgetHook) Name() string { return "budget" }
@@ -28,9 +29,9 @@ func (b *BudgetHook) Execute(rctx *core.DiffractLLMContext) *core.DiffractLLMErr
 	}
 
 	if !budget.CheckBudgetUsage() {
-		b.logger.Warn("budget exceeded", zap.String("client", rctx.ClientID), zap.String("budget_ref", rctx.BudgetRef))
+		b.logger.Debug("budget exceeded", zap.String("client", rctx.ClientID), zap.String("budget_ref", rctx.BudgetRef))
 		return core.NewBudgetExceeded("window spend reached the budget limit")
 	}
-	b.logger.Info("budget ok", zap.String("client", rctx.ClientID), zap.String("budget_ref", rctx.BudgetRef))
+	b.logger.Debug("budget ok", zap.String("client", rctx.ClientID), zap.String("budget_ref", rctx.BudgetRef))
 	return nil
 }

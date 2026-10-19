@@ -28,3 +28,10 @@ npm-debug.log*
 
 # The console's entry page must be tracked despite **.html above
 !internal/ui/web/index.html
+
+# Reviewer handover for opencode: tracked despite **.md above. _review/ is where the reviewer
+# writes its benchmarks, repro tests and report; never committed.
+AGENTS.md
+.opencode/
+.opencode/**/*.md
+_review/

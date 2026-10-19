@@ -6,7 +6,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 
 	config "diffractllm/configs"
 	"diffractllm/internal/settings"
@@ -14,7 +13,7 @@ import (
 
 func register(t *testing.T) (*settings.Registry, *settings.Handle[Settings]) {
 	t.Helper()
-	reg := settings.NewRegistry(testStore(t), zap.NewNop())
+	reg := settings.NewRegistry(testStore(t))
 	h, err := Register(reg, DefaultSettings())
 	require.NoError(t, err)
 	return reg, h
@@ -52,7 +51,7 @@ func TestValidateReportsEveryBadField(t *testing.T) {
 }
 
 func TestRegisterRefusesBadYamlDefaults(t *testing.T) {
-	_, err := Register(settings.NewRegistry(testStore(t), zap.NewNop()), Settings{})
+	_, err := Register(settings.NewRegistry(testStore(t)), Settings{})
 
 	require.ErrorContains(t, err, "server.yaml")
 }
@@ -61,10 +60,10 @@ func TestRegisterRefusesBadYamlDefaults(t *testing.T) {
 // every governance field is restart-only.
 func TestSavedGovernanceSettingsApplyAtTheNextStart(t *testing.T) {
 	store := testStore(t)
-	reg := settings.NewRegistry(store, zap.NewNop())
+	reg := settings.NewRegistry(store)
 	h, err := Register(reg, DefaultSettings())
 	require.NoError(t, err)
-	g, err := NewGovernance(store, zap.NewNop(), h.Running())
+	g, err := NewGovernance(store, h.Running())
 	require.NoError(t, err)
 	next := DefaultSettings()
 	next.VKeySyncSeconds = 30
@@ -82,9 +81,9 @@ func TestSavedGovernanceSettingsApplyAtTheNextStart(t *testing.T) {
 	assert.Equal(t, 10*time.Second, g.config.vkeySyncInterval, "the running gateway is not touched")
 
 	// A restart: a new registry reads the same table.
-	again, err := Register(settings.NewRegistry(store, zap.NewNop()), DefaultSettings())
+	again, err := Register(settings.NewRegistry(store), DefaultSettings())
 	require.NoError(t, err)
-	restarted, err := NewGovernance(store, zap.NewNop(), again.Running())
+	restarted, err := NewGovernance(store, again.Running())
 	require.NoError(t, err)
 	assert.Equal(t, 30*time.Second, restarted.config.vkeySyncInterval)
 	assert.Equal(t, 10*time.Second, restarted.config.usageFlushInterval, "untouched fields still follow yaml")
@@ -110,7 +109,7 @@ func TestRegisterSurvivesAStaleOverride(t *testing.T) {
 	store := testStore(t)
 	require.NoError(t, store.SaveSettingOverrides(SettingsScope, []byte(`{"usage_buffer_size":3,"retired":1}`)))
 
-	h, err := Register(settings.NewRegistry(store, zap.NewNop()), DefaultSettings())
+	h, err := Register(settings.NewRegistry(store), DefaultSettings())
 
 	require.NoError(t, err)
 	assert.Equal(t, DefaultSettings(), h.Running())

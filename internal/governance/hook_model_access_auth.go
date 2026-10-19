@@ -1,6 +1,7 @@
 package governance
 
 import (
+	"diffractllm/internal/observability/logging"
 	"diffractllm/internal/core"
 	"strings"
 
@@ -17,10 +18,10 @@ type ModelAccessHook struct {
 	logger  *zap.Logger
 }
 
-func NewModelAccessHook(catalog ModelLookup, logger *zap.Logger) *ModelAccessHook {
+func NewModelAccessHook(catalog ModelLookup) *ModelAccessHook {
 	return &ModelAccessHook{
 		catalog: catalog,
-		logger:  logger,
+		logger:  logging.For("governance"),
 	}
 }
 
@@ -45,29 +46,29 @@ func (hook *ModelAccessHook) Name() string {
 func (hook *ModelAccessHook) Execute(rctx *core.DiffractLLMContext) *core.DiffractLLMError {
 	virtualKey := rctx.VirtualKeyPolicy
 	if virtualKey == nil {
-		hook.logger.Warn("model access rejected", zap.String("reason", "virtual key policy missing"))
+		hook.logger.Debug("model access rejected", zap.String("reason", "virtual key policy missing"))
 		return core.NewAuthFailed("virtual key policy is missing")
 	}
 
 	requested := strings.TrimSpace(rctx.RequestedModel)
 	if requested == "" {
-		hook.logger.Warn("model access rejected", zap.String("virtual_key_id", rctx.VirtualKeyID), zap.String("reason", "model missing"))
+		hook.logger.Debug("model access rejected", zap.String("virtual_key_id", rctx.VirtualKeyID), zap.String("reason", "model missing"))
 		return core.NewMissingParameter("model")
 	}
 
 	if providerName, modelName := core.ParseModelString(requested); providerName != "" {
 		config := virtualKey.ProviderConfig(providerName)
 		if config == nil {
-			hook.logger.Warn("model access rejected", zap.String("virtual_key_id", rctx.VirtualKeyID), zap.String("provider", string(providerName)), zap.String("reason", "provider is not configured on this key"))
+			hook.logger.Debug("model access rejected", zap.String("virtual_key_id", rctx.VirtualKeyID), zap.String("provider", string(providerName)), zap.String("reason", "provider is not configured on this key"))
 			return core.NewForbidden("provider " + string(providerName) + " is not permitted for this key")
 		}
 		requestedKey := core.CatalogKey{Provider: config.Provider, ModelName: modelName, ModelType: rctx.RequestKind.ModelType()}
 		if !config.IsModelAllowed(requestedKey) {
-			hook.logger.Warn("model access rejected", zap.String("virtual_key_id", rctx.VirtualKeyID), zap.String("provider", string(providerName)), zap.String("model", modelName), zap.String("reason", "model not permitted on requested provider"))
+			hook.logger.Debug("model access rejected", zap.String("virtual_key_id", rctx.VirtualKeyID), zap.String("provider", string(providerName)), zap.String("model", modelName), zap.String("reason", "model not permitted on requested provider"))
 			return core.NewForbidden("requested provider/model is not permitted")
 		}
 		if hook.catalogReady() && !hook.catalog.HasModel(config.Provider, modelName) {
-			hook.logger.Warn("model access rejected", zap.String("virtual_key_id", rctx.VirtualKeyID), zap.String("provider", string(providerName)), zap.String("model", modelName), zap.String("reason", "model is not in the catalog"))
+			hook.logger.Debug("model access rejected", zap.String("virtual_key_id", rctx.VirtualKeyID), zap.String("provider", string(providerName)), zap.String("model", modelName), zap.String("reason", "model is not in the catalog"))
 			return core.NewInvalidParameter("model", "unknown model "+requestedKey.SlashKey())
 		}
 
@@ -79,7 +80,7 @@ func (hook *ModelAccessHook) Execute(rctx *core.DiffractLLMContext) *core.Diffra
 	requestedKey := core.CatalogKey{ModelName: requested, ModelType: rctx.RequestKind.ModelType()}
 	if virtualKey.IsModelKeyAllowed(requestedKey) {
 		if hook.catalogReady() && !hook.modelInCatalog(virtualKey, requested) {
-			hook.logger.Warn("model access rejected", zap.String("virtual_key_id", rctx.VirtualKeyID), zap.String("model", requested), zap.String("reason", "model is not in the catalog for any permitted provider"))
+			hook.logger.Debug("model access rejected", zap.String("virtual_key_id", rctx.VirtualKeyID), zap.String("model", requested), zap.String("reason", "model is not in the catalog for any permitted provider"))
 			return core.NewInvalidParameter("model", "unknown model "+requested)
 		}
 		rctx.Modelkey = requestedKey
@@ -87,6 +88,6 @@ func (hook *ModelAccessHook) Execute(rctx *core.DiffractLLMContext) *core.Diffra
 		return nil
 	}
 
-	hook.logger.Warn("model access rejected", zap.String("virtual_key_id", rctx.VirtualKeyID), zap.String("model", requested), zap.String("reason", "model not permitted"))
+	hook.logger.Debug("model access rejected", zap.String("virtual_key_id", rctx.VirtualKeyID), zap.String("model", requested), zap.String("reason", "model not permitted"))
 	return core.NewForbidden("requested model is not permitted")
 }

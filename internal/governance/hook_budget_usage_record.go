@@ -1,6 +1,7 @@
 package governance
 
 import (
+	"diffractllm/internal/observability/logging"
 	"diffractllm/internal/core"
 
 	"go.uber.org/zap"
@@ -12,8 +13,8 @@ type RecordHook struct {
 	logger      *zap.Logger
 }
 
-func NewRecordHook(budgetcache *BudgetCache, UsageBuffer *UsageBuffer, logger *zap.Logger) *RecordHook {
-	return &RecordHook{budgetcache: budgetcache, usage: UsageBuffer, logger: logger}
+func NewRecordHook(budgetcache *BudgetCache, UsageBuffer *UsageBuffer) *RecordHook {
+	return &RecordHook{budgetcache: budgetcache, usage: UsageBuffer, logger: logging.For("governance")}
 }
 
 func (r *RecordHook) Name() string { return "record_usage" }

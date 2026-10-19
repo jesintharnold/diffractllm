@@ -4,6 +4,7 @@ import (
 	"context"
 	"diffractllm/internal/core"
 	"diffractllm/internal/dbstore"
+	"diffractllm/internal/observability/logging"
 	"diffractllm/internal/worker"
 	"errors"
 	"fmt"
@@ -19,6 +20,7 @@ const (
 	JobUsageFlush      = "usage_flush"
 	JobBudgetFlushRoll = "budget_flush_roll"
 )
+
 var ErrNotRunning = errors.New("governance workers are not running")
 
 type jobsIntervalconfig struct {
@@ -29,29 +31,32 @@ type jobsIntervalconfig struct {
 }
 
 type Governance struct {
-	Store       *dbstore.Store
-	KeyCache    *VirtualkeyCache
-	BudgetCache *BudgetCache
-	UsageBuffer *UsageBuffer
-	logger      *zap.Logger
-	workers     *worker.Group
-	config      jobsIntervalconfig
+	Store         *dbstore.Store
+	KeyCache      *VirtualkeyCache
+	BudgetCache   *BudgetCache
+	UsageBuffer   *UsageBuffer
+	logger        *zap.Logger
+	workers       *worker.Group
+	config        jobsIntervalconfig
+	logUnreadable map[string]struct{} // keys already reported; only the sync job touches it
 }
 
-func NewGovernance(store *dbstore.Store, logger *zap.Logger, running Settings) (*Governance, error) {
+func NewGovernance(store *dbstore.Store, running Settings) (*Governance, error) {
 	if err := running.Validate(); err != nil {
 		return nil, fmt.Errorf("governance settings: %w", err)
 	}
+	logger := logging.For("governance")
 
-	keyCache := &VirtualkeyCache{logger: logger}
+	keyCache := &VirtualkeyCache{}
 	budgetCache := &BudgetCache{logger: logger}
-	usageBuffer := NewUsageBuffer(int(running.UsageBufferSize), logger)
+	usageBuffer := NewUsageBuffer(int(running.UsageBufferSize))
 	g := &Governance{
-		Store:       store,
-		KeyCache:    keyCache,
-		BudgetCache: budgetCache,
-		UsageBuffer: usageBuffer,
-		logger:      logger,
+		Store:         store,
+		KeyCache:      keyCache,
+		BudgetCache:   budgetCache,
+		UsageBuffer:   usageBuffer,
+		logger:        logger,
+		logUnreadable: map[string]struct{}{},
 		config: jobsIntervalconfig{
 			vkeySyncInterval:        time.Duration(running.VKeySyncSeconds) * time.Second,
 			budgetSyncInterval:      time.Duration(running.BudgetSyncSeconds) * time.Second,
@@ -63,7 +68,7 @@ func NewGovernance(store *dbstore.Store, logger *zap.Logger, running Settings) (
 }
 
 func (g *Governance) Start(ctx context.Context) error {
-	g.workers = worker.NewGroup("governance", g.logger)
+	g.workers = worker.NewGroup("governance")
 	err := g.workers.Add(
 		&worker.Job{
 			Name:       JobBudgetSync,
@@ -110,9 +115,9 @@ func (g *Governance) Start(ctx context.Context) error {
 			Interval:  g.config.budgetFlushRollInterval,
 			RunAtStop: true,
 			Run: func(ctx context.Context) (worker.Detail, error) {
-				flushed := g.flushBudgetUsage()
-				rolled := g.trackBudgetWindow()
-				return worker.Detail{"budgets_flushed": flushed, "windows_rolled": rolled}, nil
+				flushed, flushErr := g.flushBudgetUsage()
+				rolled, rollErr := g.trackBudgetWindow()
+				return worker.Detail{"budgets_flushed": flushed, "windows_rolled": rolled}, errors.Join(flushErr, rollErr)
 			},
 		},
 	)
@@ -143,11 +148,12 @@ func (g *Governance) Stats() []worker.JobStats {
 }
 
 func (g *Governance) syncVirtualKey() (loaded, skipped int, err error) {
-	start := time.Now()
-	g.logger.Debug("virtual key sync started")
 	rows, unreadable, err := g.Store.ListReadableVirtualKeys()
 	if err != nil {
 		return 0, 0, fmt.Errorf("sync virtual keys: %w", err)
+	}
+	for _, id := range unreadable {
+		g.logUnreadableKey(id, logErrCannotDecrypt)
 	}
 
 	tempVkey := make([]*core.VirtualKey, 0, len(rows))
@@ -157,7 +163,7 @@ func (g *Governance) syncVirtualKey() (loaded, skipped int, err error) {
 			err = virtualKey.Validate()
 		}
 		if err != nil {
-			g.logger.Error("virtual key skipped at sync", zap.String("virtual_key_id", rows[i].ID), zap.Error(err))
+			g.logUnreadableKey(rows[i].ID, err)
 			unreadable = append(unreadable, rows[i].ID)
 			continue
 		}
@@ -167,15 +173,29 @@ func (g *Governance) syncVirtualKey() (loaded, skipped int, err error) {
 		return 0, len(unreadable), fmt.Errorf("sync virtual keys: none of the %d keys can be read", len(unreadable))
 	}
 	g.KeyCache.LoadVirtualKeys(tempVkey)
-
-	g.logger.Debug("virtual key sync finished", zap.Int("rows_loaded", len(tempVkey)), zap.Int("skipped", len(unreadable)), zap.Duration("took", time.Since(start)))
+	g.logForgetReadableKeys(tempVkey)
 	return len(tempVkey), len(unreadable), nil
 }
 
-func (g *Governance) syncBudget() (int, error) {
-	start := time.Now()
-	g.logger.Debug("budget sync started")
+var logErrCannotDecrypt = errors.New("cannot decrypt the key; check server.aes_pass_key")
 
+// logUnreadableKey logs a bad key once at Error; later ticks stay at Debug until it reads again.
+func (g *Governance) logUnreadableKey(id string, err error) {
+	if _, seen := g.logUnreadable[id]; seen {
+		g.logger.Debug("virtual key still unreadable", zap.String("virtual_key_id", id), zap.Error(err))
+		return
+	}
+	g.logUnreadable[id] = struct{}{}
+	g.logger.Error("virtual key unreadable, skipped", zap.String("virtual_key_id", id), zap.Error(err))
+}
+
+func (g *Governance) logForgetReadableKeys(loaded []*core.VirtualKey) {
+	for _, vk := range loaded {
+		delete(g.logUnreadable, vk.ID)
+	}
+}
+
+func (g *Governance) syncBudget() (int, error) {
 	db_budget, err := g.Store.ListBudgets()
 	if err != nil {
 		return 0, fmt.Errorf("sync budget : %w", err)
@@ -185,8 +205,6 @@ func (g *Governance) syncBudget() (int, error) {
 		tempBudget = append(tempBudget, db_budget[i].ToCore())
 	}
 	g.BudgetCache.LoadBudgets(tempBudget)
-
-	g.logger.Debug("budget sync finished", zap.Int("rows_loaded", len(db_budget)), zap.Duration("took", time.Since(start)))
 	return len(tempBudget), nil
 }
 
@@ -216,19 +234,18 @@ func (g *Governance) flushUsageHistory() (int, error) {
 		}
 	}
 	if err := g.Store.BulkInsertUsageHistory(storeRecords); err != nil {
-		g.logger.Error("usage flush failed â€” re-enqueueing", zap.Int("count", len(records)), zap.Error(err))
 		for _, r := range records {
 			g.UsageBuffer.Append(r)
 		}
-		return 0, err
+		return 0, fmt.Errorf("usage flush failed, %d records re-queued: %w", len(records), err)
 	}
-	g.logger.Debug("usage flushed", zap.Int("count", len(records)))
 	return len(records), nil
 }
 
 // Responsible for Budget windows for all
-func (g *Governance) flushBudgetUsage() int64 {
+func (g *Governance) flushBudgetUsage() (int64, error) {
 	var flushed int64
+	var errs []error
 	g.BudgetCache.BudgetMap.Range(func(key, value any) bool {
 		b := value.(*Budget)
 		cfg := b.Config.Load()
@@ -242,7 +259,7 @@ func (g *Governance) flushBudgetUsage() int64 {
 		}
 
 		if err := g.Store.FlushBudgetUsage(cfg.ID, cost, reqs); err != nil {
-			g.logger.Error("Failed to flush budget usage", zap.Error(err), zap.String("budget_id", cfg.ID))
+			errs = append(errs, fmt.Errorf("flush budget %s: %w", cfg.ID, err))
 			return true
 		}
 		b.LastFlushed.Store(cost)
@@ -250,12 +267,14 @@ func (g *Governance) flushBudgetUsage() int64 {
 		flushed++
 		return true
 	})
-	return flushed
+	return flushed, errors.Join(errs...)
 }
 
-func (g *Governance) trackBudgetWindow() int64 {
+// trackBudgetWindow rolls due windows; a failed write is retried next tick.
+func (g *Governance) trackBudgetWindow() (int64, error) {
 	now := time.Now()
 	var rolled int64
+	var errs []error
 	g.BudgetCache.BudgetMap.Range(func(key, value any) bool {
 		b := value.(*Budget)
 		cfg := b.Config.Load()
@@ -268,14 +287,12 @@ func (g *Governance) trackBudgetWindow() int64 {
 		cost := b.WindowCost.Load()
 		reqs := b.WindowReqs.Load()
 		if err := g.Store.FlushBudgetUsage(cfg.ID, cost, reqs); err != nil {
-			g.logger.Error("closing window flush failed, will retry next tick",
-				zap.String("budget_id", cfg.ID), zap.Error(err))
+			errs = append(errs, fmt.Errorf("close window of budget %s: %w", cfg.ID, err))
 			return true
 		}
 
 		if err := g.Store.ResetBudgetWindow(cfg.ID, *target); err != nil {
-			g.logger.Error("budget window reset DB write failed, will retry next tick",
-				zap.String("budget_id", cfg.ID), zap.Error(err))
+			errs = append(errs, fmt.Errorf("reset window of budget %s: %w", cfg.ID, err))
 			return true
 		}
 
@@ -292,5 +309,5 @@ func (g *Governance) trackBudgetWindow() int64 {
 		rolled++
 		return true
 	})
-	return rolled
+	return rolled, errors.Join(errs...)
 }

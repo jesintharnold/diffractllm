@@ -55,7 +55,8 @@ func (u UpstreamConfig) MaxResponseBytes() int64 {
 }
 
 type Observability struct {
-	LogLevel string `mapstructure:"log_level"`
+	LogLevel  string `mapstructure:"log_level"`
+	LogFormat string `mapstructure:"log_format"` // console | json
 }
 
 type ModelCatalogConfig struct {
@@ -176,6 +177,7 @@ func read() (*GatewayConfig, error) {
 	viper.SetDefault("upstream.disable_compression", true)
 
 	viper.SetDefault("observability.log_level", "info")
+	viper.SetDefault("observability.log_format", "console")
 
 	viper.SetDefault("modelcatalog.sync_interval", "5m")
 	viper.SetDefault("modelcatalog.source_url", "https://getbifrost.ai/datasheet")
@@ -237,6 +239,13 @@ func (c *GatewayConfig) Validate() error {
 	if c.MetricsEngine != nil {
 		if err := c.MetricsEngine.Validate(); err != nil {
 			return fmt.Errorf("metrics_engine: %w", err)
+		}
+	}
+	if c.Observability != nil {
+		switch c.Observability.LogFormat {
+		case "", "console", "json":
+		default:
+			return fmt.Errorf("observability: log_format must be console or json, got %q", c.Observability.LogFormat)
 		}
 	}
 	return nil

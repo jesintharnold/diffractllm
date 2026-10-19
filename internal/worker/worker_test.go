@@ -9,13 +9,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 func countingGroup(t *testing.T, interval time.Duration) (*Group, *atomic.Int32) {
 	t.Helper()
 	var runs atomic.Int32
-	g := NewGroup("test", zap.NewNop())
+	g := NewGroup("test")
 	require.NoError(t, g.Add(&Job{Name: "job", Interval: interval, Run: func(context.Context) (Detail, error) {
 		runs.Add(1)
 		return nil, nil
@@ -43,7 +42,7 @@ func TestConcurrentTriggersCoalesce(t *testing.T) {
 	var overlapped atomic.Bool
 	release := make(chan struct{})
 
-	g := NewGroup("test", zap.NewNop())
+	g := NewGroup("test")
 	require.NoError(t, g.Add(&Job{Name: "job", Interval: time.Hour, Run: func(context.Context) (Detail, error) {
 		if running.Add(1) > 1 {
 			overlapped.Store(true)

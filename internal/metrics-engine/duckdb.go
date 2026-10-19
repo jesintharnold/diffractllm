@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
+	"diffractllm/internal/observability/logging"
 	"embed"
 	"fmt"
 	"io/fs"
@@ -44,9 +45,8 @@ type appliedMigration struct {
 	Checksum string
 }
 
-func Migrate(ctx context.Context, db *sql.DB, log *zap.Logger) error {
-
-	log.Info("[DuckDB Migration] Starting migration check")
+// Migrate applies pending scripts and returns the schema version; it logs only scripts it runs.
+func Migrate(ctx context.Context, db *sql.DB, log *zap.Logger) (int, error) {
 	if _, err := db.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS schema_migrations (
 			version INTEGER PRIMARY KEY,
@@ -55,45 +55,43 @@ func Migrate(ctx context.Context, db *sql.DB, log *zap.Logger) error {
 			applied_at TIMESTAMP NOT NULL
 		)
 	`); err != nil {
-		return fmt.Errorf("create schema_migrations: %w", err)
+		return 0, fmt.Errorf("create schema_migrations: %w", err)
 	}
 
 	applied := make(map[int]appliedMigration)
 	rows, err := db.QueryContext(ctx, `SELECT version, checksum FROM schema_migrations`)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer rows.Close()
 
 	for rows.Next() {
 		var m appliedMigration
 		if err := rows.Scan(&m.Version, &m.Checksum); err != nil {
-			return err
+			return 0, err
 		}
 		applied[m.Version] = m
 	}
 
 	if err := rows.Err(); err != nil {
-		return err
+		return 0, err
 	}
 
 	files, err := fs.Glob(migrations, "migrations/*.sql")
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	sort.Strings(files)
 
-	log.Info("[DuckDB Migration] Validating migration files", zap.Int("count", len(files)))
-
 	for index, f := range files {
 		version, err := parseVersion(f)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		expected := index + 1
 		if version != expected {
-			return fmt.Errorf("expected migration %04d but found %04d (%s)", expected, version, filepath.Base(f))
+			return 0, fmt.Errorf("expected migration %04d but found %04d (%s)", expected, version, filepath.Base(f))
 		}
 	}
 
@@ -102,46 +100,44 @@ func Migrate(ctx context.Context, db *sql.DB, log *zap.Logger) error {
 		name := filepath.Base(f)
 		sqlBytes, err := migrations.ReadFile(f)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		checksum := sha256Hex(sqlBytes)
 
 		if old, ok := applied[version]; ok {
 			if old.Checksum != checksum {
-				log.Error("[DuckDB Migration] Checksum mismatch detected", zap.String("script", name), zap.Int("version", version))
-				return fmt.Errorf("migration %04d checksum mismatch (%s was modified)", version, name)
+				log.Error("migration checksum mismatch", zap.String("script", name), zap.Int("version", version))
+				return 0, fmt.Errorf("migration %04d checksum mismatch (%s was modified)", version, name)
 			}
 			continue
 		}
 
 		start := time.Now()
-		log.Info("[DuckDB Migration] Executing migration", zap.String("script", name), zap.Int("version", version))
 		tx, err := db.BeginTx(ctx, nil)
 		if err != nil {
-			return err
+			return 0, err
 		}
 
 		if _, err := tx.ExecContext(ctx, string(sqlBytes)); err != nil {
 			tx.Rollback()
-			return fmt.Errorf("%s: %w", name, err)
+			return 0, fmt.Errorf("%s: %w", name, err)
 		}
 
 		if _, err := tx.ExecContext(
 			ctx, `INSERT INTO schema_migrations (version, name, checksum, applied_at) VALUES (?, ?, ?, ?)`, version, name, checksum, time.Now(),
 		); err != nil {
 			tx.Rollback()
-			return err
+			return 0, err
 		}
 
 		if err := tx.Commit(); err != nil {
 			tx.Rollback()
-			return err
+			return 0, err
 		}
 
-		log.Info("[DuckDB Migration] Migration completed", zap.String("script", name), zap.Int("version", version), zap.Duration("duration", time.Since(start).Round(time.Millisecond)))
+		log.Info("migration applied", zap.String("script", name), zap.Int("version", version), zap.Duration("took", time.Since(start).Round(time.Millisecond)))
 	}
-	log.Info("[DuckDB Migration] Database is up-to-date", zap.Int("latest_version", len(files)))
-	return nil
+	return len(files), nil
 }
 
 type DuckDBStore struct {
@@ -155,9 +151,9 @@ var (
 	DuckDBStoreOnce sync.Once
 )
 
-func NewDuckDBStore(logger *zap.Logger, ctx context.Context) *DuckDBStore {
+func NewDuckDBStore(ctx context.Context) *DuckDBStore {
 	return &DuckDBStore{
-		logger: logger,
+		logger: logging.For("metrics"),
 		Ctx:    ctx,
 	}
 }
@@ -178,7 +174,8 @@ func (ds *DuckDBStore) Init(dbpath string, ctx context.Context) error {
 
 	ds.db = sql.OpenDB(connector)
 
-	if err := Migrate(ds.Ctx, ds.db, ds.logger); err != nil {
+	version, err := Migrate(ds.Ctx, ds.db, ds.logger)
+	if err != nil {
 		ds.db.Close()
 		return err
 	}
@@ -187,6 +184,7 @@ func (ds *DuckDBStore) Init(dbpath string, ctx context.Context) error {
 		ds.db.Close()
 		return err
 	}
+	ds.logger.Info("duckdb ready", zap.String("path", dbpath), zap.Int("schema_version", version))
 	return nil
 }
 

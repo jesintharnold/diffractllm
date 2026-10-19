@@ -10,7 +10,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 
 	"diffractllm/internal/core"
 	"diffractllm/internal/dbstore"
@@ -35,7 +34,7 @@ func testStore(t *testing.T) *dbstore.Store {
 	t.Helper()
 
 	path := filepath.Join(os.TempDir(), "diffractllm_governance_test.db")
-	store, err := dbstore.NewStore(path, strings.Repeat("g", 32), zap.NewNop())
+	store, err := dbstore.NewStore(path, strings.Repeat("g", 32))
 	require.NoError(t, err)
 	require.NoError(t, store.Migrate())
 	require.NoError(t, store.Seed(false))
@@ -48,7 +47,7 @@ func testStore(t *testing.T) *dbstore.Store {
 
 func testGovernance(t *testing.T, store *dbstore.Store) *Governance {
 	t.Helper()
-	g, err := NewGovernance(store, zap.NewNop(), DefaultSettings())
+	g, err := NewGovernance(store, DefaultSettings())
 	require.NoError(t, err)
 	return g
 }
@@ -339,7 +338,7 @@ func TestFlushBudgetUsage(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("nothing spent writes nothing", func(t *testing.T) {
-		assert.Zero(t, g.flushBudgetUsage())
+		assert.Zero(t, flushBudgets(t, g))
 	})
 
 	budget, found := g.BudgetCache.LookupBudget(budgetID)
@@ -347,7 +346,7 @@ func TestFlushBudgetUsage(t *testing.T) {
 	budget.RecordUsage(7_500)
 
 	t.Run("spend is written and marked flushed", func(t *testing.T) {
-		assert.EqualValues(t, 1, g.flushBudgetUsage())
+		assert.EqualValues(t, 1, flushBudgets(t, g))
 		assert.EqualValues(t, 7_500, budget.LastFlushed.Load())
 		assert.EqualValues(t, 1, budget.LastReqs.Load())
 
@@ -358,8 +357,23 @@ func TestFlushBudgetUsage(t *testing.T) {
 	})
 
 	t.Run("a second flush with no new spend is a no-op", func(t *testing.T) {
-		assert.Zero(t, g.flushBudgetUsage())
+		assert.Zero(t, flushBudgets(t, g))
 	})
+}
+
+// flushBudgets and rollBudgets fail the test on a store error, so asserts read the count only.
+func flushBudgets(t *testing.T, g *Governance) int64 {
+	t.Helper()
+	n, err := g.flushBudgetUsage()
+	require.NoError(t, err)
+	return n
+}
+
+func rollBudgets(t *testing.T, g *Governance) int64 {
+	t.Helper()
+	n, err := g.trackBudgetWindow()
+	require.NoError(t, err)
+	return n
 }
 
 // ---------- trackBudgetWindow ----------
@@ -376,12 +390,12 @@ func TestTrackBudgetWindowRollsAtTheBoundary(t *testing.T) {
 	budget.RecordUsage(9_000)
 
 	// Not due yet.
-	assert.Zero(t, g.trackBudgetWindow())
+	assert.Zero(t, rollBudgets(t, g))
 	assert.EqualValues(t, 9_000, budget.WindowCost.Load())
 
 	expireWindow(t, budget)
 
-	assert.EqualValues(t, 1, g.trackBudgetWindow())
+	assert.EqualValues(t, 1, rollBudgets(t, g))
 
 	assert.Zero(t, budget.WindowCost.Load(), "the window resets")
 	assert.Zero(t, budget.WindowReqs.Load())
@@ -430,7 +444,7 @@ func TestTrackBudgetWindowUnderConcurrentSpend(t *testing.T) {
 		}()
 	}
 
-	rolled := g.trackBudgetWindow()
+	rolled := rollBudgets(t, g)
 
 	for range writers {
 		<-done

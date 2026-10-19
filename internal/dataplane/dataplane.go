@@ -2,6 +2,7 @@ package dataplane
 
 import (
 	"diffractllm/internal/core"
+	"diffractllm/internal/observability/logging"
 	"math/rand/v2"
 	"sync"
 	"sync/atomic"
@@ -18,18 +19,19 @@ type Selector interface {
 }
 
 type SelectionEngine struct {
-	providerplane CredentialSource
-	selectors     map[core.LBKind]Selector
-	logger        *zap.Logger
+	providerplane    CredentialSource
+	selectors        map[core.LBKind]Selector
+	logger           *zap.Logger
+	logWarnedLBKinds sync.Map // LB kinds already warned about; one Warn each, not one per request
 }
 
-func NewSelectionEngine(plane CredentialSource, logger *zap.Logger) *SelectionEngine {
+func NewSelectionEngine(plane CredentialSource) *SelectionEngine {
 	return &SelectionEngine{
 		providerplane: plane,
 		selectors: map[core.LBKind]Selector{
 			core.LBRoundRobin: newRoundRobin(),
 		},
-		logger: logger,
+		logger: logging.For("dataplane"),
 	}
 }
 
@@ -37,7 +39,9 @@ func (se *SelectionEngine) kind(kind core.LBKind) Selector {
 	if selector, ok := se.selectors[kind]; ok {
 		return selector
 	}
-	se.logger.Warn("load balancer not implemented, using round robin", zap.String("requested", kind.String()))
+	if _, seen := se.logWarnedLBKinds.LoadOrStore(kind, struct{}{}); !seen {
+		se.logger.Warn("load balancer not implemented, using round robin", zap.String("requested", kind.String()))
+	}
 	return se.selectors[core.LBRoundRobin]
 }
 
@@ -65,7 +69,7 @@ func (se *SelectionEngine) Resolve(rctx *core.DiffractLLMContext) (*core.Credent
 
 func (se *SelectionEngine) resolveExplicit(rctx *core.DiffractLLMContext, key core.CatalogKey, vk *core.VirtualKey) (*core.Credential, *core.DiffractLLMError) {
 	if vk.ProviderConfig(key.Provider) == nil {
-		se.logger.Warn("selection rejected", zap.String("virtual_key_id", rctx.VirtualKeyID), zap.String("provider", string(key.Provider)), zap.String("reason", "provider is not configured on this key"))
+		se.logger.Debug("selection rejected", zap.String("virtual_key_id", rctx.VirtualKeyID), zap.String("provider", string(key.Provider)), zap.String("reason", "provider is not configured on this key"))
 		return nil, core.NewForbidden("provider " + string(key.Provider) + " is not permitted for this key")
 	}
 

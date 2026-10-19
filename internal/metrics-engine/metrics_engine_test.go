@@ -21,7 +21,7 @@ import (
 
 func newTestStore(t *testing.T) *DuckDBStore {
 	t.Helper()
-	store := NewDuckDBStore(zap.NewNop(), context.Background())
+	store := NewDuckDBStore(context.Background())
 	require.NoError(t, store.Init(filepath.Join(t.TempDir(), "metrics.duckdb"), context.Background()))
 	t.Cleanup(func() { _ = store.Close() })
 	return store
@@ -34,7 +34,7 @@ func newTestEngine(store OLAPStore, capacity int) *MetricsEngine {
 		QueryTimeout:   5 * time.Second,
 		MaxPage:        200,
 		MaxWindow:      90 * 24 * time.Hour,
-	}, zap.NewNop())
+	})
 }
 
 // okContext is a request that reached the provider and succeeded.
@@ -325,11 +325,11 @@ func TestReleasedEventIsZeroed(t *testing.T) {
 func TestReopeningTheStoreDoesNotRerunMigrations(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "metrics.duckdb")
 
-	first := NewDuckDBStore(zap.NewNop(), context.Background())
+	first := NewDuckDBStore(context.Background())
 	require.NoError(t, first.Init(path, context.Background()))
 	require.NoError(t, first.Close())
 
-	second := NewDuckDBStore(zap.NewNop(), context.Background())
+	second := NewDuckDBStore(context.Background())
 	require.NoError(t, second.Init(path, context.Background()))
 	defer second.Close()
 

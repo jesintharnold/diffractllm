@@ -181,11 +181,11 @@ func (s *Store) BulkSyncModelMetadata(models []core.ModelMetadata) error {
 	}
 
 	if skipped > 0 {
-		s.logger.Warn("metadata sync skipped models with unknown providers",
+		s.logger.Debug("metadata sync skipped models with unknown providers",
 			zap.Int("skipped", skipped))
 	}
 	if duplicates > 0 {
-		s.logger.Warn("metadata sync dropped duplicate model keys",
+		s.logger.Debug("metadata sync dropped duplicate model keys",
 			zap.Int("duplicates", duplicates))
 	}
 	if len(rows) == 0 {

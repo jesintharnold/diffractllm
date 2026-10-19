@@ -152,11 +152,11 @@ func (s *Store) BulkSyncModelPricing(variants []core.PricingVariant) error {
 	}
 
 	if skipped > 0 {
-		s.logger.Warn("pricing sync skipped variants with unknown providers",
+		s.logger.Debug("pricing sync skipped variants with unknown providers",
 			zap.Int("skipped", skipped))
 	}
 	if duplicates > 0 {
-		s.logger.Warn("pricing sync dropped duplicate raw keys",
+		s.logger.Debug("pricing sync dropped duplicate raw keys",
 			zap.Int("duplicates", duplicates))
 	}
 	if len(rows) == 0 {

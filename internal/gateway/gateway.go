@@ -12,6 +12,7 @@ import (
 	"time"
 
 	config "diffractllm/configs"
+	"diffractllm/internal/buildinfo"
 	"diffractllm/internal/core"
 	"diffractllm/internal/dataplane"
 	"diffractllm/internal/dbstore"
@@ -19,7 +20,7 @@ import (
 	metricsengine "diffractllm/internal/metrics-engine"
 	"diffractllm/internal/modelcatalog"
 	"diffractllm/internal/observability"
-	logger "diffractllm/internal/observability/logging"
+	"diffractllm/internal/observability/logging"
 	"diffractllm/internal/providerplane"
 	"diffractllm/internal/providers"
 	azureprovider "diffractllm/internal/providers/azure"
@@ -61,6 +62,7 @@ type gatewayImpl struct {
 	isRunning  bool
 	mu         sync.RWMutex
 	startTime  time.Time
+	bootStart  time.Time // for the "started" line
 	cancelWork context.CancelFunc
 }
 
@@ -81,11 +83,14 @@ func (gw *gatewayImpl) Initialize() error {
 		return fmt.Errorf("config: %w", err)
 	}
 	gw.cfg = cfg
-	base := logger.LogInit(cfg.Observability.LogLevel)
-	gw.logger = base.With(zap.String("component", "gateway"))
-	gw.logger.Info("initializing DiffractLLM gateway")
+	// Before any constructor: they all take their logger from logging.For.
+	logging.Init(cfg.Observability.LogLevel, cfg.Observability.LogFormat)
+	gw.logger = logging.For("gateway")
+	gw.bootStart = time.Now()
+	gw.logger.Info("starting", zap.String("version", buildinfo.Version),
+		zap.String("log_level", cfg.Observability.LogLevel), zap.String("log_format", cfg.Observability.LogFormat))
 
-	source, err := dbstore.NewDBSource(base)
+	source, err := dbstore.NewDBSource()
 	if err != nil {
 		return fmt.Errorf("db source: %w", err)
 	}
@@ -101,7 +106,7 @@ func (gw *gatewayImpl) Initialize() error {
 	}
 	store := source.GetStore()
 
-	reg := settings.NewRegistry(store, base)
+	reg := settings.NewRegistry(store)
 	if _, err := observability.Register(reg, cfg); err != nil {
 		return fmt.Errorf("observability: %w", err)
 	}
@@ -114,43 +119,40 @@ func (gw *gatewayImpl) Initialize() error {
 		return err
 	}
 
-	gw.logger.Info("boot snapshot loaded", zap.Int("upstreams", len(upstreams)), zap.Int("credentials", len(credentials)), zap.String("store", source.Path()))
-	gw.catalog = modelcatalog.NewModelCatalog(store, *cfg.ModelCatalog, base)
-	gov, err := governance.NewGovernance(store, base, govSettings.Running())
+	gw.catalog = modelcatalog.NewModelCatalog(store, *cfg.ModelCatalog)
+	gov, err := governance.NewGovernance(store, govSettings.Running())
 	if err != nil {
 		return fmt.Errorf("governance: %w", err)
 	}
 	gw.governance = gov
 
 	gw.modelplane = providerplane.NewProviderPlane(credentials)
-	gw.dataplane = dataplane.NewSelectionEngine(gw.modelplane, base)
+	gw.dataplane = dataplane.NewSelectionEngine(gw.modelplane)
 
 	registry := providers.NewProviderInstance()
-	transport := dataplane.NewTransport(cfg.Upstream, upstreamMap(upstreams), base)
-	registry.Register(openaiprovider.New(transport, base))
-	registry.Register(azureprovider.New(transport, base))
+	transport := dataplane.NewTransport(cfg.Upstream, upstreamMap(upstreams))
+	registry.Register(openaiprovider.New(transport))
+	registry.Register(azureprovider.New(transport))
 
-	gw.logger.Info("adapters registered", zap.Int("count", registry.Len()), zap.Any("providers", registry.Providers()))
+	gw.logger.Info("providers ready", zap.Any("providers", registry.Providers()),
+		zap.Int("upstreams", len(upstreams)), zap.Int("credentials", len(credentials)))
 
-	gw.server = server.NewDiffractLLMServer(base, cfg.ServerConfig, gov, gw.dataplane, gw.modelplane,
+	gw.server = server.NewDiffractLLMServer(cfg.ServerConfig, gov, gw.dataplane, gw.modelplane,
 		gw.catalog, registry, transport, store,
 	)
 	gw.server.SetSettings(reg)
 
 	if mc := cfg.MetricsEngine; mc != nil && mc.Enabled {
-		events := metricsengine.NewDuckDBStore(base, context.Background())
+		events := metricsengine.NewDuckDBStore(context.Background())
 		if err := events.Init(mc.DSN, context.Background()); err != nil {
 			return fmt.Errorf("metrics store %q: %w", mc.DSN, err)
 		}
-		gw.metrics = metricsengine.NewMetricsEngine(events, mc, base)
+		gw.metrics = metricsengine.NewMetricsEngine(events, mc)
 		if err := metricsengine.RegisterHooks(gw.server.HookEngine, gw.metrics); err != nil {
 			return fmt.Errorf("metrics hooks: %w", err)
 		}
 		gw.server.SetMetrics(gw.metrics)
-		gw.logger.Info("metrics engine ready", zap.String("store", mc.DSN))
 	}
-
-	gw.logger.Info("gateway initialized successfully")
 	return nil
 }
 
@@ -178,31 +180,27 @@ func (gw *gatewayImpl) Start() error {
 	workCtx, cancelWork := context.WithCancel(context.Background())
 	gw.cancelWork = cancelWork
 
-	gw.logger.Info("starting model catalog")
 	if err := gw.catalog.Start(workCtx); err != nil {
 		return fmt.Errorf("catalog: %w", err)
 	}
 
-	gw.logger.Info("starting governance sync and flush jobs")
 	if err := gw.governance.Start(workCtx); err != nil {
 		return fmt.Errorf("governance: %w", err)
 	}
 
 	if gw.metrics != nil {
-		gw.logger.Info("starting metrics flush job")
 		if err := gw.metrics.Start(workCtx); err != nil {
 			return fmt.Errorf("metrics: %w", err)
 		}
 	}
 
-	gw.logger.Info("starting http server")
 	if err := gw.server.Start(); err != nil {
 		return fmt.Errorf("http server: %w", err)
 	}
 
 	gw.isRunning = true
 	gw.startTime = time.Now()
-	gw.logger.Info("gateway started successfully", zap.Int("port", gw.cfg.ServerConfig.Port))
+	gw.logger.Info("started", zap.Duration("took", time.Since(gw.bootStart).Round(time.Millisecond)))
 	return nil
 }
 
@@ -219,7 +217,7 @@ func (gw *gatewayImpl) Stop() error {
 
 	if gw.isRunning {
 		httpCtx, cancelHTTP := context.WithTimeout(context.Background(), ShutdownTimeout)
-		lg.Info("[1/5] stopping http server")
+		lg.Debug("stopping http server")
 		if err := gw.server.Shutdown(httpCtx, StreamGrace); err != nil {
 			lg.Error("http shutdown failed", zap.Error(err))
 			stopErr = errors.Join(stopErr, fmt.Errorf("http: %w", err))
@@ -230,7 +228,7 @@ func (gw *gatewayImpl) Stop() error {
 	// Outside the running check: a failed Start must still close the DuckDB file.
 	if gw.metrics != nil {
 		metricsCtx, cancelMetrics := context.WithTimeout(context.Background(), DrainBudget)
-		lg.Info("[2/5] flushing metrics events")
+		lg.Debug("flushing metrics events")
 		if err := gw.metrics.Shutdown(metricsCtx); err != nil {
 			lg.Error("metrics shutdown failed", zap.Error(err))
 			stopErr = errors.Join(stopErr, fmt.Errorf("metrics: %w", err))
@@ -241,7 +239,7 @@ func (gw *gatewayImpl) Stop() error {
 
 	if gw.isRunning {
 		govCtx, cancelGov := context.WithTimeout(context.Background(), DrainBudget)
-		lg.Info("[3/5] draining governance")
+		lg.Debug("draining governance")
 		if err := gw.governance.Shutdown(govCtx); err != nil {
 			lg.Error("governance shutdown failed", zap.Error(err))
 			stopErr = errors.Join(stopErr, fmt.Errorf("governance: %w", err))
@@ -249,7 +247,7 @@ func (gw *gatewayImpl) Stop() error {
 		cancelGov()
 
 		catCtx, cancelCat := context.WithTimeout(context.Background(), DrainBudget)
-		lg.Info("[4/5] stopping model catalog")
+		lg.Debug("stopping model catalog")
 		if err := gw.catalog.Shutdown(catCtx); err != nil {
 			lg.Error("catalog shutdown failed", zap.Error(err))
 			stopErr = errors.Join(stopErr, fmt.Errorf("catalog: %w", err))
@@ -260,7 +258,7 @@ func (gw *gatewayImpl) Stop() error {
 	gw.isRunning = false
 
 	if gw.source != nil {
-		lg.Info("[5/5] closing store")
+		lg.Debug("closing store")
 		if err := gw.source.Close(); err != nil {
 			lg.Error("store close failed", zap.Error(err))
 			stopErr = errors.Join(stopErr, fmt.Errorf("store: %w", err))
@@ -277,7 +275,7 @@ func (gw *gatewayImpl) Stop() error {
 		return stopErr
 	}
 
-	lg.Info("gateway stopped successfully")
+	lg.Info("stopped")
 	_ = lg.Sync()
 	return nil
 }
@@ -289,9 +287,9 @@ func (gw *gatewayImpl) WaitForSignal() {
 
 	select {
 	case sig := <-signalChan:
-		gw.logger.Info("received shutdown signal", zap.String("signal", sig.String()))
+		gw.logger.Info("shutting down", zap.String("signal", sig.String()))
 	case <-gw.stopChan:
-		gw.logger.Info("stop channel triggered")
+		gw.logger.Info("shutting down", zap.String("signal", "stop"))
 	case err, ok := <-gw.server.ServeError():
 		if ok && err != nil {
 			gw.logger.Error("http server failed", zap.Error(err))
@@ -300,12 +298,9 @@ func (gw *gatewayImpl) WaitForSignal() {
 
 	signal.Stop(signalChan)
 
-	gw.logger.Info("shutting down gracefully")
 	if err := gw.Stop(); err != nil {
 		gw.logger.Error("shutdown error", zap.Error(err))
-		return
 	}
-	gw.logger.Info("shutdown completed successfully")
 }
 
 func (gw *gatewayImpl) IsRunning() bool {

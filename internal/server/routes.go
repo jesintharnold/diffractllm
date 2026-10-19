@@ -1,6 +1,7 @@
 package server
 
 import (
+	"diffractllm/internal/observability/logging"
 	"diffractllm/internal/core"
 	"diffractllm/internal/providers"
 	"fmt"
@@ -23,7 +24,7 @@ func (ds *DiffractLLMServer) routeHandlers() (http.Handler, error) {
 
 	router.HandleMethodNotAllowed = true
 	router.RedirectTrailingSlash = false
-	router.Use(RequestIDMiddleware(), AccessLogMiddleware(ds.logger), gin.CustomRecoveryWithWriter(nil, HandleRecovery(ds.logger)))
+	router.Use(RequestIDMiddleware(), AccessLogMiddleware(logging.For("http")), gin.CustomRecoveryWithWriter(nil, HandleRecovery(ds.logger)))
 
 	// Route Descriptors
 	groups := make(map[core.Provider]*gin.RouterGroup)
@@ -39,6 +40,7 @@ func (ds *DiffractLLMServer) routeHandlers() (http.Handler, error) {
 			groups[descriptor.SDK] = sdkPath
 		}
 		sdkPath.Handle(descriptor.Method, descriptor.Path, func(ctx *gin.Context) {
+			ctx.Set(logDataPlaneKey, true)
 			ds.GenericRequestHandler(ctx.Writer, ctx.Request, &descriptor)
 		})
 	}

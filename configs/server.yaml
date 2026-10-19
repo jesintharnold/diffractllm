@@ -33,7 +33,8 @@ metricsengine:
 
 
 observability:
-  log_level: "debug"
+  log_level: "info"      # debug | info | warn | error
+  log_format: "console"  # console for people, json for log shippers
 
 modelcatalog:
   source_url: "https://getbifrost.ai/datasheet"

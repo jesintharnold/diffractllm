@@ -1,13 +1,7 @@
-// Package settings is the console-editable layer on top of server.yaml. yaml holds the defaults; what
-// the console saves is stored as overrides (only the fields that differ) in one table and merged
-// over the defaults when the gateway starts. A page describes its fields once, as a Spec, and
-// registers it with the Registry; the Registry serves every page through one set of routes.
-//
-// A field applies at the next start unless it is marked Live, in which case saving it also applies it
-// to the running gateway. Adding a settings page is a struct, a Spec and one Register call.
 package settings
 
 import (
+	"diffractllm/internal/observability/logging"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -221,8 +215,8 @@ type scope interface {
 	reset() (any, error)
 }
 
-func NewRegistry(store Store, log *zap.Logger) *Registry {
-	return &Registry{store: store, log: log, scopes: map[string]scope{}}
+func NewRegistry(store Store) *Registry {
+	return &Registry{store: store, log: logging.For("settings"), scopes: map[string]scope{}}
 }
 
 func (r *Registry) get(name string) (scope, error) {

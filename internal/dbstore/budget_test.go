@@ -9,7 +9,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 
 	"diffractllm/internal/core"
 )
@@ -25,7 +24,7 @@ func store(t *testing.T) *Store {
 	t.Helper()
 
 	path := filepath.Join(os.TempDir(), "diffractllm_dbstore_test.db")
-	s, err := NewStore(path, testAESKey, zap.NewNop())
+	s, err := NewStore(path, testAESKey)
 	require.NoError(t, err)
 	require.NoError(t, s.Migrate())
 	require.NoError(t, s.Seed(false))

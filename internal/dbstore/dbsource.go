@@ -15,20 +15,20 @@ type DBSource struct {
 	mockEnabled bool
 }
 
-func NewDBSource(logger *zap.Logger) (*DBSource, error) {
+func NewDBSource() (*DBSource, error) {
 	cfg, err := config.Load()
 	if err != nil {
 		return nil, fmt.Errorf("db source config: %w", err)
 	}
 
 	dbpath := cfg.ServerConfig.DBPath
-	store, err := NewStore(dbpath, cfg.ServerConfig.AesPasskey, logger)
+	store, err := NewStore(dbpath, cfg.ServerConfig.AesPasskey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new db store : %w", err)
 	}
 	return &DBSource{
 		store:       store,
-		logger:      logger,
+		logger:      store.logger,
 		path:        dbpath,
 		mockEnabled: cfg.ServerConfig.MockEnabled,
 	}, nil

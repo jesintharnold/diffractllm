@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"runtime/debug"
 	"slices"
 	"strings"
@@ -11,10 +12,16 @@ import (
 	"sync/atomic"
 	"time"
 
+	"diffractllm/internal/observability/logging"
+
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 const DrainTimeout = 10 * time.Second
+
+// A job failing every tick logs an Error on the 1st failure and every 30th after, not every run.
+const failureLogEvery = 30
 
 type Detail map[string]any
 
@@ -85,9 +92,11 @@ func (j *Job) validate(groupName string) error {
 	return nil
 }
 
-func (j *Job) markDone(start time.Time, detail Detail, err error, took time.Duration) {
+// markDone records the run and returns the failure streak before it.
+func (j *Job) markDone(start time.Time, detail Detail, err error, took time.Duration) (prevFailures int) {
 	j.mu.Lock()
 	defer j.mu.Unlock()
+	prevFailures = j.stats.ConsecutiveFailures
 	j.stats.Running = false
 	j.stats.LastDuration = took
 	j.stats.LastDetail = detail
@@ -95,11 +104,12 @@ func (j *Job) markDone(start time.Time, detail Detail, err error, took time.Dura
 	if err != nil {
 		j.stats.LastError = err.Error()
 		j.stats.ConsecutiveFailures++
-		return
+		return prevFailures
 	}
 	j.stats.LastSuccessAt = start
 	j.stats.LastError = ""
 	j.stats.ConsecutiveFailures = 0
+	return prevFailures
 }
 
 func (j *Job) exec(ctx context.Context, log *zap.Logger) error {
@@ -121,11 +131,29 @@ func (j *Job) exec(ctx context.Context, log *zap.Logger) error {
 	}()
 
 	timeTaken := time.Since(start)
-	j.markDone(start, detail, err, timeTaken)
-	if err != nil {
-		log.Error("job failed", zap.String("job", j.Name), zap.Error(err))
+	prev := j.markDone(start, detail, err, timeTaken)
+	switch {
+	case err != nil && (prev == 0 || (prev+1)%failureLogEvery == 0):
+		log.Error("job failed", zap.String("job", j.Name), zap.Int("failures", prev+1), zap.Error(err))
+	case err != nil:
+		log.Debug("job failed", zap.String("job", j.Name), zap.Int("failures", prev+1), zap.Error(err))
+	case prev > 0:
+		log.Info("job recovered", zap.String("job", j.Name), zap.Int("failed_runs", prev))
+	default:
+		if ce := log.Check(zapcore.DebugLevel, "job done"); ce != nil {
+			ce.Write(append(logDetailFields(detail), zap.String("job", j.Name), zap.Duration("took", timeTaken))...)
+		}
 	}
 	return err
+}
+
+// logDetailFields turns a job's Detail into fields in key order, so lines are stable.
+func logDetailFields(d Detail) []zap.Field {
+	out := make([]zap.Field, 0, len(d)+2)
+	for _, k := range slices.Sorted(maps.Keys(d)) {
+		out = append(out, zap.Any(k, d[k]))
+	}
+	return out
 }
 
 func (j *Job) loop(ctx context.Context, stop <-chan struct{}, log *zap.Logger) {
@@ -170,10 +198,11 @@ type Group struct {
 	wg       sync.WaitGroup
 }
 
-func NewGroup(name string, logger *zap.Logger) *Group {
+// NewGroup logs under name, so a governance job reads [governance], not [worker].
+func NewGroup(name string) *Group {
 	return &Group{
 		name:   name,
-		logger: logger,
+		logger: logging.For(name),
 		jobs:   make(map[string]*Job),
 	}
 }
@@ -239,7 +268,7 @@ func (g *Group) Start(ctx context.Context) error {
 		}()
 	}
 
-	g.logger.Info("workers started", zap.String("group", g.name), zap.Int("jobs", len(jobs)))
+	g.logger.Debug("workers started", zap.String("group", g.name), zap.Int("jobs", len(jobs)))
 	return nil
 }
 
@@ -261,7 +290,7 @@ func (g *Group) Shutdown(ctx context.Context) error {
 
 	select {
 	case <-exited:
-		g.logger.Info("workers stopped", zap.String("group", g.name))
+		g.logger.Debug("workers stopped", zap.String("group", g.name))
 		return nil
 	case <-ctx.Done():
 		return fmt.Errorf("worker %s: did not stop in time: %w", g.name, ctx.Err())

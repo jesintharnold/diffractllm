@@ -1,6 +1,7 @@
 package dbstore
 
 import (
+	"diffractllm/internal/observability/logging"
 	"context"
 	"fmt"
 	"os"
@@ -32,14 +33,15 @@ func (s *Store) redacted() *gorm.DB {
 	return s.DB.WithContext(context.WithValue(s.DB.Statement.Context, maskSecrets{}, true))
 }
 
-func NewStore(dbPath string, aespasskey string, logger *zap.Logger) (*Store, error) {
+func NewStore(dbPath string, aespasskey string) (*Store, error) {
 	storeOnce.Do(func() {
-		globalStore, globalErr = openStore(dbPath, aespasskey, logger)
+		globalStore, globalErr = openStore(dbPath, aespasskey)
 	})
 	return globalStore, globalErr
 }
 
-func openStore(dbPath string, aespasskey string, logger *zap.Logger) (*Store, error) {
+func openStore(dbPath string, aespasskey string) (*Store, error) {
+	logger := logging.For("dbstore")
 	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
 		file, err := os.Create(dbPath)
 		if err != nil {
@@ -48,7 +50,7 @@ func openStore(dbPath string, aespasskey string, logger *zap.Logger) (*Store, er
 		file.Close()
 	}
 
-	gormDB, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
+	gormDB, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{Logger: gormLogger{log: logger, slow: logSlowQuery}})
 	if err != nil {
 		return nil, fmt.Errorf("failed to open sqlite db at %q: %w", dbPath, err)
 	}
@@ -76,7 +78,7 @@ func openStore(dbPath string, aespasskey string, logger *zap.Logger) (*Store, er
 	sqlDB.SetMaxIdleConns(1)
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
-	logger.Info("sqlite store opened", zap.String("path", dbPath))
+	logger.Info("sqlite ready", zap.String("path", dbPath))
 
 	ctx := context.WithValue(context.Background(), aesKeyPass{}, []byte(aespasskey))
 	return &Store{

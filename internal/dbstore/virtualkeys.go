@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -119,8 +118,8 @@ func (s *Store) ListReadableVirtualKeys() (keys []StoreVirtualKey, unreadable []
 	keys = make([]StoreVirtualKey, 0, len(rows))
 	for i := range rows {
 		if rows[i].APIKey != "" {
+			// Reported once by the governance sync; logging here too repeated it every tick.
 			if err := rows[i].decrypt(pass); err != nil {
-				s.logger.Error("virtual key unreadable", zap.String("virtual_key_id", rows[i].ID), zap.Error(err))
 				unreadable = append(unreadable, rows[i].ID)
 				continue
 			}

@@ -58,7 +58,7 @@ func hConfigs(mode core.VKMode, configs ...core.ProviderConfig) func(*core.Virtu
 
 func hKeys(t *testing.T, keys ...*core.VirtualKey) *VirtualkeyCache {
 	t.Helper()
-	kc := &VirtualkeyCache{logger: zap.NewNop()}
+	kc := &VirtualkeyCache{}
 	kc.LoadVirtualKeys(keys)
 	return kc
 }
@@ -286,7 +286,7 @@ func TestValidatevKeyAuthFutureExpiryIsAccepted(t *testing.T) {
 
 func modelHook(t *testing.T, catalog ModelLookup) *ModelAccessHook {
 	t.Helper()
-	return NewModelAccessHook(catalog, zap.NewNop())
+	return NewModelAccessHook(catalog)
 }
 
 func withPolicy(t *testing.T, rctx *core.DiffractLLMContext, vk *core.VirtualKey) *core.DiffractLLMContext {
@@ -298,8 +298,8 @@ func withPolicy(t *testing.T, rctx *core.DiffractLLMContext, vk *core.VirtualKey
 
 func TestModelAccessHookName(t *testing.T) {
 	assert.Equal(t, "model-access", modelHook(t, nil).Name())
-	assert.Equal(t, "budget", NewBudgetCheckHook(nil, zap.NewNop()).Name())
-	assert.Equal(t, "record_usage", NewRecordHook(nil, nil, zap.NewNop()).Name())
+	assert.Equal(t, "budget", NewBudgetCheckHook(nil).Name())
+	assert.Equal(t, "record_usage", NewRecordHook(nil, nil).Name())
 }
 
 func TestModelAccessHookRejections(t *testing.T) {
@@ -448,7 +448,7 @@ func TestModelAccessHookModelTypeFollowsTheRequestKind(t *testing.T) {
 
 func TestBudgetHook(t *testing.T) {
 	t.Run("no budget reference", func(t *testing.T) {
-		hook := NewBudgetCheckHook(hBudgets(t), zap.NewNop())
+		hook := NewBudgetCheckHook(hBudgets(t))
 
 		derr := hook.Execute(hRctx(t, nil))
 		require.NotNil(t, derr)
@@ -456,7 +456,7 @@ func TestBudgetHook(t *testing.T) {
 	})
 
 	t.Run("reference not in the cache", func(t *testing.T) {
-		hook := NewBudgetCheckHook(hBudgets(t), zap.NewNop())
+		hook := NewBudgetCheckHook(hBudgets(t))
 		rctx := hRctx(t, nil)
 		rctx.BudgetRef = "budget-1"
 
@@ -471,7 +471,7 @@ func TestBudgetHook(t *testing.T) {
 	})
 
 	t.Run("within budget", func(t *testing.T) {
-		hook := NewBudgetCheckHook(hBudgets(t, hBudgetCfg("budget-1", 10_000)), zap.NewNop())
+		hook := NewBudgetCheckHook(hBudgets(t, hBudgetCfg("budget-1", 10_000)))
 		rctx := hRctx(t, nil)
 		rctx.BudgetRef = "budget-1"
 
@@ -487,7 +487,7 @@ func TestBudgetHook(t *testing.T) {
 		rctx := hRctx(t, nil)
 		rctx.BudgetRef = "budget-1"
 
-		derr := NewBudgetCheckHook(bc, zap.NewNop()).Execute(rctx)
+		derr := NewBudgetCheckHook(bc).Execute(rctx)
 		require.NotNil(t, derr)
 		assert.Equal(t, core.CodeBudgetExceeded, derr.Code)
 
@@ -508,7 +508,7 @@ func TestBudgetHook(t *testing.T) {
 		rctx := hRctx(t, nil)
 		rctx.BudgetRef = "budget-1"
 
-		assert.Nil(t, NewBudgetCheckHook(bc, zap.NewNop()).Execute(rctx),
+		assert.Nil(t, NewBudgetCheckHook(bc).Execute(rctx),
 			"an unenforced budget reports spend without blocking")
 	})
 }
@@ -534,9 +534,9 @@ func recordRctx(t *testing.T, usage *core.Usage, cost float64) *core.DiffractLLM
 // nothing to bill and nothing to record.
 func TestRecordHookWithoutUsageRecordsNothing(t *testing.T) {
 	bc := hBudgets(t, hBudgetCfg("budget-1", 10_000))
-	ub := NewUsageBuffer(10, zap.NewNop())
+	ub := NewUsageBuffer(10)
 
-	require.Nil(t, NewRecordHook(bc, ub, zap.NewNop()).Execute(recordRctx(t, nil, 1.5)))
+	require.Nil(t, NewRecordHook(bc, ub).Execute(recordRctx(t, nil, 1.5)))
 
 	assert.Zero(t, ub.Len())
 	budget, found := bc.LookupBudget("budget-1")
@@ -547,10 +547,10 @@ func TestRecordHookWithoutUsageRecordsNothing(t *testing.T) {
 
 func TestRecordHookBuffersAndAccrues(t *testing.T) {
 	bc := hBudgets(t, hBudgetCfg("budget-1", 10_000_000_000))
-	ub := NewUsageBuffer(10, zap.NewNop())
+	ub := NewUsageBuffer(10)
 
 	rctx := recordRctx(t, &core.Usage{InputTokens: 120, OutputTokens: 42}, 0.0000025)
-	require.Nil(t, NewRecordHook(bc, ub, zap.NewNop()).Execute(rctx))
+	require.Nil(t, NewRecordHook(bc, ub).Execute(rctx))
 
 	records := ub.Drain()
 	require.Len(t, records, 1)
@@ -581,9 +581,9 @@ func TestRecordHookBuffersAndAccrues(t *testing.T) {
 // even when the model is unpriced.
 func TestRecordHookZeroCostStillRecords(t *testing.T) {
 	bc := hBudgets(t, hBudgetCfg("budget-1", 10_000))
-	ub := NewUsageBuffer(10, zap.NewNop())
+	ub := NewUsageBuffer(10)
 
-	require.Nil(t, NewRecordHook(bc, ub, zap.NewNop()).Execute(
+	require.Nil(t, NewRecordHook(bc, ub).Execute(
 		recordRctx(t, &core.Usage{InputTokens: 10, OutputTokens: 5}, 0)))
 
 	records := ub.Drain()
@@ -600,12 +600,12 @@ func TestRecordHookZeroCostStillRecords(t *testing.T) {
 // An unknown budget reference must not lose the usage row. The ledger is the
 // audit trail; the budget accrual is best effort.
 func TestRecordHookUnknownBudgetStillBuffers(t *testing.T) {
-	ub := NewUsageBuffer(10, zap.NewNop())
+	ub := NewUsageBuffer(10)
 
 	rctx := recordRctx(t, &core.Usage{InputTokens: 10, OutputTokens: 5}, 0.001)
 	rctx.BudgetRef = "no-such-budget"
 
-	require.Nil(t, NewRecordHook(hBudgets(t), ub, zap.NewNop()).Execute(rctx))
+	require.Nil(t, NewRecordHook(hBudgets(t), ub).Execute(rctx))
 
 	records := ub.Drain()
 	require.Len(t, records, 1)
@@ -619,11 +619,11 @@ func TestRegisterHooks(t *testing.T) {
 	g := &Governance{
 		KeyCache:    hKeys(t),
 		BudgetCache: hBudgets(t, hBudgetCfg("budget-1", 10_000)),
-		UsageBuffer: NewUsageBuffer(10, zap.NewNop()),
+		UsageBuffer: NewUsageBuffer(10),
 		logger:      zap.NewNop(),
 	}
 
-	RegisterHooks(engine, zap.NewNop(), g, hCatalog(map[core.Provider][]string{
+	RegisterHooks(engine, g, hCatalog(map[core.Provider][]string{
 		core.ProviderOpenAI: {hModel},
 	}))
 
@@ -657,9 +657,9 @@ func TestRegisterHooksBudgetBlocksAdmission(t *testing.T) {
 
 	g := &Governance{
 		KeyCache: hKeys(t), BudgetCache: bc,
-		UsageBuffer: NewUsageBuffer(10, zap.NewNop()), logger: zap.NewNop(),
+		UsageBuffer: NewUsageBuffer(10), logger: zap.NewNop(),
 	}
-	RegisterHooks(engine, zap.NewNop(), g, hCatalog(map[core.Provider][]string{
+	RegisterHooks(engine, g, hCatalog(map[core.Provider][]string{
 		core.ProviderOpenAI: {hModel},
 	}))
 

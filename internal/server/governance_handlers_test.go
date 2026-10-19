@@ -50,7 +50,7 @@ func TestRunGovernanceJobRefusesAnUnknownJob(t *testing.T) {
 
 func TestRunGovernanceJobBeforeStartIsUnavailable(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	g, err := governance.NewGovernance(testStore(t), zap.NewNop(), governance.DefaultSettings())
+	g, err := governance.NewGovernance(testStore(t), governance.DefaultSettings())
 	require.NoError(t, err)
 	ds := &DiffractLLMServer{logger: zap.NewNop(), config: &config.ServerConfig{}, governance: g}
 	h, err := ds.routeHandlers()

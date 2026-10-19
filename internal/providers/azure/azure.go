@@ -7,8 +7,6 @@ import (
 	openaiprovider "diffractllm/internal/providers/openai"
 	"fmt"
 	"sync"
-
-	"go.uber.org/zap"
 )
 
 var _ providers.Provider = (*AzureProvider)(nil)
@@ -16,11 +14,10 @@ var _ providers.Provider = (*AzureProvider)(nil)
 type AzureProvider struct {
 	Transport       *dataplane.DiffractLLMTransport
 	CredentialCache sync.Map
-	Logger          *zap.Logger
 }
 
-func New(transport *dataplane.DiffractLLMTransport, logger *zap.Logger) *AzureProvider {
-	return &AzureProvider{Transport: transport, Logger: logger}
+func New(transport *dataplane.DiffractLLMTransport) *AzureProvider {
+	return &AzureProvider{Transport: transport}
 }
 
 func (op *AzureProvider) ProviderName() core.Provider {

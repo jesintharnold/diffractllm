@@ -12,7 +12,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 func TestStagesAreBackToBackAndSkipUnreachedSteps(t *testing.T) {
@@ -76,7 +75,7 @@ func payloadEngine(t *testing.T, mode string, maxKB int) (*MetricsEngine, *DuckD
 	return NewMetricsEngine(store, &config.MetricsEngineConfig{
 		BufferCapacity: 10, FlushInterval: time.Hour, QueryTimeout: 5 * time.Second,
 		MaxPage: 200, MaxWindow: 90 * 24 * time.Hour, PayloadMode: mode, PayloadMaxKB: maxKB,
-	}, zap.NewNop()), store
+	}), store
 }
 
 // record sends one context through the engine and returns its event id.

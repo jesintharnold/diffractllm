@@ -11,9 +11,20 @@ import (
 
 	"github.com/bytedance/sonic"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 func (ds *DiffractLLMServer) logRequest(rctx *core.DiffractLLMContext) {
+	// 4xx stays Info: bad keys and spent budgets come from clients and must not flood Warn.
+	level := zapcore.InfoLevel
+	if rctx.ResponseStatus >= http.StatusInternalServerError {
+		level = zapcore.ErrorLevel
+	}
+	ce := ds.logger.Check(level, "request complete")
+	if ce == nil {
+		return
+	}
+
 	fields := []zap.Field{
 		zap.String("event", "request"),
 		zap.String("request_id", rctx.RequestID),
@@ -64,7 +75,7 @@ func (ds *DiffractLLMServer) logRequest(rctx *core.DiffractLLMContext) {
 			zap.String("error_message", e.Message))
 	}
 
-	ds.logger.Info("request complete", fields...)
+	ce.Write(fields...)
 }
 
 func (ds *DiffractLLMServer) readBody(rctx *core.DiffractLLMContext) ([]byte, *core.DiffractLLMError) {
@@ -150,8 +161,10 @@ func (ds *DiffractLLMServer) GenericRequestHandler(w http.ResponseWriter, r *htt
 			writeErr(rctx, desc, core.NewUnpricedModel(rctx.Modelkey))
 			return
 		}
-		ds.logger.Warn("serving an unpriced model at zero cost",
-			zap.String("request_id", rctx.RequestID), zap.String("model", rctx.Modelkey.SlashKey()))
+		model := rctx.Modelkey.SlashKey()
+		if _, seen := ds.logWarnedUnpriced.LoadOrStore(model, struct{}{}); !seen {
+			ds.logger.Warn("serving an unpriced model at zero cost", zap.String("model", model))
+		}
 		pricing = &core.Pricing{}
 	}
 	rctx.Pricing = pricing

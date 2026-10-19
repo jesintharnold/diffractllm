@@ -13,6 +13,9 @@ import (
 
 const RequestIDKey = "request_id"
 
+// logDataPlaneKey marks LLM requests; their access line is Debug because logRequest already writes one.
+const logDataPlaneKey = "data_plane"
+
 func RequestIDMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		requestID := c.GetHeader("X-Request-ID")
@@ -26,7 +29,7 @@ func RequestIDMiddleware() gin.HandlerFunc {
 }
 
 func AccessLogMiddleware(logger *zap.Logger) gin.HandlerFunc {
-	log := logger.WithOptions(zap.AddStacktrace(zapcore.FatalLevel)).With(zap.String("component", "http"))
+	log := logger.WithOptions(zap.AddStacktrace(zapcore.FatalLevel))
 	return func(c *gin.Context) {
 		start := time.Now()
 		path := c.Request.URL.Path
@@ -35,6 +38,20 @@ func AccessLogMiddleware(logger *zap.Logger) gin.HandlerFunc {
 		c.Next()
 
 		status := c.Writer.Status()
+		level := zapcore.InfoLevel
+		switch {
+		case path == "/health" || path == "/ready" || c.GetBool(logDataPlaneKey):
+			level = zapcore.DebugLevel
+		case status >= http.StatusInternalServerError:
+			level = zapcore.ErrorLevel
+		case status >= http.StatusBadRequest:
+			level = zapcore.WarnLevel
+		}
+		ce := log.Check(level, "request")
+		if ce == nil {
+			return
+		}
+
 		fields := []zap.Field{
 			zap.String("method", c.Request.Method),
 			zap.String("path", path),
@@ -53,16 +70,7 @@ func AccessLogMiddleware(logger *zap.Logger) gin.HandlerFunc {
 			fields = append(fields, zap.String("errors", errs))
 		}
 
-		switch {
-		case path == "/health" || path == "/ready":
-			log.Debug("request", fields...)
-		case status >= http.StatusInternalServerError:
-			log.Error("request", fields...)
-		case status >= http.StatusBadRequest:
-			log.Warn("request", fields...)
-		default:
-			log.Info("request", fields...)
-		}
+		ce.Write(fields...)
 	}
 }
 

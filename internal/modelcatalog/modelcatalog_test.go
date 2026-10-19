@@ -766,7 +766,7 @@ func testStore(t *testing.T) *dbstore.Store {
 	t.Helper()
 
 	path := filepath.Join(os.TempDir(), "diffractllm_catalog_test.db")
-	store, err := dbstore.NewStore(path, strings.Repeat("k", 32), zap.NewNop())
+	store, err := dbstore.NewStore(path, strings.Repeat("k", 32))
 	require.NoError(t, err)
 	require.NoError(t, store.Migrate())
 	require.NoError(t, store.Seed(false))
@@ -779,7 +779,7 @@ func testStore(t *testing.T) *dbstore.Store {
 
 func startCatalog(t *testing.T, store *dbstore.Store, cfg config.ModelCatalogConfig) *ModelCatalog {
 	t.Helper()
-	c := NewModelCatalog(store, cfg, zap.NewNop())
+	c := NewModelCatalog(store, cfg)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	require.NoError(t, c.Start(ctx))
@@ -793,7 +793,7 @@ func startCatalog(t *testing.T, store *dbstore.Store, cfg config.ModelCatalogCon
 }
 
 func TestLoadAllOnAnEmptyDatabase(t *testing.T) {
-	c := NewModelCatalog(testStore(t), config.ModelCatalogConfig{}, zap.NewNop())
+	c := NewModelCatalog(testStore(t), config.ModelCatalogConfig{})
 	require.NoError(t, c.loadAll())
 
 	assert.False(t, c.Ready(), "nothing synced yet")
@@ -816,7 +816,7 @@ func TestLoadFromTheStore(t *testing.T) {
 		variant(core.ProviderOpenAI, gpt4o, sizeSel, 9, 8),
 	}))
 
-	c := NewModelCatalog(store, config.ModelCatalogConfig{}, zap.NewNop())
+	c := NewModelCatalog(store, config.ModelCatalogConfig{})
 	require.NoError(t, c.loadAll())
 
 	assert.True(t, c.Ready())
@@ -844,7 +844,7 @@ func TestBulkSyncSkipsUnknownProviders(t *testing.T) {
 		meta("not-a-provider", "ghost", core.ModelTypeChat),
 	}))
 
-	c := NewModelCatalog(store, config.ModelCatalogConfig{}, zap.NewNop())
+	c := NewModelCatalog(store, config.ModelCatalogConfig{})
 	require.NoError(t, c.loadModels())
 
 	assert.Equal(t, 1, c.ModelCount(core.ProviderOpenAI))
@@ -872,7 +872,7 @@ func TestLoadCustomPricingGroupsByScope(t *testing.T) {
 		require.NoError(t, err, req.Name)
 	}
 
-	c := NewModelCatalog(store, config.ModelCatalogConfig{}, zap.NewNop())
+	c := NewModelCatalog(store, config.ModelCatalogConfig{})
 	require.NoError(t, c.loadAll())
 
 	scoped := (*c.customPricing.Load())[core.CatalogKey{ModelName: gpt4o, ModelType: core.ModelTypeChat}]
@@ -891,7 +891,7 @@ func TestReloadCustomPricingPublishesANewSnapshot(t *testing.T) {
 		variant(core.ProviderOpenAI, gpt4o, "", 1, 2),
 	}))
 
-	c := NewModelCatalog(store, config.ModelCatalogConfig{}, zap.NewNop())
+	c := NewModelCatalog(store, config.ModelCatalogConfig{})
 	require.NoError(t, c.loadAll())
 
 	price := func() float64 {
@@ -998,7 +998,7 @@ func TestSyncCatalogReportsWhatItFetched(t *testing.T) {
 	  "512-x-512/dall-e-3":   {"mode":"image_generation","provider":"openai"}
 	}`)
 
-	c := NewModelCatalog(testStore(t), config.ModelCatalogConfig{SourceURL: src.URL}, zap.NewNop())
+	c := NewModelCatalog(testStore(t), config.ModelCatalogConfig{SourceURL: src.URL})
 
 	detail, err := c.syncCatalog(context.Background())
 	require.NoError(t, err)
@@ -1013,7 +1013,7 @@ func TestSyncCatalogReportsWhatItFetched(t *testing.T) {
 func TestSyncCatalogFetchError(t *testing.T) {
 	c := NewModelCatalog(testStore(t), config.ModelCatalogConfig{
 		SourceURL: "http://127.0.0.1:1/nope",
-	}, zap.NewNop())
+	})
 
 	detail, err := c.syncCatalog(context.Background())
 	require.Error(t, err)
@@ -1072,7 +1072,7 @@ func TestReloadCustomPricingMakesNoNetworkCall(t *testing.T) {
 	defer feed.Close()
 
 	store := testStore(t)
-	c := NewModelCatalog(store, config.ModelCatalogConfig{SourceURL: feed.URL}, zap.NewNop())
+	c := NewModelCatalog(store, config.ModelCatalogConfig{SourceURL: feed.URL})
 	require.NoError(t, c.loadAll())
 
 	require.NoError(t, c.ReloadCustomPricing())

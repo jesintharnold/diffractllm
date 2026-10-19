@@ -19,7 +19,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 
 	config "diffractllm/configs"
 	"diffractllm/internal/core"
@@ -87,7 +86,7 @@ func rctxFor(key core.CatalogKey, vk *core.VirtualKey) *core.DiffractLLMContext 
 
 func engine(t *testing.T, f *fakeSource) *SelectionEngine {
 	t.Helper()
-	return NewSelectionEngine(f, zap.NewNop())
+	return NewSelectionEngine(f)
 }
 
 // ---------- Resolve: rejections ----------
@@ -654,7 +653,7 @@ func upstreamFor(network core.NetworkConfig) *core.Upstream {
 func transportFor(t *testing.T, network core.NetworkConfig) *DiffractLLMTransport {
 	t.Helper()
 	return NewTransport(testUpstreamConfig(),
-		map[core.Provider]*core.Upstream{core.ProviderOpenAI: upstreamFor(network)}, zap.NewNop())
+		map[core.Provider]*core.Upstream{core.ProviderOpenAI: upstreamFor(network)})
 }
 
 func transportRctx(t *testing.T) *core.DiffractLLMContext {
@@ -1267,7 +1266,7 @@ func socksTransport(t *testing.T, proxyAddr, user, pass string, allowPrivate boo
 				Type: core.ProxySOCKS5, URL: proxyAddr, Username: user, Password: pass,
 			},
 		},
-	}, zap.NewNop())
+	})
 }
 
 // 8.8.8.8 is never really dialled: the fake proxy answers the CONNECT itself.
@@ -1370,7 +1369,7 @@ func TestHTTPProxyOnAPrivateAddressIsReachable(t *testing.T) {
 			Network:  core.NetworkConfig{},
 			Proxy:    &core.ProxyConfig{Type: core.ProxyHTTP, URL: proxyServer.URL},
 		},
-	}, zap.NewNop())
+	})
 
 	res, derr := tr.ServeHTTP(transportRctx(t), &DiffractLLMTransportRequest{
 		Method: http.MethodPost, URL: "http://8.8.8.8:80/v1/chat",

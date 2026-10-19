@@ -1,6 +1,7 @@
 package governance
 
 import (
+	"diffractllm/internal/observability/logging"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -34,14 +35,14 @@ type UsageBuffer struct {
 	dropped     atomic.Int64
 }
 
-func NewUsageBuffer(maxcapacity int, logger *zap.Logger) *UsageBuffer {
+func NewUsageBuffer(maxcapacity int) *UsageBuffer {
 	if maxcapacity <= 0 {
 		maxcapacity = DefaultUsageBufferCapacity
 	}
 	return &UsageBuffer{
 		records:     make([]UsageRecord, 0, min(maxcapacity, 4096)),
 		maxCapacity: maxcapacity,
-		logger:      logger,
+		logger:      logging.For("governance"),
 	}
 }
 
@@ -49,8 +50,10 @@ func (ub *UsageBuffer) Append(r UsageRecord) {
 	ub.lock.Lock()
 	if len(ub.records) >= ub.maxCapacity {
 		ub.lock.Unlock()
-		dropped := ub.dropped.Add(1)
-		ub.logger.Error("usage buffer at capacity record dropped", zap.String("client_id", r.ClientID), zap.Int64("total_dropped", dropped), zap.Int("capacity", ub.maxCapacity))
+		// First drop and every 1000th; records_dropped in the job detail has the exact count.
+		if dropped := ub.dropped.Add(1); dropped == 1 || dropped%1000 == 0 {
+			ub.logger.Error("usage buffer full, records dropped", zap.Int64("total_dropped", dropped), zap.Int("capacity", ub.maxCapacity))
+		}
 		return
 	}
 	ub.records = append(ub.records, r)

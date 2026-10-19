@@ -3,6 +3,7 @@ package metricsengine
 import (
 	"bytes"
 	"context"
+	"diffractllm/internal/observability/logging"
 	"errors"
 	"fmt"
 	"slices"
@@ -33,8 +34,8 @@ type MetricsEngine struct {
 	lost     int64
 }
 
-func NewMetricsEngine(store OLAPStore, cfg *config.MetricsEngineConfig, logger *zap.Logger) *MetricsEngine {
-	log := logger.With(zap.String("component", "metrics_engine"))
+func NewMetricsEngine(store OLAPStore, cfg *config.MetricsEngineConfig) *MetricsEngine {
+	log := logging.For("metrics")
 	return &MetricsEngine{
 		store:  store,
 		buffer: NewEventsBuffer(cfg.BufferCapacity),
@@ -44,7 +45,7 @@ func NewMetricsEngine(store OLAPStore, cfg *config.MetricsEngineConfig, logger *
 }
 
 func (m *MetricsEngine) Start(ctx context.Context) error {
-	m.workers = worker.NewGroup("metrics", m.logger)
+	m.workers = worker.NewGroup("metrics")
 	pruneEvery := m.config.PruneInterval
 	if pruneEvery <= 0 {
 		pruneEvery = defaultPruneEvery

@@ -98,13 +98,11 @@ func (bc *BudgetCache) LoadBudgets(budgetData []*core.Budget) {
 		if _, exists := tempactiveIDs[budgetID]; !exists {
 			bc.BudgetMap.Delete(budgetID)
 			if bc.logger != nil {
-				bc.logger.Info("Removed deleted budget from cache", zap.String("budget_id", budgetID))
+				bc.logger.Info("budget removed from cache", zap.String("budget_id", budgetID))
 			}
 		}
 		return true
 	})
-
-	bc.logger.Debug("Budget cache hot-swapped", zap.Int("keys", len(budgetData)))
 }
 
 func (bc *BudgetCache) UpsertBudget(budget *core.Budget) {
@@ -126,6 +124,6 @@ func (bc *BudgetCache) UpsertBudget(budget *core.Budget) {
 func (bc *BudgetCache) DeleteBudget(budgetID string) {
 	bc.BudgetMap.Delete(budgetID)
 	if bc.logger != nil {
-		bc.logger.Info("Removed deleted budget from cache", zap.String("budget_id", budgetID))
+		bc.logger.Info("budget removed from cache", zap.String("budget_id", budgetID))
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"diffractllm/internal/governance"
 	metricsengine "diffractllm/internal/metrics-engine"
 	"diffractllm/internal/modelcatalog"
+	"diffractllm/internal/observability/logging"
 	"diffractllm/internal/providerplane"
 	"diffractllm/internal/providers"
 	"diffractllm/internal/settings"
@@ -47,17 +48,19 @@ type DiffractLLMServer struct {
 	dbStore *dbstore.Store
 	metrics *metricsengine.MetricsEngine
 
+	logWarnedUnpriced sync.Map // models already warned about; the operator chose $0 on purpose
+
 	settings *settings.Registry
 }
 
 func (ds *DiffractLLMServer) SetSettings(r *settings.Registry) { ds.settings = r }
 
-func NewDiffractLLMServer(logger *zap.Logger, config *config.ServerConfig, gov *governance.Governance, selectionEngine *dataplane.SelectionEngine, credentialPlane *providerplane.ProviderPlane, catalog *modelcatalog.ModelCatalog,
+func NewDiffractLLMServer(config *config.ServerConfig, gov *governance.Governance, selectionEngine *dataplane.SelectionEngine, credentialPlane *providerplane.ProviderPlane, catalog *modelcatalog.ModelCatalog,
 	registry *providers.ProviderInstance, transport *dataplane.DiffractLLMTransport, store *dbstore.Store) *DiffractLLMServer {
-	hookEngine := core.NewHookEngine(logger)
-	governance.RegisterHooks(hookEngine, logger, gov, catalog)
+	hookEngine := core.NewHookEngine(logging.For("hooks"))
+	governance.RegisterHooks(hookEngine, gov, catalog)
 	return &DiffractLLMServer{
-		logger:           logger,
+		logger:           logging.For("server"),
 		CtxPool:          core.NewDiffractLLMContextPool(),
 		config:           config,
 		serveErr:         make(chan error, 1),
@@ -98,7 +101,7 @@ func (ds *DiffractLLMServer) Start() error {
 			return
 		}
 		ds.isReady.Store(true)
-		ds.logger.Info("http server listening", zap.String("addr", ds.httpServer.Addr))
+		ds.logger.Info("listening", zap.String("addr", ds.httpServer.Addr))
 
 		go func() {
 			err := ds.httpServer.Serve(listener)
@@ -108,7 +111,7 @@ func (ds *DiffractLLMServer) Start() error {
 				ds.serveErr <- err
 				return
 			}
-			ds.logger.Info("http server stopped serving")
+			ds.logger.Debug("http server stopped serving")
 			close(ds.serveErr)
 		}()
 	})

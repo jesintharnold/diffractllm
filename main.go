@@ -30,6 +30,5 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Println("Gateway running. Waiting for interrupt (SIGINT/SIGTERM) to shutdown...")
 	gw.WaitForSignal()
 }

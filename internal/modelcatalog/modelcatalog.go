@@ -5,12 +5,12 @@ import (
 	config "diffractllm/configs"
 	"diffractllm/internal/core"
 	"diffractllm/internal/dbstore"
+	"diffractllm/internal/observability/logging"
 	"diffractllm/internal/worker"
 	"fmt"
 	"net/http"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"go.uber.org/zap"
 )
@@ -83,13 +83,15 @@ type ModelCatalog struct {
 	settingsMu sync.Mutex
 
 	workers *worker.Group
+
+	logLastDigest string // feed digest of the last sync; only the sync job touches it
 }
 
-func NewModelCatalog(store *dbstore.Store, cfg config.ModelCatalogConfig, logger *zap.Logger) *ModelCatalog {
+func NewModelCatalog(store *dbstore.Store, cfg config.ModelCatalogConfig) *ModelCatalog {
 	return &ModelCatalog{
 		store:  store,
 		cfg:    cfg,
-		logger: logger,
+		logger: logging.For("catalog"),
 		client: &http.Client{Timeout: maxFetchTimeout}, // each sync narrows it to the setting
 	}
 }
@@ -98,13 +100,16 @@ func (c *ModelCatalog) Start(ctx context.Context) error {
 	if err := c.loadAll(); err != nil {
 		return fmt.Errorf("catalog load: %w", err)
 	}
+	if snap := c.models.Load(); snap != nil && len(snap.entries) > 0 {
+		c.logger.Info("catalog loaded", zap.Int("models", len(snap.entries)), zap.Int("priced_models", c.basePricing.Load().Len()))
+	}
 	if err := c.loadSettings(); err != nil {
 		return fmt.Errorf("catalog settings: %w", err)
 	}
 	settings := c.Settings()
 	firstBoot := !c.Ready()
 
-	c.workers = worker.NewGroup("catalog", c.logger)
+	c.workers = worker.NewGroup("catalog")
 	err := c.workers.Add(
 		&worker.Job{
 			Name:       JobCatalogSync,
@@ -147,16 +152,6 @@ func (c *ModelCatalog) ReloadCustomPricing() error {
 }
 
 func (c *ModelCatalog) syncCatalog(ctx context.Context) (detail worker.Detail, err error) {
-	start := time.Now()
-	c.logger.Info("catalog sync started", zap.String("source", c.cfg.SourceURL))
-	defer func() {
-		if err != nil {
-			c.logger.Warn("catalog sync failed", zap.Duration("took", time.Since(start)), zap.Error(err))
-			return
-		}
-		c.logger.Info("catalog sync finished", zap.Any("detail", detail), zap.Duration("took", time.Since(start)))
-	}()
-
 	ctx, cancel := context.WithTimeout(ctx, c.Settings().Timeout())
 	defer cancel()
 
@@ -183,6 +178,13 @@ func (c *ModelCatalog) syncCatalog(ctx context.Context) (detail worker.Detail, e
 		return nil, err
 	}
 
+	// Runs every sync; Info only when the feed changed, failures are logged by the worker.
+	if src.Digest != c.logLastDigest {
+		c.logLastDigest = src.Digest
+		c.logger.Info("catalog updated", zap.Int("models", len(*models)), zap.Int("prices", len(*variants)),
+			zap.Int("unknown_provider", src.TotalUnknown))
+	}
+
 	return worker.Detail{
 		"models_fetched":   len(*models),
 		"variants_fetched": len(*variants),
@@ -192,8 +194,6 @@ func (c *ModelCatalog) syncCatalog(ctx context.Context) (detail worker.Detail, e
 }
 
 func (c *ModelCatalog) loadModels() error {
-	start := time.Now()
-
 	rows, err := c.store.ListModelMetadata()
 	if err != nil {
 		return fmt.Errorf("load model metadata: %w", err)
@@ -218,14 +218,10 @@ func (c *ModelCatalog) loadModels() error {
 	}
 
 	c.models.Store(&ModelSnapshot{entries: models, metadata: metadata, byProvider: byProvider})
-	c.logger.Debug("model metadata hot-swapped",
-		zap.Int("models", len(models)), zap.Duration("took", time.Since(start)))
 	return nil
 }
 
 func (c *ModelCatalog) loadBasePricing() error {
-	start := time.Now()
-
 	rows, err := c.store.ListModelPricing()
 	if err != nil {
 		return fmt.Errorf("load base pricing: %w", err)
@@ -238,15 +234,10 @@ func (c *ModelCatalog) loadBasePricing() error {
 
 	snapshot := newBasePricingSnapshot(variants)
 	c.basePricing.Store(snapshot)
-	c.logger.Debug("base pricing hot-swapped",
-		zap.Int("rows", len(variants)), zap.Int("models", snapshot.Len()),
-		zap.Duration("took", time.Since(start)))
 	return nil
 }
 
 func (c *ModelCatalog) loadCustomPricing() error {
-	start := time.Now()
-
 	c.customMu.Lock()
 	defer c.customMu.Unlock()
 
@@ -283,8 +274,6 @@ func (c *ModelCatalog) loadCustomPricing() error {
 	}
 
 	c.customPricing.Store(&tempCustom)
-	c.logger.Debug("custom pricing hot-swapped",
-		zap.Int("models", len(tempCustom)), zap.Duration("took", time.Since(start)))
 	return nil
 }
 

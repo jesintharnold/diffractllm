@@ -116,7 +116,7 @@ func newPage(t *testing.T) (*Registry, *Handle[page], *memory) {
 	t.Helper()
 	liveSeen, liveErr = nil, nil
 	store := &memory{rows: map[string][]byte{}}
-	reg := NewRegistry(store, zap.NewNop())
+	reg := NewRegistry(store)
 	h, err := Register(reg, "page", pageSpec, yaml)
 	require.NoError(t, err)
 	return reg, h, store
@@ -155,7 +155,7 @@ func TestSavedRestartFieldsWaitForTheNextStart(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{"days"}, saved.RestartRequired, "a later read still shows what is pending")
 
-	restarted := NewRegistry(store, zap.NewNop())
+	restarted := NewRegistry(store)
 	again, err := Register(restarted, "page", pageSpec, yaml)
 	require.NoError(t, err)
 	assert.Equal(t, next, again.Running(), "the next start uses it")

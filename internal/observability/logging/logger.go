@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"sync"
 
 	"github.com/hashicorp/go-multierror"
 	"go.uber.org/zap"
@@ -12,16 +11,26 @@ import (
 )
 
 var (
-	log          *zap.Logger
-	logsingleton sync.Once
-	atomicLevel  *zap.AtomicLevel
+	level = zap.NewAtomicLevelAt(zapcore.InfoLevel)
+	root  = zap.NewNop() // tests and early boot: silent
 )
 
-func SetLevel(levelStr string) {
-	if atomicLevel != nil {
-		atomicLevel.SetLevel(parseLevel(strings.ToLower(levelStr)))
+// Init builds the real logger once at boot, before any component is constructed.
+// format is "console" (default) or "json".
+func Init(lvl, format string) {
+	level.SetLevel(parseLevel(strings.ToLower(lvl)))
+	enc := zapcore.NewConsoleEncoder(consoleConfig)
+	if format == FormatJSON {
+		enc = zapcore.NewJSONEncoder(jsonConfig)
 	}
+	root = zap.New(zapcore.NewCore(enc, zapcore.Lock(os.Stdout), level)) // no caller, no auto stack traces
 }
+
+// For returns the logger for one component.
+func For(component string) *zap.Logger { return root.Named(component) }
+
+// SetLevel changes the level at runtime (the settings registry calls it).
+func SetLevel(levelStr string) { level.SetLevel(parseLevel(strings.ToLower(levelStr))) }
 
 func parseLevel(levelStr string) zapcore.Level {
 	switch levelStr {
@@ -42,38 +51,6 @@ func parseLevel(levelStr string) zapcore.Level {
 	default:
 		return zapcore.InfoLevel
 	}
-}
-
-func logNew(loglevel string) *zap.Logger {
-	var loggerInstance *zap.Logger
-	logsingleton.Do(func() {
-
-		level := zap.NewAtomicLevelAt(parseLevel(strings.ToLower(loglevel)))
-		atomicLevel = &level
-		zapConfig := zap.Config{
-			Level:            level,
-			Development:      false,
-			Encoding:         "json",
-			EncoderConfig:    zap.NewProductionEncoderConfig(),
-			OutputPaths:      []string{"stdout"},
-			ErrorOutputPaths: []string{"stderr"},
-		}
-		var err error
-		loggerInstance, err = zapConfig.Build()
-		if err != nil {
-			panic(err)
-		}
-		// defer loggerInstance.Sync()
-		loggerInstance.Info("Custom logger initialized")
-	})
-	return loggerInstance
-}
-
-func LogInit(LOGLEVEL string) *zap.Logger {
-	if log == nil {
-		log = logNew(LOGLEVEL)
-	}
-	return log
 }
 
 func PrintAggregatedErrors(err error) {

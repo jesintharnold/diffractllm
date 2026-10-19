@@ -38,7 +38,7 @@ func catalogServer(t *testing.T) (http.Handler, *modelcatalog.ModelCatalog, *dbs
 	}))
 	t.Cleanup(feed.Close)
 
-	catalog := modelcatalog.NewModelCatalog(store, config.ModelCatalogConfig{SourceURL: feed.URL, SyncInterval: time.Hour}, zap.NewNop())
+	catalog := modelcatalog.NewModelCatalog(store, config.ModelCatalogConfig{SourceURL: feed.URL, SyncInterval: time.Hour})
 	require.NoError(t, catalog.Start(context.Background()))
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

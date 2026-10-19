@@ -1,6 +1,7 @@
 package dataplane
 
 import (
+	"diffractllm/internal/observability/logging"
 	"bytes"
 	"context"
 	"crypto/tls"
@@ -297,7 +298,8 @@ type DiffractLLMTransportResult struct {
 	Attempts int
 }
 
-func NewTransport(defaultConfig config.UpstreamConfig, upstreamProviderConfig map[core.Provider]*core.Upstream, logger *zap.Logger) *DiffractLLMTransport {
+func NewTransport(defaultConfig config.UpstreamConfig, upstreamProviderConfig map[core.Provider]*core.Upstream) *DiffractLLMTransport {
+	logger := logging.For("dataplane")
 	t := DiffractLLMTransport{
 		defaultConfig: defaultConfig,
 		logger:        logger,

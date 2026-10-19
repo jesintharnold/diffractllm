@@ -28,7 +28,7 @@ func metricsServer(t *testing.T, enabled bool) http.Handler {
 	ds := &DiffractLLMServer{logger: zap.NewNop(), config: &config.ServerConfig{}}
 
 	if enabled {
-		store := metricsengine.NewDuckDBStore(zap.NewNop(), context.Background())
+		store := metricsengine.NewDuckDBStore(context.Background())
 		require.NoError(t, store.Init(filepath.Join(t.TempDir(), "m.duckdb"), context.Background()))
 		t.Cleanup(func() { _ = store.Close() })
 		event := func(id string, at time.Duration, result metricsengine.Result, status int) *metricsengine.Event {
@@ -48,7 +48,7 @@ func metricsServer(t *testing.T, enabled bool) http.Handler {
 		ds.SetMetrics(metricsengine.NewMetricsEngine(store, &config.MetricsEngineConfig{
 			BufferCapacity: 10, FlushInterval: time.Hour, QueryTimeout: 5 * time.Second,
 			MaxPage: 200, MaxWindow: 90 * 24 * time.Hour,
-		}, zap.NewNop()))
+		}))
 	}
 
 	h, err := ds.routeHandlers()

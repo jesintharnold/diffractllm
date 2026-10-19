@@ -29,8 +29,6 @@ func obsConfig() *config.GatewayConfig {
 	}
 }
 
-// settingsServer is the real route tree over a registry holding both pages, with no saved overrides
-// (the store is a process-wide singleton, so the table is cleared before and after).
 func settingsServer(t *testing.T) (http.Handler, *DiffractLLMServer) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
@@ -39,8 +37,8 @@ func settingsServer(t *testing.T) (http.Handler, *DiffractLLMServer) {
 	wipe()
 	t.Cleanup(wipe)
 
-	logging.LogInit("info")
-	reg := settings.NewRegistry(store, zap.NewNop())
+	logging.Init("info", logging.FormatConsole)
+	reg := settings.NewRegistry(store)
 	_, err := observability.Register(reg, obsConfig())
 	require.NoError(t, err)
 	_, err = governance.Register(reg, governance.DefaultSettings())
@@ -106,7 +104,8 @@ func TestSavedGovernanceFieldsWaitForARestart(t *testing.T) {
 // The log level is live: it changes the running logger and is not listed as waiting.
 func TestSavedLogLevelAppliesAtOnce(t *testing.T) {
 	h, _ := settingsServer(t)
-	log := logging.LogInit("info")
+	logging.Init("info", logging.FormatConsole)
+	log := logging.For("test")
 	form := obsDefaults(t)
 	form.LogLevel = "error"
 	form.FlushSeconds = 30

@@ -79,7 +79,7 @@ func TestReadyRequiresEveryCheck(t *testing.T) {
 		{
 			name: "governance never synced",
 			build: func(ds *DiffractLLMServer) {
-				g, err := governance.NewGovernance(testStore(t), zap.NewNop(), governance.DefaultSettings())
+				g, err := governance.NewGovernance(testStore(t), governance.DefaultSettings())
 				require.NoError(t, err)
 				ds.governance = g
 			},

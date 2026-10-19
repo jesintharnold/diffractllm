@@ -8,8 +8,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"go.uber.org/zap"
 )
 
 type VirtualKeyMap map[string]*core.VirtualKey
@@ -18,7 +16,6 @@ type VirtualkeyCache struct {
 	virtual  atomic.Pointer[VirtualKeyMap]
 	mu       sync.Mutex
 	LastSync time.Time
-	logger   *zap.Logger
 }
 
 // A nil snapshot means the cache has never loaded. An empty one is fine.
@@ -44,7 +41,6 @@ func (vk *VirtualkeyCache) LoadVirtualKeys(vdata []*core.VirtualKey) {
 	defer vk.mu.Unlock()
 	vk.virtual.Store(&tempVkey)
 	vk.LastSync = time.Now()
-	vk.logger.Debug("virtual key cache hot-swapped", zap.Int("keys", len(tempVkey)))
 }
 
 func (vk *VirtualkeyCache) UpsertVirtualKey(key *core.VirtualKey) {

@@ -36,7 +36,7 @@ func testStore(t *testing.T) *dbstore.Store {
 	t.Helper()
 
 	path := filepath.Join(os.TempDir(), "diffractllm_server_test.db")
-	s, err := dbstore.NewStore(path, strings.Repeat("s", 32), zap.NewNop())
+	s, err := dbstore.NewStore(path, strings.Repeat("s", 32))
 	require.NoError(t, err)
 	require.NoError(t, s.Migrate())
 	require.NoError(t, s.Seed(false))
@@ -46,7 +46,7 @@ func testStore(t *testing.T) *dbstore.Store {
 // A catalog with a store but never started, so no snapshot is published.
 func emptyCatalog(t *testing.T) *modelcatalog.ModelCatalog {
 	t.Helper()
-	return modelcatalog.NewModelCatalog(testStore(t), config.ModelCatalogConfig{}, zap.NewNop())
+	return modelcatalog.NewModelCatalog(testStore(t), config.ModelCatalogConfig{})
 }
 
 // A catalog that has actually synced. Ready() reads unexported snapshots, so
@@ -62,7 +62,7 @@ func loadedCatalog(t *testing.T) *modelcatalog.ModelCatalog {
 
 	catalog := modelcatalog.NewModelCatalog(testStore(t), config.ModelCatalogConfig{
 		SourceURL: feed.URL, SyncInterval: time.Hour,
-	}, zap.NewNop())
+	})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	require.NoError(t, catalog.Start(ctx))
@@ -88,7 +88,7 @@ func liveCredential() *core.Credential {
 
 func registryWithOpenAI() *providers.ProviderInstance {
 	registry := providers.NewProviderInstance()
-	registry.Register(openaiprovider.New(nil, zap.NewNop()))
+	registry.Register(openaiprovider.New(nil))
 	return registry
 }
 
@@ -98,7 +98,7 @@ func registryWithOpenAI() *providers.ProviderInstance {
 func syncedGovernance(t *testing.T) *governance.Governance {
 	t.Helper()
 
-	g, err := governance.NewGovernance(testStore(t), zap.NewNop(), governance.DefaultSettings())
+	g, err := governance.NewGovernance(testStore(t), governance.DefaultSettings())
 	require.NoError(t, err)
 	require.NoError(t, g.Start(context.Background()))
 	t.Cleanup(func() {

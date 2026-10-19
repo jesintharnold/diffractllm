@@ -6,7 +6,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
 	config "diffractllm/configs"
@@ -109,8 +108,8 @@ func (m *memory) DeleteSettingOverrides(scope string) error { delete(m.rows, sco
 // Everything but the log level waits for the restart.
 func TestSavedOverridesApplyAtStart(t *testing.T) {
 	store := &memory{rows: map[string][]byte{}}
-	logging.LogInit("info")
-	h, err := Register(settings.NewRegistry(store, zap.NewNop()), yamlConfig())
+	logging.Init("info", logging.FormatConsole)
+	h, err := Register(settings.NewRegistry(store), yamlConfig())
 	require.NoError(t, err)
 	next := h.Defaults()
 	next.PayloadMode = "full"
@@ -123,7 +122,7 @@ func TestSavedOverridesApplyAtStart(t *testing.T) {
 	assert.Equal(t, []string{"log_level"}, view.Applied, "the log level is live")
 
 	cfg := yamlConfig()
-	_, err = Register(settings.NewRegistry(store, zap.NewNop()), cfg)
+	_, err = Register(settings.NewRegistry(store), cfg)
 	require.NoError(t, err)
 	assert.Equal(t, "full", cfg.MetricsEngine.PayloadMode)
 	assert.Equal(t, "error", cfg.Observability.LogLevel)
@@ -132,8 +131,9 @@ func TestSavedOverridesApplyAtStart(t *testing.T) {
 
 // Saving the log level changes the logger that is running, with no restart.
 func TestLogLevelAppliesToTheRunningLogger(t *testing.T) {
-	log := logging.LogInit("info")
-	h, err := Register(settings.NewRegistry(&memory{rows: map[string][]byte{}}, zap.NewNop()), yamlConfig())
+	logging.Init("info", logging.FormatConsole)
+	log := logging.For("test")
+	h, err := Register(settings.NewRegistry(&memory{rows: map[string][]byte{}}), yamlConfig())
 	require.NoError(t, err)
 	require.True(t, log.Core().Enabled(zapcore.InfoLevel))
 	next := h.Defaults()
@@ -153,7 +153,7 @@ func TestRegisterRefusesBadYamlDefaults(t *testing.T) {
 	cfg := yamlConfig()
 	cfg.MetricsEngine.PayloadsDays = 400
 
-	_, err := Register(settings.NewRegistry(&memory{rows: map[string][]byte{}}, zap.NewNop()), cfg)
+	_, err := Register(settings.NewRegistry(&memory{rows: map[string][]byte{}}), cfg)
 
 	require.ErrorContains(t, err, "server.yaml")
 }

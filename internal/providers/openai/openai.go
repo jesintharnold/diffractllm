@@ -7,8 +7,6 @@ import (
 
 	"diffractllm/internal/core"
 	"diffractllm/internal/dataplane"
-
-	"go.uber.org/zap"
 )
 
 var openAIPaths = map[core.RequestKind]string{
@@ -33,11 +31,10 @@ func ProviderHeaders(stream bool) map[string]string {
 
 type OpenAIProvider struct {
 	Transport *dataplane.DiffractLLMTransport
-	Logger    *zap.Logger
 }
 
-func New(transport *dataplane.DiffractLLMTransport, logger *zap.Logger) *OpenAIProvider {
-	return &OpenAIProvider{Transport: transport, Logger: logger}
+func New(transport *dataplane.DiffractLLMTransport) *OpenAIProvider {
+	return &OpenAIProvider{Transport: transport}
 }
 
 func (op *OpenAIProvider) ProviderName() core.Provider {

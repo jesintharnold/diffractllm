@@ -81,7 +81,7 @@ func (ds *DiffractLLMServer) chatCompletion(
 			if err := writeSSE(rctx, event, payload); err != nil {
 				rctx.StreamAborted = true
 				rctx.ResponseStatus = statusClientClosed
-				ds.logger.Warn("sse write failed", zap.Error(err), zap.Int32("chunks", rctx.StreamChunks))
+				ds.logger.Debug("sse write failed", zap.Error(err), zap.Int32("chunks", rctx.StreamChunks))
 				awaitStreamEnd(streamResCh)
 				ds.price(rctx, pricing)
 				return

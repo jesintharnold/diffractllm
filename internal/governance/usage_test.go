@@ -7,7 +7,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 // ---------- fixtures owned by this file ----------
@@ -33,7 +32,7 @@ func TestNewUsageBufferCapacity(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			ub := NewUsageBuffer(tc.give, zap.NewNop())
+			ub := NewUsageBuffer(tc.give)
 			assert.Equal(t, tc.want, ub.maxCapacity)
 			assert.Zero(t, ub.Len())
 			assert.Zero(t, ub.DroppedCount())
@@ -44,12 +43,12 @@ func TestNewUsageBufferCapacity(t *testing.T) {
 // The backing slice is preallocated but capped, so a 100k buffer does not
 // reserve 100k records up front.
 func TestNewUsageBufferPreallocationIsBounded(t *testing.T) {
-	assert.Equal(t, 4096, cap(NewUsageBuffer(DefaultUsageBufferCapacity, zap.NewNop()).records))
-	assert.Equal(t, 10, cap(NewUsageBuffer(10, zap.NewNop()).records))
+	assert.Equal(t, 4096, cap(NewUsageBuffer(DefaultUsageBufferCapacity).records))
+	assert.Equal(t, 10, cap(NewUsageBuffer(10).records))
 }
 
 func TestAppendAndLen(t *testing.T) {
-	ub := NewUsageBuffer(10, zap.NewNop())
+	ub := NewUsageBuffer(10)
 
 	ub.Append(uRec(1))
 	ub.Append(uRec(2))
@@ -61,7 +60,7 @@ func TestAppendAndLen(t *testing.T) {
 // At capacity the record is dropped and counted. The budget total stays correct
 // because it is a separate counter; only the per-request ledger loses a row.
 func TestAppendAtCapacityDrops(t *testing.T) {
-	ub := NewUsageBuffer(3, zap.NewNop())
+	ub := NewUsageBuffer(3)
 
 	for i := range 3 {
 		ub.Append(uRec(int64(i)))
@@ -79,7 +78,7 @@ func TestAppendAtCapacityDrops(t *testing.T) {
 
 // Draining frees the room, so drops stop once the flush has run.
 func TestDrainMakesRoomAgain(t *testing.T) {
-	ub := NewUsageBuffer(2, zap.NewNop())
+	ub := NewUsageBuffer(2)
 	ub.Append(uRec(1))
 	ub.Append(uRec(2))
 	ub.Append(uRec(3))
@@ -94,7 +93,7 @@ func TestDrainMakesRoomAgain(t *testing.T) {
 }
 
 func TestDrain(t *testing.T) {
-	ub := NewUsageBuffer(10, zap.NewNop())
+	ub := NewUsageBuffer(10)
 	ub.Append(uRec(1))
 	ub.Append(uRec(2))
 	ub.Append(uRec(3))
@@ -109,14 +108,14 @@ func TestDrain(t *testing.T) {
 }
 
 func TestDrainEmptyBuffer(t *testing.T) {
-	assert.Empty(t, NewUsageBuffer(10, zap.NewNop()).Drain())
+	assert.Empty(t, NewUsageBuffer(10).Drain())
 }
 
 // Drain hands the caller the slice it was accumulating into and installs a new
 // one, so records appended afterwards cannot appear in what was already handed
 // out - which is what makes the re-enqueue path on a failed flush safe.
 func TestDrainDetachesTheReturnedSlice(t *testing.T) {
-	ub := NewUsageBuffer(10, zap.NewNop())
+	ub := NewUsageBuffer(10)
 	ub.Append(uRec(1))
 
 	got := ub.Drain()
@@ -130,7 +129,7 @@ func TestDrainDetachesTheReturnedSlice(t *testing.T) {
 }
 
 func TestUsageBufferConcurrentAppendAndDrain(t *testing.T) {
-	ub := NewUsageBuffer(100_000, zap.NewNop())
+	ub := NewUsageBuffer(100_000)
 
 	const writers, each = 8, 500
 	var wg sync.WaitGroup
@@ -173,7 +172,7 @@ func TestUsageBufferConcurrentAppendAndDrain(t *testing.T) {
 }
 
 func TestDroppedCountIsReadableWhileAppending(t *testing.T) {
-	ub := NewUsageBuffer(1, zap.NewNop())
+	ub := NewUsageBuffer(1)
 
 	var wg sync.WaitGroup
 	wg.Add(2)
