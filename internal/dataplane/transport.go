@@ -233,6 +233,17 @@ func (b *streamTimeoutBody) Read(p []byte) (int, error) {
 
 	return n, err
 }
+const drainTimeout = time.Second
+
+// DrainStream reads the tail after [DONE] so the conn can be reused; best effort, at most 1 s.
+func DrainStream(body io.ReadCloser) {
+	if b, ok := body.(*streamTimeoutBody); ok {
+		b.timeout = drainTimeout // same goroutine as the reads; the timer callback never reads it
+		b.timer.Reset(drainTimeout)
+	}
+	io.Copy(io.Discard, io.LimitReader(body, 4<<10))
+}
+
 func (b *streamTimeoutBody) Close() error {
 	b.closed.Do(func() {
 		b.timer.Stop()

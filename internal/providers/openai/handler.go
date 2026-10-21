@@ -89,91 +89,103 @@ func HandleChatCompletionStream(rctx *core.DiffractLLMContext, transport *datapl
 	passthrough := rctx.SDKProvider == core.ProviderOpenAI
 	responseChan := make(chan *core.DiffractLLMChatCompletionStreamResponse, 256)
 
-	dataPrefix := []byte("data:")
-	dataEnd := []byte("[DONE]")
-
 	go func() {
-		defer close(responseChan)
-		defer result.Body.Close()
-
-		sc := bufio.NewScanner(result.Body)
-		sc.Buffer(make([]byte, 64*1024), 1024*1024) // 64kb --> 1MB grow size for each stream delta
-		streamClosed := false
-		emitError := func(streamErr *core.DiffractLLMError) {
-			select {
-			case responseChan <- &core.DiffractLLMChatCompletionStreamResponse{
-				Type:  core.StreamEventError,
-				Error: streamErr,
-			}:
-			case <-rctx.Context().Done():
-			}
+		done := pumpStream(rctx, cfg.Provider, safeURL, result.Body, responseChan, passthrough)
+		// rctx may be back in the pool now; touch only the body.
+		if done {
+			dataplane.DrainStream(result.Body)
 		}
-
-		for sc.Scan() {
-			line := bytes.TrimSpace(sc.Bytes())
-			if len(line) == 0 || line[0] == ':' {
-				continue
-			}
-			if !bytes.HasPrefix(line, dataPrefix) {
-				continue
-			}
-
-			delta := bytes.TrimSpace(bytes.TrimPrefix(line, dataPrefix))
-			if len(delta) == 0 {
-				continue
-			}
-
-			if bytes.Equal(delta, dataEnd) {
-				streamClosed = true
-				break
-			}
-
-			var wire OpenAIChatCompletionStreamResponse
-			if err := sonic.Unmarshal(delta, &wire); err != nil {
-				emitError(core.NewUpstreamError(string(cfg.Provider), safeURL, http.StatusBadGateway, "invalid OpenAI SSE data frame", err))
-				return
-			}
-			if wire.Object != objectChatCompletionChunk {
-				if wire.Object == "" && len(wire.Choices) == 0 && wire.Error == nil {
-					continue
-				}
-				emitError(ParseError(cfg.Provider, safeURL, http.StatusBadGateway, delta))
-				return
-			}
-			chunk := wire.ToDMChatCompletionStreamResponse()
-			if passthrough {
-				chunk.Raw = append([]byte(nil), delta...)
-			}
-
-			select {
-			case responseChan <- chunk:
-			case <-rctx.Context().Done():
-				return
-			}
-
-		}
-
-		if rctx.Context().Err() != nil {
-			return
-		}
-
-		var err error
-		switch {
-		case sc.Err() != nil:
-			err = sc.Err()
-		case !streamClosed:
-			err = errors.New("stream ended before [DONE]")
-		default:
-			return
-		}
-
-		streamErr := core.NewUpstreamUnavailable(string(cfg.Provider), safeURL, err)
-		if errors.Is(err, dataplane.ErrStreamIdle) {
-			streamErr = core.NewUpstreamTimeout(string(cfg.Provider), safeURL, err)
-		}
-		emitError(streamErr)
+		result.Body.Close()
 	}()
 	return responseChan, nil
+}
+
+var (
+	dataPrefix = []byte("data:")
+	dataEnd    = []byte("[DONE]")
+)
+
+// pumpStream parses SSE frames into out and closes it; true means the stream ended with [DONE].
+func pumpStream(rctx *core.DiffractLLMContext, provider core.Provider, safeURL string, body io.Reader,
+	out chan<- *core.DiffractLLMChatCompletionStreamResponse, passthrough bool) bool {
+	defer close(out)
+
+	sc := bufio.NewScanner(body)
+	sc.Buffer(make([]byte, 8<<10), 1<<20) // deltas are small; grows to 1 MB for large tool-call frames
+	streamClosed := false
+	emitError := func(streamErr *core.DiffractLLMError) {
+		select {
+		case out <- &core.DiffractLLMChatCompletionStreamResponse{
+			Type:  core.StreamEventError,
+			Error: streamErr,
+		}:
+		case <-rctx.Context().Done():
+		}
+	}
+
+	for sc.Scan() {
+		line := bytes.TrimSpace(sc.Bytes())
+		if len(line) == 0 || line[0] == ':' {
+			continue
+		}
+		if !bytes.HasPrefix(line, dataPrefix) {
+			continue
+		}
+
+		delta := bytes.TrimSpace(bytes.TrimPrefix(line, dataPrefix))
+		if len(delta) == 0 {
+			continue
+		}
+
+		if bytes.Equal(delta, dataEnd) {
+			streamClosed = true
+			break
+		}
+
+		var wire OpenAIChatCompletionStreamResponse
+		if err := sonic.Unmarshal(delta, &wire); err != nil {
+			emitError(core.NewUpstreamError(string(provider), safeURL, http.StatusBadGateway, "invalid OpenAI SSE data frame", err))
+			return false
+		}
+		if wire.Object != objectChatCompletionChunk {
+			if wire.Object == "" && len(wire.Choices) == 0 && wire.Error == nil {
+				continue
+			}
+			emitError(ParseError(provider, safeURL, http.StatusBadGateway, delta))
+			return false
+		}
+		chunk := wire.ToDMChatCompletionStreamResponse()
+		if passthrough {
+			chunk.Raw = append([]byte(nil), delta...)
+		}
+
+		select {
+		case out <- chunk:
+		case <-rctx.Context().Done():
+			return false
+		}
+	}
+
+	if rctx.Context().Err() != nil {
+		return false
+	}
+
+	var err error
+	switch {
+	case sc.Err() != nil:
+		err = sc.Err()
+	case !streamClosed:
+		err = errors.New("stream ended before [DONE]")
+	default:
+		return true
+	}
+
+	streamErr := core.NewUpstreamUnavailable(string(provider), safeURL, err)
+	if errors.Is(err, dataplane.ErrStreamIdle) {
+		streamErr = core.NewUpstreamTimeout(string(provider), safeURL, err)
+	}
+	emitError(streamErr)
+	return false
 }
 
 func readProviderErrorBody(body io.ReadCloser) ([]byte, error) {

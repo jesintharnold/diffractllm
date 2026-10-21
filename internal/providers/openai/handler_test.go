@@ -3,8 +3,10 @@ package openaiprovider
 import (
 	"context"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -67,6 +69,56 @@ func TestNonStreamDropsUpstreamBytesForAnotherClient(t *testing.T) {
 	res, derr := HandleChatCompletion(testRctx("anthropic"), testTransport(t), chatConfig(server.URL))
 	require.Nil(t, derr)
 	assert.Empty(t, res.Raw, "another SDK's client must be answered from the IR")
+}
+
+const doneStream = "data: {\"id\":\"c1\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"gpt-4o\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"hi\"}}]}\n\ndata: [DONE]\n\n"
+
+func TestStreamReusesTheConnectionAfterDone(t *testing.T) {
+	var conns atomic.Int32
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, doneStream)
+	}))
+	server.Config.ConnState = func(_ net.Conn, s http.ConnState) {
+		if s == http.StateNew {
+			conns.Add(1)
+		}
+	}
+	server.Start()
+	defer server.Close()
+
+	tr := testTransport(t)
+	for range 10 {
+		ch, derr := HandleChatCompletionStream(testRctx(core.ProviderOpenAI), tr, chatConfig(server.URL))
+		require.Nil(t, derr)
+		for range ch {
+		}
+		// The drain runs after the channel closes; give it a moment to return the conn.
+		time.Sleep(20 * time.Millisecond)
+	}
+	assert.EqualValues(t, 1, conns.Load(), "every stream after the first reuses the connection")
+}
+
+// An upstream that sends [DONE] and keeps the connection open must not hold the client.
+func TestStreamEndsAtDoneEvenIfUpstreamHoldsTheConnection(t *testing.T) {
+	release := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, doneStream)
+		w.(http.Flusher).Flush()
+		<-release
+	}))
+	defer server.Close()
+	defer close(release)
+
+	ch, derr := HandleChatCompletionStream(testRctx(core.ProviderOpenAI), testTransport(t), chatConfig(server.URL))
+	require.Nil(t, derr)
+
+	start := time.Now()
+	var chunks int
+	for range ch {
+		chunks++
+	}
+	assert.Equal(t, 1, chunks)
+	assert.Less(t, time.Since(start), 500*time.Millisecond, "the client is not kept waiting on the drain")
 }
 
 func TestStreamChunksKeepUpstreamBytes(t *testing.T) {
