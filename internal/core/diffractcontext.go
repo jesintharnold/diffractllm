@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"sync"
 	"sync/atomic"
@@ -138,29 +139,36 @@ func (rc *DiffractLLMContext) JSON(code int, obj any) {
 	rc.aborted.Store(true)
 }
 
+// WriteSSE writes the frame parts into net/http's buffered writer; Flush sends them together.
 func (rc *DiffractLLMContext) WriteSSE(event string, body []byte) error {
-	size := len(body) + 8
 	if event != "" {
-		size += len(event) + 8
+		if err := rc.writeString("event: "); err != nil {
+			return err
+		}
+		if err := rc.writeString(event); err != nil {
+			return err
+		}
+		if err := rc.writeString("\n"); err != nil {
+			return err
+		}
 	}
-
-	buf := make([]byte, 0, size)
-	if event != "" {
-		buf = append(buf, "event: "...)
-		buf = append(buf, event...)
-		buf = append(buf, '\n')
+	if err := rc.writeString("data: "); err != nil {
+		return err
 	}
-	buf = append(buf, "data: "...)
-	buf = append(buf, body...)
-	buf = append(buf, '\n', '\n')
-
-	n, err := rc.Writer.Write(buf)
-	rc.ResponseBytes += n
-	if err != nil {
+	if _, err := rc.Write(body); err != nil {
+		return err
+	}
+	if err := rc.writeString("\n\n"); err != nil {
 		return err
 	}
 	rc.Flush()
 	return nil
+}
+
+func (rc *DiffractLLMContext) writeString(s string) error {
+	n, err := io.WriteString(rc.Writer, s)
+	rc.ResponseBytes += n
+	return err
 }
 
 func (rc *DiffractLLMContext) WriteData(code int, contentType string, data []byte) {
