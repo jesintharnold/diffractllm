@@ -25,13 +25,6 @@ upstream:
   read_buffer_size: 65536
   disable_compression: true
 
-metricsengine:
-  Enabled: true
-  PayloadMode: ""   # none , errors_only
-  BodyLimitBytes:
-  logHeaders: []
-
-
 observability:
   log_level: "info"      # debug | info | warn | error
   log_format: "console"  # console for people, json for log shippers
@@ -58,5 +51,5 @@ metrics_engine:
   query_timeout: 5s
   max_page: 200
   max_window: 2160h
-  payload_mode: full   # none | errors_only | full
-  payload_max_kb: 64
+  payload_mode: errors_only   # none | errors_only | full
+  payload_max_kb: 16
