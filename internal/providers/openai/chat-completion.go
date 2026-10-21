@@ -66,6 +66,9 @@ func ToOpenAIChatCompletionUsage(u *core.Usage) *OpenAIChatCompletionUsage {
 
 func (r *OpenAIChatCompletionRequest) ToDMChatCompletionRequest(rctx *core.DiffractLLMContext) *core.DiffractLLMChatCompletionRequest {
 	params := r.DiffractLLMChatParameters
+	if params.MaxCompletionTokens == nil && r.MaxTokens != nil {
+		params.MaxCompletionTokens = r.MaxTokens
+	}
 	rctx.RequestedModel = r.Model
 	return &core.DiffractLLMChatCompletionRequest{
 		Model:      r.Model,

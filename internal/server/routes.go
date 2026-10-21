@@ -1,11 +1,12 @@
 package server
 
 import (
-	"diffractllm/internal/observability/logging"
 	"diffractllm/internal/core"
+	"diffractllm/internal/observability/logging"
 	"diffractllm/internal/providers"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -39,10 +40,14 @@ func (ds *DiffractLLMServer) routeHandlers() (http.Handler, error) {
 			sdkPath = router.Group("/" + string(descriptor.SDK))
 			groups[descriptor.SDK] = sdkPath
 		}
-		sdkPath.Handle(descriptor.Method, descriptor.Path, func(ctx *gin.Context) {
+		handle := func(ctx *gin.Context) {
 			ctx.Set(logDataPlaneKey, true)
 			ds.GenericRequestHandler(ctx.Writer, ctx.Request, &descriptor)
-		})
+		}
+		sdkPath.Handle(descriptor.Method, descriptor.Path, handle)
+		if short, ok := strings.CutPrefix(descriptor.Path, "/v1"); ok && descriptor.SDK == core.ProviderOpenAI {
+			sdkPath.Handle(descriptor.Method, short, handle)
+		}
 	}
 
 	router.GET("/health", ds.handleHealth)

@@ -92,6 +92,41 @@ func (c *ChatContent) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+func (c ChatContent) MarshalJSON() ([]byte, error) {
+	if len(c) == 1 && c[0].isPlainText() {
+		return sonic.Marshal(*c[0].Text)
+	}
+	type parts ChatContent // drops this method, so no recursion
+	return sonic.Marshal(parts(c))
+}
+
+func (p ChatContentPart) isPlainText() bool {
+	return p.Type == ContentText && p.Text != nil && p.ImageURL == nil && p.InputAudio == nil &&
+		p.Refusal == nil && p.File == nil && p.PromptCacheBreakpoint == nil
+}
+
+type ChatStop []string
+func (s *ChatStop) UnmarshalJSON(b []byte) error {
+	b = bytes.TrimSpace(b)
+	if len(b) == 0 || bytes.Equal(b, []byte("null")) {
+		return nil
+	}
+	if b[0] == '"' {
+		var one string
+		if err := sonic.Unmarshal(b, &one); err != nil {
+			return err
+		}
+		*s = ChatStop{one}
+		return nil
+	}
+	var many []string
+	if err := sonic.Unmarshal(b, &many); err != nil {
+		return err
+	}
+	*s = many
+	return nil
+}
+
 type ToolFunctionCall struct {
 	Name      *string `json:"name"`
 	Arguments string  `json:"arguments"`
@@ -267,7 +302,7 @@ type DiffractLLMChatParameters struct {
 	PresencePenalty      *float64                `json:"presence_penalty,omitempty"`
 	Seed                 *int64                  `json:"seed,omitempty"`
 	ServiceTier          *string                 `json:"service_tier,omitempty"`
-	Stop                 []string                `json:"stop,omitempty"`
+	Stop                 ChatStop                `json:"stop,omitempty"`
 	Stream               *bool                   `json:"stream,omitempty"`
 	TopP                 *float64                `json:"top_p,omitempty"`
 	User                 *string                 `json:"user,omitempty"`
