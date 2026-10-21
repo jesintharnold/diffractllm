@@ -244,10 +244,11 @@ func (b *streamTimeoutBody) Close() error {
 type limitedBody struct {
 	rc        io.ReadCloser
 	remaining int64
+	cancel    context.CancelFunc // request timeout; released on Close
 }
 
-func newLimitedBody(rc io.ReadCloser, limit int64) *limitedBody {
-	return &limitedBody{rc: rc, remaining: limit + 1}
+func newLimitedBody(rc io.ReadCloser, limit int64, cancel context.CancelFunc) *limitedBody {
+	return &limitedBody{rc: rc, remaining: limit + 1, cancel: cancel}
 }
 
 func (b *limitedBody) Read(p []byte) (int, error) {
@@ -266,7 +267,11 @@ func (b *limitedBody) Read(p []byte) (int, error) {
 	return n, err
 }
 func (b *limitedBody) Close() error {
-	return b.rc.Close()
+	err := b.rc.Close()
+	if b.cancel != nil {
+		b.cancel()
+	}
+	return err
 }
 
 type providerTransport struct {
@@ -390,6 +395,7 @@ func (t *DiffractLLMTransport) closeDropped(old *providerClientMap, next provide
 	}
 }
 
+// ServeHTTP returns a body the caller must Close; for non-stream calls Close releases the request timeout.
 func (t *DiffractLLMTransport) ServeHTTP(rctx *core.DiffractLLMContext, req *DiffractLLMTransportRequest) (*DiffractLLMTransportResult, *core.DiffractLLMError) {
 	provider := rctx.Modelkey.Provider
 	pt := t.providers.Load()
@@ -407,12 +413,20 @@ func (t *DiffractLLMTransport) ServeHTTP(rctx *core.DiffractLLMContext, req *Dif
 	safeURL := core.SanitizeBackendURL(providerFullURL)
 
 	ctx := rctx.Context()
+	var cancel context.CancelFunc
 	if !req.IsStreaming {
 		if d := compareConfig(t.defaultConfig.RequestTimeout, upstream.Network.RequestTimeout); d > 0 {
-			var cancel context.CancelFunc
 			ctx, cancel = context.WithTimeout(ctx, d)
-			defer cancel()
 		}
+	}
+	// On success the body owns cancel; every other return releases it here.
+	handedOff := false
+	if cancel != nil {
+		defer func() {
+			if !handedOff {
+				cancel()
+			}
+		}()
 	}
 
 	maxAttempts := 1 + t.defaultConfig.MaxRetries
@@ -492,7 +506,8 @@ func (t *DiffractLLMTransport) ServeHTTP(rctx *core.DiffractLLMContext, req *Dif
 			body = newStreamTimeoutBody(body, idle)
 		} else {
 			maxBytes := compareConfig(t.defaultConfig.MaxResponseBytes(), &upstream.Network.MaxResponseBytes)
-			body = newLimitedBody(body, maxBytes)
+			body = newLimitedBody(body, maxBytes, cancel)
+			handedOff = true
 		}
 
 		return &DiffractLLMTransportResult{

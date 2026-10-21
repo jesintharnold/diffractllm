@@ -470,7 +470,7 @@ func TestLimitedBody(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			body := newLimitedBody(io.NopCloser(strings.NewReader(tc.payload)), tc.limit)
+			body := newLimitedBody(io.NopCloser(strings.NewReader(tc.payload)), tc.limit, nil)
 			got, err := io.ReadAll(body)
 
 			if tc.wantErr {
@@ -709,6 +709,70 @@ func TestServeHTTPSuccess(t *testing.T) {
 	tokens, ok := rc.Get("upstream.x-ratelimit-remaining-tokens")
 	assert.True(t, ok)
 	assert.Equal(t, "999", tokens)
+}
+
+// The body is read after ServeHTTP returns; the timeout must still be live, not cancelled.
+func TestServeHTTPBodyReadableAfterReturn(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.(http.Flusher).Flush()
+		time.Sleep(50 * time.Millisecond)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer server.Close()
+
+	res, derr := transportFor(t, core.NetworkConfig{}).ServeHTTP(transportRctx(t),
+		&DiffractLLMTransportRequest{Method: http.MethodPost, URL: server.URL})
+	require.Nil(t, derr)
+	defer res.Body.Close()
+
+	body, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"ok":true}`, string(body))
+}
+
+func TestServeHTTPStalledBodyHitsTheRequestTimeout(t *testing.T) {
+	release := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.(http.Flusher).Flush()
+		<-release
+	}))
+	defer server.Close()
+	defer close(release)
+
+	timeout := 100 * time.Millisecond
+	res, derr := transportFor(t, core.NetworkConfig{RequestTimeout: &timeout}).ServeHTTP(transportRctx(t),
+		&DiffractLLMTransportRequest{Method: http.MethodPost, URL: server.URL})
+	require.Nil(t, derr)
+	defer res.Body.Close()
+
+	_, err := io.ReadAll(res.Body)
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+}
+
+func TestServeHTTPReusesTheConnection(t *testing.T) {
+	var conns atomic.Int32
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	server.Config.ConnState = func(_ net.Conn, s http.ConnState) {
+		if s == http.StateNew {
+			conns.Add(1)
+		}
+	}
+	server.Start()
+	defer server.Close()
+
+	tr := transportFor(t, core.NetworkConfig{})
+	for range 10 {
+		res, derr := tr.ServeHTTP(transportRctx(t), &DiffractLLMTransportRequest{Method: http.MethodPost, URL: server.URL})
+		require.Nil(t, derr)
+		_, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		res.Body.Close()
+	}
+	assert.EqualValues(t, 1, conns.Load(), "every request after the first reuses the connection")
 }
 
 // Network config is operator input. It must not be able to inject an auth

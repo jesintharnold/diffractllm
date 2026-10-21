@@ -3,6 +3,7 @@ package openaiprovider
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"diffractllm/internal/core"
 	"diffractllm/internal/dataplane"
 	"errors"
@@ -40,6 +41,9 @@ func HandleChatCompletion(rctx *core.DiffractLLMContext, transport *dataplane.Di
 	respBody, err := io.ReadAll(result.Body)
 	result.Body.Close()
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, core.NewUpstreamTimeout(string(cfg.Provider), safeURL, err)
+		}
 		return nil, core.NewUpstreamError(string(cfg.Provider), safeURL, http.StatusBadGateway, "reading response", err)
 	}
 	if result.Status != http.StatusOK {
