@@ -27,6 +27,17 @@ func writeSSE(rctx *core.DiffractLLMContext, event string, payload any) error {
 	return rctx.WriteSSE(event, body)
 }
 
+// writeJSON sends raw upstream bytes as they are and marshals everything else.
+func writeJSON(rctx *core.DiffractLLMContext, code int, payload any) {
+	raw, ok := payload.(json.RawMessage)
+	if !ok {
+		rctx.JSON(code, payload)
+		return
+	}
+	rctx.ResponseBody = raw
+	rctx.WriteData(code, "application/json; charset=utf-8", raw)
+}
+
 func writeErr(rctx *core.DiffractLLMContext, desc *providers.RouteDescriptor, err *core.DiffractLLMError) {
 	rctx.ResponseStatus = err.StatusCode
 	rctx.Error = err

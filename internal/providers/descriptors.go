@@ -32,10 +32,16 @@ var OpenAIDescriptors = []RouteDescriptor{
 		},
 		FromDiffract: func(res any) any {
 			diffres := res.(*core.DiffractLLMChatCompletionResponse)
+			if len(diffres.Raw) > 0 {
+				return diffres.Raw
+			}
 			return openaiprovider.ToOpenAIChatCompletionResponse(diffres)
 		},
 		FromDiffractStream: func(chunk any) (event string, payload any) {
 			diffresChunk := chunk.(*core.DiffractLLMChatCompletionStreamResponse)
+			if len(diffresChunk.Raw) > 0 {
+				return "", diffresChunk.Raw
+			}
 			return "", openaiprovider.ToOpenAIChatCompletionStreamResponse(diffresChunk)
 		},
 		FromDiffractError: func(err *core.DiffractLLMError) (event string, payload any) {

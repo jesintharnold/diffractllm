@@ -117,7 +117,7 @@ func (ds *DiffractLLMServer) chatCompletion(
 		rctx.Usage = upstreamRes.Usage
 		ds.price(rctx, pricing)
 		rctx.ResponseStatus = http.StatusOK
-		rctx.JSON(http.StatusOK, desc.FromDiffract(upstreamRes))
+		writeJSON(rctx, http.StatusOK, desc.FromDiffract(upstreamRes))
 		rctx.RequestCompleted = true
 	}
 }

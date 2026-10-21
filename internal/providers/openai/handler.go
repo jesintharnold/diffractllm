@@ -54,7 +54,9 @@ func HandleChatCompletion(rctx *core.DiffractLLMContext, transport *dataplane.Di
 	if err := sonic.Unmarshal(respBody, &wire); err != nil {
 		return nil, core.NewUpstreamError(string(cfg.Provider), safeURL, http.StatusBadGateway, "unmarshalling response", err)
 	}
-	wire.Raw = respBody
+	if rctx.SDKProvider == core.ProviderOpenAI {
+		wire.Raw = respBody
+	}
 	return wire.ToDMChatCompletionResponse(), nil
 
 }
