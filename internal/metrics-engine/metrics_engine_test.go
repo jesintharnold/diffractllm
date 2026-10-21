@@ -196,6 +196,33 @@ func TestFullBufferDropsAndCounts(t *testing.T) {
 	assert.Equal(t, int64(1), m.buffer.DroppedCount())
 }
 
+// The flush interval is an hour here, so only the half-full trigger can empty the buffer.
+func TestHalfFullBufferFlushesEarly(t *testing.T) {
+	m := newTestEngine(newTestStore(t), 4)
+	require.NoError(t, m.Start(context.Background()))
+	t.Cleanup(func() { _ = m.Shutdown(context.Background()) })
+
+	m.AddEvent(okContext())
+	m.AddEvent(okContext())
+
+	require.Eventually(t, func() bool { return m.buffer.Len() == 0 }, 2*time.Second, 10*time.Millisecond,
+		"reaching half capacity triggers a flush")
+}
+
+func TestAppendReportsTheLengthItTook(t *testing.T) {
+	b := NewEventsBuffer(2)
+
+	n, ok := b.Append(&Event{})
+	assert.True(t, ok)
+	assert.Equal(t, 1, n)
+	n, ok = b.Append(&Event{})
+	assert.True(t, ok)
+	assert.Equal(t, 2, n)
+	n, ok = b.Append(&Event{})
+	assert.False(t, ok, "a full buffer drops")
+	assert.Zero(t, n)
+}
+
 func TestHookRecordsAndNeverFails(t *testing.T) {
 	m := newTestEngine(nil, 10)
 	hook := NewEventHook(m)
@@ -223,7 +250,9 @@ func TestPayloadRowIsWrittenWithItsEvent(t *testing.T) {
 		ClientResponse: json.RawMessage(`{"id":"chatcmpl-1"}`),
 	}
 	e.PayloadState = PayloadReady
-	require.True(t, m.buffer.Append(e))
+	n, ok := m.buffer.Append(e)
+	require.True(t, ok)
+	require.Equal(t, 1, n)
 
 	_, err := m.flush(context.Background())
 	require.NoError(t, err)

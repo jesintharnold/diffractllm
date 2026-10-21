@@ -1,10 +1,11 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
-/* Latin only, the three weights the design uses; nothing is fetched from a CDN. */
+/* Latin only, the weights the design uses; nothing is fetched from a CDN. */
 @import '@fontsource/ibm-plex-sans/latin-400.css';
 @import '@fontsource/ibm-plex-sans/latin-500.css';
 @import '@fontsource/ibm-plex-sans/latin-600.css';
+@import '@fontsource/ibm-plex-sans/latin-700.css'; /* wordmark "LLM" */
 @import '@fontsource/ibm-plex-mono/latin-400.css';
 @import '@fontsource/ibm-plex-mono/latin-500.css';
 @import '@fontsource/ibm-plex-mono/latin-600.css';
@@ -13,7 +14,7 @@
 
 /*
  * Design tokens: ADR-001 §5, mirrored from ui/design/diffractllm-console.pen.
- * Our `accent` (gold) is shadcn's --primary; shadcn's --accent is the hover surface.
+ * Our `accent` (ink) is shadcn's --primary; shadcn's --accent is the hover surface.
  */
 :root {
   --background: #f6f8fb; /* ground */
@@ -22,8 +23,9 @@
   --card-foreground: #0e141c;
   --popover: #ffffff;
   --popover-foreground: #0e141c;
-  --primary: #664d0a; /* accent */
+  --primary: #0e141c; /* accent = ink; brand green is only for the mark */
   --primary-foreground: #f6f8fb;
+  --brand: #15803d; /* the mark only */
   --secondary: #eef2f7; /* sunken */
   --secondary-foreground: #0e141c;
   --muted: #eef2f7; /* sunken */
@@ -33,7 +35,7 @@
   --destructive: #97302b; /* bad */
   --border: #d5dce6; /* line */
   --input: #d5dce6;
-  --ring: #664d0a;
+  --ring: #0e141c;
 
   --info: #24568f;
   --success: #12603f; /* good */
@@ -59,16 +61,16 @@
   --bar: #1f9a78; /* spend histogram cells */
   --bar-active: #0f6e54;
   --chart-cancelled: #6b7280;
-  --primary-soft: color-mix(in oklch, #664d0a 80%, #ffffff); /* range calendar selection */
+  --primary-soft: #4e5a6b; /* range calendar selection */
 
-  --chart-1: #664d0a;
+  --chart-1: #0e141c;
   --chart-2: #24568f;
   --chart-3: #12603f;
   --chart-4: #7e4211;
   --chart-5: #4e5a6b;
 
-  --tint-openai: #664d0a16;
-  --tint-openai-edge: #664d0a3a;
+  --tint-openai: #0e141c0d; /* accent tint (ink), despite the name */
+  --tint-openai-edge: #0e141c38;
   --tint-azure: #24568f16;
   --tint-azure-edge: #24568f3a;
   --tint-anthropic: #12603f16;
@@ -78,12 +80,12 @@
 
   --sidebar: #eef2f7;
   --sidebar-foreground: #0e141c;
-  --sidebar-primary: #664d0a;
+  --sidebar-primary: #0e141c;
   --sidebar-primary-foreground: #f6f8fb;
   --sidebar-accent: #ffffff;
   --sidebar-accent-foreground: #0e141c;
   --sidebar-border: #d5dce6;
-  --sidebar-ring: #664d0a;
+  --sidebar-ring: #0e141c;
 
   --radius: 0.375rem; /* radius-control 6px: shadcn rounds controls with rounded-lg */
 }
@@ -96,8 +98,9 @@
   --card-foreground: #edf1f7;
   --popover: #11151d;
   --popover-foreground: #edf1f7;
-  --primary: #d7a93a;
+  --primary: #edf1f7;
   --primary-foreground: #07090d;
+  --brand: #2fd27a;
   --secondary: #0a0d12;
   --secondary-foreground: #edf1f7;
   --muted: #0a0d12;
@@ -107,7 +110,7 @@
   --destructive: #e0776f;
   --border: #232b3a;
   --input: #232b3a;
-  --ring: #d7a93a;
+  --ring: #edf1f7;
 
   --info: #6ca3de;
   --success: #45b183;
@@ -133,16 +136,16 @@
   --bar: #3db594;
   --bar-active: #7be3c4;
   --chart-cancelled: #5b6475;
-  --primary-soft: color-mix(in oklch, #d7a93a 72%, #11151d); /* range calendar selection */
+  --primary-soft: #aeb8c8; /* range calendar selection */
 
-  --chart-1: #d7a93a;
+  --chart-1: #edf1f7;
   --chart-2: #6ca3de;
   --chart-3: #45b183;
   --chart-4: #dc8a3b;
   --chart-5: #96a2b6;
 
-  --tint-openai: #d7a93a22;
-  --tint-openai-edge: #d7a93a4a;
+  --tint-openai: #edf1f714;
+  --tint-openai-edge: #edf1f73d;
   --tint-azure: #6ca3de22;
   --tint-azure-edge: #6ca3de4a;
   --tint-anthropic: #45b18322;
@@ -152,12 +155,12 @@
 
   --sidebar: #0a0d12;
   --sidebar-foreground: #edf1f7;
-  --sidebar-primary: #d7a93a;
+  --sidebar-primary: #edf1f7;
   --sidebar-primary-foreground: #07090d;
   --sidebar-accent: #11151d;
   --sidebar-accent-foreground: #edf1f7;
   --sidebar-border: #232b3a;
-  --sidebar-ring: #d7a93a;
+  --sidebar-ring: #edf1f7;
 }
 
 @theme inline {
@@ -185,6 +188,7 @@
   --color-ring: var(--ring);
 
   --color-info: var(--info);
+  --color-brand: var(--brand);
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-scrim: var(--scrim);
@@ -265,7 +269,7 @@
   }
 }
 
-/* Range calendar: a softer gold than buttons, so the selected days do not glare. */
+/* Range calendar: a softer ink than buttons, so the selected days do not glare. */
 .range-calendar {
   --primary: var(--primary-soft);
 }

@@ -24,16 +24,18 @@ func NewEventsBuffer(maxCapacity int) *EventsBuffer {
 	}
 }
 
-func (b *EventsBuffer) Append(e *Event) bool {
+// Append returns the buffer length after the append, or ok=false when full.
+func (b *EventsBuffer) Append(e *Event) (n int, ok bool) {
 	b.lock.Lock()
 	if len(b.events) >= b.maxCapacity {
 		b.lock.Unlock()
 		b.dropped.Add(1)
-		return false
+		return 0, false
 	}
 	b.events = append(b.events, e)
+	n = len(b.events)
 	b.lock.Unlock()
-	return true
+	return n, true
 }
 
 func (b *EventsBuffer) Drain() []*Event {

@@ -711,6 +711,26 @@ func TestServeHTTPSuccess(t *testing.T) {
 	assert.Equal(t, "999", tokens)
 }
 
+func TestIdleConnsFollowTheConfigAndAreCapped(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		idle, maxConn int
+		want          int
+	}{
+		{"config is honoured", 4, 10, 4},
+		{"capped at max conns", 50, 10, 10},
+		{"unset falls back to max conns", 0, 10, 10},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := testUpstreamConfig()
+			cfg.MaxIdleConnsPerHost, cfg.MaxConnsPerHost = tc.idle, tc.maxConn
+			client, err := newClient(cfg, upstreamFor(core.NetworkConfig{}))
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, client.Transport.(*http.Transport).MaxIdleConnsPerHost)
+		})
+	}
+}
+
 // The body is read after ServeHTTP returns; the timeout must still be live, not cancelled.
 func TestServeHTTPBodyReadableAfterReturn(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

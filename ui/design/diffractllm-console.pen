@@ -141,7 +141,7 @@
           "id": "UVvmP",
           "name": "Wordmark",
           "width": "fill_container",
-          "gap": 9,
+          "gap": 10,
           "padding": [
             20,
             16
@@ -149,24 +149,47 @@
           "alignItems": "center",
           "children": [
             {
-              "type": "icon",
-              "id": "g7Wkix",
+              "type": "path",
+              "id": "SkIrZ",
               "name": "Mark",
-              "width": 19,
-              "height": 19,
-              "icon": "aperture",
-              "library": "lucide",
-              "fill": "$accent"
+              "geometry": "M0 7h1v1h-1z m0 1h1v1h-1z m2-1h1v1h-1z m0 1h1v1h-1z m2-1h1v1h-1z m0 1h1v1h-1z m1-1h1v1h-1z m0 1h1v1h-1z m1-1h1v1h-1z m0 1h1v1h-1z m1-1h1v1h-1z m0 1h1v1h-1z m1-1h1v1h-1z m0 1h1v1h-1z m1-1h1v1h-1z m0 1h1v1h-1z m1-1h1v1h-1z m0 1h1v1h-1z m1-1h1v1h-1z m0 1h1v1h-1z m1-1h1v1h-1z m0 1h1v1h-1z m1-1h1v1h-1z m0 1h1v1h-1z m1-1h1v1h-1z m0 1h1v1h-1z m1-1h1v1h-1z m0 1h1v1h-1z m-7-2h1v1h-1z m0 3h1v1h-1z m1-3h1v1h-1z m0 3h1v1h-1z m1-3h1v1h-1z m0 3h1v1h-1z m-1-4h1v1h-1z m0 5h1v1h-1z m1-5h1v1h-1z m0 5h1v1h-1z m1-5h1v1h-1z m0 5h1v1h-1z m-1-6h1v1h-1z m0 7h1v1h-1z m1-7h1v1h-1z m0 7h1v1h-1z m1-7h1v1h-1z m0 7h1v1h-1z m-1-8h1v1h-1z m0 9h1v1h-1z m1-9h1v1h-1z m0 9h1v1h-1z m1-9h1v1h-1z m0 9h1v1h-1z m-1-10h1v1h-1z m0 11h1v1h-1z m1-11h1v1h-1z m0 11h1v1h-1z m1-11h1v1h-1z m0 11h1v1h-1z",
+              "viewBox": [
+                0,
+                2,
+                16,
+                12
+              ],
+              "fill": "$brand",
+              "width": 20,
+              "height": 15
             },
             {
-              "type": "text",
-              "id": "FIwre",
+              "type": "frame",
+              "id": "P00W3",
               "name": "Brand",
-              "fill": "$text",
-              "content": "DiffractLLM",
-              "fontFamily": "$font-sans",
-              "fontSize": 16,
-              "fontWeight": "600"
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "qMa8j",
+                  "name": "Diffract",
+                  "fill": "$text",
+                  "content": "Diffract",
+                  "fontFamily": "$font-sans",
+                  "fontSize": 16,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "KnuI7",
+                  "name": "LLM",
+                  "fill": "$text",
+                  "content": "LLM",
+                  "fontFamily": "$font-sans",
+                  "fontSize": 16,
+                  "fontWeight": "700"
+                }
+              ]
             }
           ]
         },
@@ -27944,7 +27967,7 @@
                       "id": "jYbqE",
                       "name": "cred azure-eastus",
                       "width": "fill_container",
-                      "fill": "$accent-soft",
+                      "fill": "$nav-selected",
                       "stroke": "$line",
                       "strokeWidth": {
                         "top": 1
@@ -97198,7 +97221,7 @@
                       "id": "A7Bl6k",
                       "name": "cred azure-eastus",
                       "width": "fill_container",
-                      "fill": "$accent-soft",
+                      "fill": "$nav-selected",
                       "stroke": "$line",
                       "strokeWidth": {
                         "top": 1
@@ -99902,7 +99925,7 @@
                       "id": "t4ubj",
                       "name": "cred azure-eastus",
                       "width": "fill_container",
-                      "fill": "$accent-soft",
+                      "fill": "$nav-selected",
                       "stroke": "$line",
                       "strokeWidth": {
                         "top": 1
@@ -104043,7 +104066,7 @@
                       "id": "fOm27",
                       "name": "cred azure-eastus",
                       "width": "fill_container",
-                      "fill": "$accent-soft",
+                      "fill": "$nav-selected",
                       "stroke": "$line",
                       "strokeWidth": {
                         "top": 1
@@ -156218,9 +156241,9 @@
                                   "type": "frame",
                                   "id": "qIy14",
                                   "name": "Zoom in",
-                                  "fill": "#D7A93A1A",
+                                  "fill": "$tag-tint",
                                   "cornerRadius": 999,
-                                  "stroke": "#D7A93A66",
+                                  "stroke": "$tag-edge",
                                   "strokeWidth": 1,
                                   "gap": 6,
                                   "padding": [
@@ -167065,9 +167088,9 @@
                           "type": "frame",
                           "id": "irFjP",
                           "name": "Zoom in",
-                          "fill": "#D7A93A1A",
+                          "fill": "$tag-tint",
                           "cornerRadius": 999,
-                          "stroke": "#D7A93A66",
+                          "stroke": "$tag-edge",
                           "strokeWidth": 1,
                           "gap": 6,
                           "padding": [
@@ -209888,6 +209911,629 @@
           ]
         }
       ]
+    },
+    {
+      "type": "frame",
+      "id": "LyfeN",
+      "x": 0,
+      "y": -880,
+      "name": "00 · Brand",
+      "theme": {
+        "mode": "dark"
+      },
+      "clip": true,
+      "width": 1200,
+      "fill": "$ground",
+      "layout": "vertical",
+      "gap": 32,
+      "padding": 48,
+      "children": [
+        {
+          "type": "frame",
+          "id": "s4jD6W",
+          "name": "Header",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 8,
+          "children": [
+            {
+              "type": "text",
+              "id": "IgaF9",
+              "name": "Title",
+              "fill": "$text",
+              "content": "Brand",
+              "fontFamily": "$font-sans",
+              "fontSize": 28,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "w00d6",
+              "name": "Rule",
+              "fill": "$muted",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "Green belongs to the mark only. The UI accent is ink (text colour), so buttons, focus and selection never compete with status colours: good, warn and bad keep their meaning.",
+              "lineHeight": 1.5,
+              "fontFamily": "$font-sans",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "oT71M",
+          "name": "Lockups",
+          "width": "fill_container",
+          "gap": 24,
+          "children": [
+            {
+              "type": "frame",
+              "id": "zZxTT",
+              "name": "Lockup dark",
+              "theme": {
+                "mode": "dark"
+              },
+              "width": "fill_container",
+              "fill": "$raised",
+              "cornerRadius": "$radius-card",
+              "stroke": "$line",
+              "strokeWidth": 1,
+              "layout": "vertical",
+              "gap": 20,
+              "padding": 40,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "ieo3w",
+                  "name": "Horizontal lockup",
+                  "gap": 24,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "path",
+                      "id": "eeucd",
+                      "name": "Symbol",
+                      "geometry": "M0.09 14.09h0.82v0.82h-0.82z m2 0h0.82v0.82h-0.82z m2 0h0.82v0.82h-0.82z m2 0h0.82v0.82h-0.82z m2 0h0.82v0.82h-0.82z m2-1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m-17-3h0.82v0.82h-0.82z m0 4h0.82v0.82h-0.82z m1-4h0.82v0.82h-0.82z m0 4h0.82v0.82h-0.82z m1-4h0.82v0.82h-0.82z m0 4h0.82v0.82h-0.82z m1-4h0.82v0.82h-0.82z m0 4h0.82v0.82h-0.82z m-2-5h0.82v0.82h-0.82z m0 6h0.82v0.82h-0.82z m1-6h0.82v0.82h-0.82z m0 6h0.82v0.82h-0.82z m1-6h0.82v0.82h-0.82z m0 6h0.82v0.82h-0.82z m1-6h0.82v0.82h-0.82z m0 6h0.82v0.82h-0.82z m-2-7h0.82v0.82h-0.82z m0 8h0.82v0.82h-0.82z m1-8h0.82v0.82h-0.82z m0 8h0.82v0.82h-0.82z m1-8h0.82v0.82h-0.82z m0 8h0.82v0.82h-0.82z m1-8h0.82v0.82h-0.82z m0 8h0.82v0.82h-0.82z m-2-9h0.82v0.82h-0.82z m0 10h0.82v0.82h-0.82z m1-10h0.82v0.82h-0.82z m0 10h0.82v0.82h-0.82z m1-10h0.82v0.82h-0.82z m0 10h0.82v0.82h-0.82z m1-10h0.82v0.82h-0.82z m0 10h0.82v0.82h-0.82z m-2-11h0.82v0.82h-0.82z m0 12h0.82v0.82h-0.82z m1-12h0.82v0.82h-0.82z m0 12h0.82v0.82h-0.82z m1-12h0.82v0.82h-0.82z m0 12h0.82v0.82h-0.82z m1-12h0.82v0.82h-0.82z m0 12h0.82v0.82h-0.82z m-2-13h0.82v0.82h-0.82z m0 14h0.82v0.82h-0.82z m1-14h0.82v0.82h-0.82z m0 14h0.82v0.82h-0.82z m1-14h0.82v0.82h-0.82z m0 14h0.82v0.82h-0.82z m1-14h0.82v0.82h-0.82z m0 14h0.82v0.82h-0.82z m-2-15h0.82v0.82h-0.82z m0 16h0.82v0.82h-0.82z m1-16h0.82v0.82h-0.82z m0 16h0.82v0.82h-0.82z m1-16h0.82v0.82h-0.82z m0 16h0.82v0.82h-0.82z m1-16h0.82v0.82h-0.82z m0 16h0.82v0.82h-0.82z m-2-17h0.82v0.82h-0.82z m0 18h0.82v0.82h-0.82z m1-18h0.82v0.82h-0.82z m0 18h0.82v0.82h-0.82z m1-18h0.82v0.82h-0.82z m0 18h0.82v0.82h-0.82z m1-18h0.82v0.82h-0.82z m0 18h0.82v0.82h-0.82z m-2-19h0.82v0.82h-0.82z m0 20h0.82v0.82h-0.82z m1-20h0.82v0.82h-0.82z m0 20h0.82v0.82h-0.82z m1-20h0.82v0.82h-0.82z m0 20h0.82v0.82h-0.82z m1-20h0.82v0.82h-0.82z m0 20h0.82v0.82h-0.82z m-2-21h0.82v0.82h-0.82z m0 22h0.82v0.82h-0.82z m1-22h0.82v0.82h-0.82z m0 22h0.82v0.82h-0.82z m1-22h0.82v0.82h-0.82z m0 22h0.82v0.82h-0.82z m1-22h0.82v0.82h-0.82z m0 22h0.82v0.82h-0.82z m-2-23h0.82v0.82h-0.82z m0 24h0.82v0.82h-0.82z m1-24h0.82v0.82h-0.82z m0 24h0.82v0.82h-0.82z m1-24h0.82v0.82h-0.82z m0 24h0.82v0.82h-0.82z m1-24h0.82v0.82h-0.82z m0 24h0.82v0.82h-0.82z m-2-25h0.82v0.82h-0.82z m0 26h0.82v0.82h-0.82z m1-26h0.82v0.82h-0.82z m0 26h0.82v0.82h-0.82z m1-26h0.82v0.82h-0.82z m0 26h0.82v0.82h-0.82z m1-26h0.82v0.82h-0.82z m0 26h0.82v0.82h-0.82z m-2-27h0.82v0.82h-0.82z m0 28h0.82v0.82h-0.82z m1-28h0.82v0.82h-0.82z m0 28h0.82v0.82h-0.82z m1-28h0.82v0.82h-0.82z m0 28h0.82v0.82h-0.82z m1-28h0.82v0.82h-0.82z m0 28h0.82v0.82h-0.82z",
+                      "viewBox": [
+                        0,
+                        0,
+                        39,
+                        29
+                      ],
+                      "fill": "$brand",
+                      "width": 86,
+                      "height": 64
+                    },
+                    {
+                      "type": "frame",
+                      "id": "g8K5V0",
+                      "name": "Wordmark",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "YgRJJ",
+                          "name": "Diffract",
+                          "fill": "$text",
+                          "content": "Diffract",
+                          "fontFamily": "$font-sans",
+                          "fontSize": 44,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "W8FgGI",
+                          "name": "LLM",
+                          "fill": "$text",
+                          "content": "LLM",
+                          "fontFamily": "$font-sans",
+                          "fontSize": 44,
+                          "fontWeight": "700"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "Xl3If",
+                  "name": "Small lockup",
+                  "gap": 10,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "path",
+                      "id": "ExVtt",
+                      "name": "Mark 16",
+                      "geometry": "M0 7h1v1h-1z m0 1h1v1h-1z m2-1h1v1h-1z m0 1h1v1h-1z m2-1h1v1h-1z m0 1h1v1h-1z m1-1h1v1h-1z m0 1h1v1h-1z m1-1h1v1h-1z m0 1h1v1h-1z m1-1h1v1h-1z m0 1h1v1h-1z m1-1h1v1h-1z m0 1h1v1h-1z m1-1h1v1h-1z m0 1h1v1h-1z m1-1h1v1h-1z m0 1h1v1h-1z m1-1h1v1h-1z m0 1h1v1h-1z m1-1h1v1h-1z m0 1h1v1h-1z m1-1h1v1h-1z m0 1h1v1h-1z m1-1h1v1h-1z m0 1h1v1h-1z m1-1h1v1h-1z m0 1h1v1h-1z m-7-2h1v1h-1z m0 3h1v1h-1z m1-3h1v1h-1z m0 3h1v1h-1z m1-3h1v1h-1z m0 3h1v1h-1z m-1-4h1v1h-1z m0 5h1v1h-1z m1-5h1v1h-1z m0 5h1v1h-1z m1-5h1v1h-1z m0 5h1v1h-1z m-1-6h1v1h-1z m0 7h1v1h-1z m1-7h1v1h-1z m0 7h1v1h-1z m1-7h1v1h-1z m0 7h1v1h-1z m-1-8h1v1h-1z m0 9h1v1h-1z m1-9h1v1h-1z m0 9h1v1h-1z m1-9h1v1h-1z m0 9h1v1h-1z m-1-10h1v1h-1z m0 11h1v1h-1z m1-11h1v1h-1z m0 11h1v1h-1z m1-11h1v1h-1z m0 11h1v1h-1z",
+                      "viewBox": [
+                        0,
+                        2,
+                        16,
+                        12
+                      ],
+                      "fill": "$brand",
+                      "width": 20,
+                      "height": 15
+                    },
+                    {
+                      "type": "frame",
+                      "id": "dWYLC",
+                      "name": "Name",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "eIcOV",
+                          "name": "Diffract",
+                          "fill": "$text",
+                          "content": "Diffract",
+                          "fontFamily": "$font-sans",
+                          "fontSize": 16,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "A51aDb",
+                          "name": "LLM",
+                          "fill": "$text",
+                          "content": "LLM",
+                          "fontFamily": "$font-sans",
+                          "fontSize": 16,
+                          "fontWeight": "700"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "s9gb4X",
+                  "name": "Caption",
+                  "fill": "$muted",
+                  "content": "on dark · mark #2FD27A · sidebar uses the 16 px master",
+                  "fontFamily": "$font-mono",
+                  "fontSize": 11,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "Ta5O4",
+              "name": "Lockup light",
+              "theme": {
+                "mode": "light"
+              },
+              "width": "fill_container",
+              "fill": "$raised",
+              "cornerRadius": "$radius-card",
+              "stroke": "$line",
+              "strokeWidth": 1,
+              "layout": "vertical",
+              "gap": 20,
+              "padding": 40,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "HywOP",
+                  "name": "Horizontal lockup",
+                  "gap": 24,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "path",
+                      "id": "eUA7h",
+                      "name": "Symbol",
+                      "geometry": "M0.09 14.09h0.82v0.82h-0.82z m2 0h0.82v0.82h-0.82z m2 0h0.82v0.82h-0.82z m2 0h0.82v0.82h-0.82z m2 0h0.82v0.82h-0.82z m2-1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m1-2h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m0 1h0.82v0.82h-0.82z m-17-3h0.82v0.82h-0.82z m0 4h0.82v0.82h-0.82z m1-4h0.82v0.82h-0.82z m0 4h0.82v0.82h-0.82z m1-4h0.82v0.82h-0.82z m0 4h0.82v0.82h-0.82z m1-4h0.82v0.82h-0.82z m0 4h0.82v0.82h-0.82z m-2-5h0.82v0.82h-0.82z m0 6h0.82v0.82h-0.82z m1-6h0.82v0.82h-0.82z m0 6h0.82v0.82h-0.82z m1-6h0.82v0.82h-0.82z m0 6h0.82v0.82h-0.82z m1-6h0.82v0.82h-0.82z m0 6h0.82v0.82h-0.82z m-2-7h0.82v0.82h-0.82z m0 8h0.82v0.82h-0.82z m1-8h0.82v0.82h-0.82z m0 8h0.82v0.82h-0.82z m1-8h0.82v0.82h-0.82z m0 8h0.82v0.82h-0.82z m1-8h0.82v0.82h-0.82z m0 8h0.82v0.82h-0.82z m-2-9h0.82v0.82h-0.82z m0 10h0.82v0.82h-0.82z m1-10h0.82v0.82h-0.82z m0 10h0.82v0.82h-0.82z m1-10h0.82v0.82h-0.82z m0 10h0.82v0.82h-0.82z m1-10h0.82v0.82h-0.82z m0 10h0.82v0.82h-0.82z m-2-11h0.82v0.82h-0.82z m0 12h0.82v0.82h-0.82z m1-12h0.82v0.82h-0.82z m0 12h0.82v0.82h-0.82z m1-12h0.82v0.82h-0.82z m0 12h0.82v0.82h-0.82z m1-12h0.82v0.82h-0.82z m0 12h0.82v0.82h-0.82z m-2-13h0.82v0.82h-0.82z m0 14h0.82v0.82h-0.82z m1-14h0.82v0.82h-0.82z m0 14h0.82v0.82h-0.82z m1-14h0.82v0.82h-0.82z m0 14h0.82v0.82h-0.82z m1-14h0.82v0.82h-0.82z m0 14h0.82v0.82h-0.82z m-2-15h0.82v0.82h-0.82z m0 16h0.82v0.82h-0.82z m1-16h0.82v0.82h-0.82z m0 16h0.82v0.82h-0.82z m1-16h0.82v0.82h-0.82z m0 16h0.82v0.82h-0.82z m1-16h0.82v0.82h-0.82z m0 16h0.82v0.82h-0.82z m-2-17h0.82v0.82h-0.82z m0 18h0.82v0.82h-0.82z m1-18h0.82v0.82h-0.82z m0 18h0.82v0.82h-0.82z m1-18h0.82v0.82h-0.82z m0 18h0.82v0.82h-0.82z m1-18h0.82v0.82h-0.82z m0 18h0.82v0.82h-0.82z m-2-19h0.82v0.82h-0.82z m0 20h0.82v0.82h-0.82z m1-20h0.82v0.82h-0.82z m0 20h0.82v0.82h-0.82z m1-20h0.82v0.82h-0.82z m0 20h0.82v0.82h-0.82z m1-20h0.82v0.82h-0.82z m0 20h0.82v0.82h-0.82z m-2-21h0.82v0.82h-0.82z m0 22h0.82v0.82h-0.82z m1-22h0.82v0.82h-0.82z m0 22h0.82v0.82h-0.82z m1-22h0.82v0.82h-0.82z m0 22h0.82v0.82h-0.82z m1-22h0.82v0.82h-0.82z m0 22h0.82v0.82h-0.82z m-2-23h0.82v0.82h-0.82z m0 24h0.82v0.82h-0.82z m1-24h0.82v0.82h-0.82z m0 24h0.82v0.82h-0.82z m1-24h0.82v0.82h-0.82z m0 24h0.82v0.82h-0.82z m1-24h0.82v0.82h-0.82z m0 24h0.82v0.82h-0.82z m-2-25h0.82v0.82h-0.82z m0 26h0.82v0.82h-0.82z m1-26h0.82v0.82h-0.82z m0 26h0.82v0.82h-0.82z m1-26h0.82v0.82h-0.82z m0 26h0.82v0.82h-0.82z m1-26h0.82v0.82h-0.82z m0 26h0.82v0.82h-0.82z m-2-27h0.82v0.82h-0.82z m0 28h0.82v0.82h-0.82z m1-28h0.82v0.82h-0.82z m0 28h0.82v0.82h-0.82z m1-28h0.82v0.82h-0.82z m0 28h0.82v0.82h-0.82z m1-28h0.82v0.82h-0.82z m0 28h0.82v0.82h-0.82z",
+                      "viewBox": [
+                        0,
+                        0,
+                        39,
+                        29
+                      ],
+                      "fill": "$brand",
+                      "width": 86,
+                      "height": 64
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Vea76",
+                      "name": "Wordmark",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "oLEoU",
+                          "name": "Diffract",
+                          "fill": "$text",
+                          "content": "Diffract",
+                          "fontFamily": "$font-sans",
+                          "fontSize": 44,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "b8rue",
+                          "name": "LLM",
+                          "fill": "$text",
+                          "content": "LLM",
+                          "fontFamily": "$font-sans",
+                          "fontSize": 44,
+                          "fontWeight": "700"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "mhM7e",
+                  "name": "Small lockup",
+                  "gap": 10,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "path",
+                      "id": "GLONm",
+                      "name": "Mark 16",
+                      "geometry": "M0 7h1v1h-1z m0 1h1v1h-1z m2-1h1v1h-1z m0 1h1v1h-1z m2-1h1v1h-1z m0 1h1v1h-1z m1-1h1v1h-1z m0 1h1v1h-1z m1-1h1v1h-1z m0 1h1v1h-1z m1-1h1v1h-1z m0 1h1v1h-1z m1-1h1v1h-1z m0 1h1v1h-1z m1-1h1v1h-1z m0 1h1v1h-1z m1-1h1v1h-1z m0 1h1v1h-1z m1-1h1v1h-1z m0 1h1v1h-1z m1-1h1v1h-1z m0 1h1v1h-1z m1-1h1v1h-1z m0 1h1v1h-1z m1-1h1v1h-1z m0 1h1v1h-1z m1-1h1v1h-1z m0 1h1v1h-1z m-7-2h1v1h-1z m0 3h1v1h-1z m1-3h1v1h-1z m0 3h1v1h-1z m1-3h1v1h-1z m0 3h1v1h-1z m-1-4h1v1h-1z m0 5h1v1h-1z m1-5h1v1h-1z m0 5h1v1h-1z m1-5h1v1h-1z m0 5h1v1h-1z m-1-6h1v1h-1z m0 7h1v1h-1z m1-7h1v1h-1z m0 7h1v1h-1z m1-7h1v1h-1z m0 7h1v1h-1z m-1-8h1v1h-1z m0 9h1v1h-1z m1-9h1v1h-1z m0 9h1v1h-1z m1-9h1v1h-1z m0 9h1v1h-1z m-1-10h1v1h-1z m0 11h1v1h-1z m1-11h1v1h-1z m0 11h1v1h-1z m1-11h1v1h-1z m0 11h1v1h-1z",
+                      "viewBox": [
+                        0,
+                        2,
+                        16,
+                        12
+                      ],
+                      "fill": "$brand",
+                      "width": 20,
+                      "height": 15
+                    },
+                    {
+                      "type": "frame",
+                      "id": "iyiW9",
+                      "name": "Name",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "c8s7f",
+                          "name": "Diffract",
+                          "fill": "$text",
+                          "content": "Diffract",
+                          "fontFamily": "$font-sans",
+                          "fontSize": 16,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "XhPZS",
+                          "name": "LLM",
+                          "fill": "$text",
+                          "content": "LLM",
+                          "fontFamily": "$font-sans",
+                          "fontSize": 16,
+                          "fontWeight": "700"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "t7n49",
+                  "name": "Caption",
+                  "fill": "$muted",
+                  "content": "on light · mark #15803D · sidebar uses the 16 px master",
+                  "fontFamily": "$font-mono",
+                  "fontSize": 11,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "cw05n",
+          "name": "Palette",
+          "width": "fill_container",
+          "gap": 16,
+          "children": [
+            {
+              "type": "frame",
+              "id": "OPfhj",
+              "name": "Swatch Brand · dark",
+              "clip": true,
+              "width": "fill_container",
+              "fill": "$raised",
+              "cornerRadius": "$radius-card",
+              "stroke": "$line",
+              "strokeWidth": 1,
+              "layout": "vertical",
+              "children": [
+                {
+                  "type": "rectangle",
+                  "id": "HxQrN",
+                  "name": "Chip",
+                  "fill": "#2FD27A",
+                  "width": "fill_container",
+                  "height": 56
+                },
+                {
+                  "type": "frame",
+                  "id": "Nh1jc",
+                  "name": "Meta",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 2,
+                  "padding": [
+                    10,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "t1064w",
+                      "name": "Name",
+                      "fill": "$text",
+                      "content": "Brand · dark",
+                      "fontFamily": "$font-sans",
+                      "fontSize": 13,
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "text",
+                      "id": "b69Q2",
+                      "name": "Note",
+                      "fill": "$muted",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "$brand · mark on dark",
+                      "fontFamily": "$font-mono",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "QQDvk",
+              "name": "Swatch Brand · light",
+              "clip": true,
+              "width": "fill_container",
+              "fill": "$raised",
+              "cornerRadius": "$radius-card",
+              "stroke": "$line",
+              "strokeWidth": 1,
+              "layout": "vertical",
+              "children": [
+                {
+                  "type": "rectangle",
+                  "id": "XCkwE",
+                  "name": "Chip",
+                  "fill": "#15803D",
+                  "width": "fill_container",
+                  "height": 56
+                },
+                {
+                  "type": "frame",
+                  "id": "qR3kW",
+                  "name": "Meta",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 2,
+                  "padding": [
+                    10,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "OfrYU",
+                      "name": "Name",
+                      "fill": "$text",
+                      "content": "Brand · light",
+                      "fontFamily": "$font-sans",
+                      "fontSize": 13,
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "text",
+                      "id": "SizYg",
+                      "name": "Note",
+                      "fill": "$muted",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "$brand · mark on light",
+                      "fontFamily": "$font-mono",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "l1rkY",
+              "name": "Swatch Accent · dark",
+              "clip": true,
+              "width": "fill_container",
+              "fill": "$raised",
+              "cornerRadius": "$radius-card",
+              "stroke": "$line",
+              "strokeWidth": 1,
+              "layout": "vertical",
+              "children": [
+                {
+                  "type": "rectangle",
+                  "id": "iPkij",
+                  "name": "Chip",
+                  "fill": "#EDF1F7",
+                  "width": "fill_container",
+                  "height": 56
+                },
+                {
+                  "type": "frame",
+                  "id": "wyILv",
+                  "name": "Meta",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 2,
+                  "padding": [
+                    10,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "CMj0F",
+                      "name": "Name",
+                      "fill": "$text",
+                      "content": "Accent · dark",
+                      "fontFamily": "$font-sans",
+                      "fontSize": 13,
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "text",
+                      "id": "wiX0s",
+                      "name": "Note",
+                      "fill": "$muted",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "$accent = ink · buttons, focus, selection",
+                      "fontFamily": "$font-mono",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "XVXjx",
+              "name": "Swatch Accent · light",
+              "clip": true,
+              "width": "fill_container",
+              "fill": "$raised",
+              "cornerRadius": "$radius-card",
+              "stroke": "$line",
+              "strokeWidth": 1,
+              "layout": "vertical",
+              "children": [
+                {
+                  "type": "rectangle",
+                  "id": "O7H4aM",
+                  "name": "Chip",
+                  "fill": "#0E141C",
+                  "width": "fill_container",
+                  "height": 56
+                },
+                {
+                  "type": "frame",
+                  "id": "fiCVG",
+                  "name": "Meta",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 2,
+                  "padding": [
+                    10,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "TDZa3",
+                      "name": "Name",
+                      "fill": "$text",
+                      "content": "Accent · light",
+                      "fontFamily": "$font-sans",
+                      "fontSize": 13,
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "text",
+                      "id": "U2KXN",
+                      "name": "Note",
+                      "fill": "$muted",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "$accent = ink on light",
+                      "fontFamily": "$font-mono",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "F1RLQ",
+              "name": "Swatch Ground",
+              "clip": true,
+              "width": "fill_container",
+              "fill": "$raised",
+              "cornerRadius": "$radius-card",
+              "stroke": "$line",
+              "strokeWidth": 1,
+              "layout": "vertical",
+              "children": [
+                {
+                  "type": "rectangle",
+                  "id": "BtGV2",
+                  "name": "Chip",
+                  "fill": "#07090D",
+                  "width": "fill_container",
+                  "height": 56
+                },
+                {
+                  "type": "frame",
+                  "id": "KGY70",
+                  "name": "Meta",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 2,
+                  "padding": [
+                    10,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "kdEDu",
+                      "name": "Name",
+                      "fill": "$text",
+                      "content": "Ground",
+                      "fontFamily": "$font-sans",
+                      "fontSize": 13,
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "text",
+                      "id": "voD5B",
+                      "name": "Note",
+                      "fill": "$muted",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "$ground dark · #F6F8FB light",
+                      "fontFamily": "$font-mono",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
     }
   ],
   "themes": {
@@ -210040,19 +210686,19 @@
       "type": "color",
       "value": [
         {
-          "value": "#D7A93A",
+          "value": "#EDF1F7",
           "theme": {
             "mode": "dark"
           }
         },
         {
-          "value": "#664D0A",
+          "value": "#0E141C",
           "theme": {
             "mode": "light"
           }
         },
         {
-          "value": "#F2A93B",
+          "value": "#E6E8EC",
           "theme": {
             "mode": "classic"
           }
@@ -210191,19 +210837,19 @@
       "type": "color",
       "value": [
         {
-          "value": "#D7A93A22",
+          "value": "#EDF1F714",
           "theme": {
             "mode": "dark"
           }
         },
         {
-          "value": "#664D0A16",
+          "value": "#0E141C0D",
           "theme": {
             "mode": "light"
           }
         },
         {
-          "value": "#F2A93B22",
+          "value": "#E6E8EC14",
           "theme": {
             "mode": "classic"
           }
@@ -210214,19 +210860,19 @@
       "type": "color",
       "value": [
         {
-          "value": "#D7A93A4A",
+          "value": "#EDF1F73D",
           "theme": {
             "mode": "dark"
           }
         },
         {
-          "value": "#664D0A3A",
+          "value": "#0E141C38",
           "theme": {
             "mode": "light"
           }
         },
         {
-          "value": "#F2A93B44",
+          "value": "#E6E8EC3D",
           "theme": {
             "mode": "classic"
           }
@@ -210697,19 +211343,19 @@
       "type": "color",
       "value": [
         {
-          "value": "#A08032",
+          "value": "#AEB8C8",
           "theme": {
             "mode": "dark"
           }
         },
         {
-          "value": "#85713B",
+          "value": "#4E5A6B",
           "theme": {
             "mode": "light"
           }
         },
         {
-          "value": "#B58A3A",
+          "value": "#B4BCC8",
           "theme": {
             "mode": "classic"
           }
@@ -210865,6 +211511,29 @@
     "bar-dim": {
       "type": "color",
       "value": "#3DB59440"
+    },
+    "brand": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#2FD27A",
+          "theme": {
+            "mode": "dark"
+          }
+        },
+        {
+          "value": "#15803D",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#2FD27A",
+          "theme": {
+            "mode": "classic"
+          }
+        }
+      ]
     }
   },
   "fileToken": "eeced200-de6e-4ed6-b415-1d03fbc715ca"

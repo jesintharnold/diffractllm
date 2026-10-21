@@ -1,7 +1,7 @@
-import { Aperture } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { Link, useLocation } from 'react-router'
 import { NAV, type NavItem } from '@/app/nav'
+import { BrandMark } from '@/components/brand-mark'
 import {
   Sidebar,
   SidebarContent,
@@ -94,8 +94,10 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader className="px-4 py-5">
         <Link to="/" viewTransition onClick={closeOnMobile} className="flex items-center gap-2.5">
-          <Aperture className="size-[19px] text-sidebar-primary" />
-          <span className="text-base font-semibold">DiffractLLM</span>
+          <BrandMark className="h-[15px] w-5" />
+          <span className="text-base">
+            Diffract<span className="font-bold">LLM</span>
+          </span>
         </Link>
       </SidebarHeader>
 

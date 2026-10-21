@@ -150,6 +150,10 @@ func applyProxy(transport *http.Transport, dialer *net.Dialer, proxyConfig *core
 func newClient(defaultConfig config.UpstreamConfig, upstreamProviderConfig *core.Upstream) (*http.Client, error) {
 	providerNetwork := upstreamProviderConfig.Network
 	maxConns := compareConfig(defaultConfig.MaxConnsPerHost, providerNetwork.MaxConnsPerHost)
+	idle := defaultConfig.MaxIdleConnsPerHost
+	if idle <= 0 || idle > maxConns {
+		idle = maxConns
+	}
 	dialer := &net.Dialer{
 		Timeout:   defaultConfig.DialTimeout,
 		KeepAlive: defaultConfig.KeepAlive,
@@ -158,7 +162,7 @@ func newClient(defaultConfig config.UpstreamConfig, upstreamProviderConfig *core
 
 	transport := &http.Transport{
 		MaxIdleConns:          defaultConfig.MaxIdleConns,
-		MaxIdleConnsPerHost:   maxConns,
+		MaxIdleConnsPerHost:   idle,
 		MaxConnsPerHost:       maxConns,
 		IdleConnTimeout:       defaultConfig.IdleConnTimeout,
 		TLSHandshakeTimeout:   defaultConfig.TLSHandshakeTimeout,

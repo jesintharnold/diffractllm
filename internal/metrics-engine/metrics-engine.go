@@ -105,11 +105,12 @@ func (m *MetricsEngine) AddEvent(rctx *core.DiffractLLMContext) {
 	e := acquireEvent()
 	e.fill(rctx)
 	m.capturePayload(e, rctx)
-	if !m.buffer.Append(e) {
+	n, ok := m.buffer.Append(e)
+	if !ok {
 		releaseEvent(e)
 		return
 	}
-	if m.workers != nil && m.buffer.Len() >= m.buffer.maxCapacity/2 {
+	if m.workers != nil && n >= m.buffer.maxCapacity/2 {
 		_ = m.workers.Trigger(jobEventsFlush) // flush early instead of dropping
 	}
 }
