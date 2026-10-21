@@ -4,6 +4,7 @@ import (
 	"diffractllm/internal/core"
 	"diffractllm/internal/providers"
 	"encoding/json"
+	"strconv"
 
 	"github.com/bytedance/sonic"
 )
@@ -41,6 +42,9 @@ func writeJSON(rctx *core.DiffractLLMContext, code int, payload any) {
 func writeErr(rctx *core.DiffractLLMContext, desc *providers.RouteDescriptor, err *core.DiffractLLMError) {
 	rctx.ResponseStatus = err.StatusCode
 	rctx.Error = err
+	if err.RetryAfter > 0 {
+		rctx.SetHeader("Retry-After", strconv.Itoa(err.RetryAfter))
+	}
 	_, payload := desc.FromDiffractError(err)
 	rctx.JSON(err.StatusCode, payload)
 }

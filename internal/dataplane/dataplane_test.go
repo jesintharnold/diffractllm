@@ -470,7 +470,7 @@ func TestLimitedBody(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			body := newLimitedBody(io.NopCloser(strings.NewReader(tc.payload)), tc.limit, nil)
+			body := newLimitedBody(io.NopCloser(strings.NewReader(tc.payload)), tc.limit, nil, nil)
 			got, err := io.ReadAll(body)
 
 			if tc.wantErr {
@@ -488,7 +488,7 @@ func TestLimitedBody(t *testing.T) {
 // caller can tell a truncation from a clean end.
 func TestStreamTimeoutBodyStall(t *testing.T) {
 	pr, pw := io.Pipe()
-	body := newStreamTimeoutBody(pr, 50*time.Millisecond)
+	body := newStreamTimeoutBody(pr, 50*time.Millisecond, nil)
 
 	go func() {
 		_, _ = pw.Write([]byte("chunk-1"))
@@ -506,7 +506,7 @@ func TestStreamTimeoutBodyStall(t *testing.T) {
 // Every read resets the timer, so a slow but live stream is not cut off.
 func TestStreamTimeoutBodyResetsOnData(t *testing.T) {
 	pr, pw := io.Pipe()
-	body := newStreamTimeoutBody(pr, 150*time.Millisecond)
+	body := newStreamTimeoutBody(pr, 150*time.Millisecond, nil)
 
 	go func() {
 		for range 4 {
@@ -522,7 +522,7 @@ func TestStreamTimeoutBodyResetsOnData(t *testing.T) {
 }
 
 func TestStreamTimeoutBodyCloseIsIdempotent(t *testing.T) {
-	body := newStreamTimeoutBody(io.NopCloser(strings.NewReader("x")), time.Hour)
+	body := newStreamTimeoutBody(io.NopCloser(strings.NewReader("x")), time.Hour, nil)
 
 	assert.NoError(t, body.Close())
 	assert.NoError(t, body.Close(), "the timer stop must run once and the error be cached")
@@ -572,6 +572,9 @@ func TestRetryAfter(t *testing.T) {
 		{name: "exponential on attempt 1", attempt: 1, want: base},
 		{name: "exponential on attempt 2", attempt: 2, want: 2 * base},
 		{name: "exponential on attempt 3", attempt: 3, want: 4 * base},
+		{name: "caps a huge header", header: "3600", attempt: 1, want: maxRetryWait},
+		{name: "caps an absurd header without overflow", header: "999999999999", attempt: 1, want: maxRetryWait},
+		{name: "caps a long exponential backoff", attempt: 20, want: maxRetryWait},
 	}
 
 	for _, tc := range tests {

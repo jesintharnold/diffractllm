@@ -13,6 +13,7 @@ type NetworkConfig struct {
 	RetryAmbiguousStatus *bool             `json:"retry_ambiguous_status,omitempty"`
 	MaxResponseBytes     int64             `json:"max_response_bytes,omitempty"`
 	StreamIdleTimeout    *time.Duration    `json:"stream_idle_timeout,omitempty"`
+	MaxConcurrency       *int              `json:"max_concurrency,omitempty"` // unset or 0 = server.yaml value
 }
 
 type ProxyType string
@@ -42,5 +43,5 @@ func (n NetworkConfig) IsZero() bool {
 		n.RetryBackoff == nil && n.MaxConnsPerHost == nil &&
 		n.StreamIdleTimeout == nil && n.RetryAmbiguousStatus == nil &&
 		!n.InsecureSkipVerify && !n.AllowPrivateNetwork &&
-		n.MaxResponseBytes == 0
+		n.MaxResponseBytes == 0 && n.MaxConcurrency == nil
 }

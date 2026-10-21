@@ -32,6 +32,7 @@ const (
 	CodeUpstreamAuth        ErrorCode = "upstream_auth_error"
 	CodeUpstreamRateLimit   ErrorCode = "upstream_rate_limit"
 	CodeUpstreamUnavailable ErrorCode = "upstream_unavailable"
+	CodeProviderOverloaded  ErrorCode = "provider_overloaded"
 
 	CodeMissingParameter   ErrorCode = "missing_parameter"
 	CodeInvalidParameter   ErrorCode = "invalid_parameter"
@@ -250,6 +251,21 @@ func NewUpstreamRateLimit(provider, backendURL string, retryAfter int) *Diffract
 		Provider:      provider,
 		BackendURL:    backendURL,
 		RetryAfter:    retryAfter,
+	}
+}
+
+// NewProviderOverloaded is returned when a provider's lane is full; the request never reached the provider.
+func NewProviderOverloaded(provider string, limit int) *DiffractLLMError {
+	return &DiffractLLMError{
+		ErrorCategory: ErrorCategoryProvider,
+		Code:          CodeProviderOverloaded,
+		Message:       fmt.Sprintf("%s is at its concurrency limit, retry shortly", provider),
+		Type:          "provider_error",
+		StatusCode:    http.StatusServiceUnavailable,
+		Component:     "transport",
+		Provider:      provider,
+		RetryAfter:    1,
+		Details:       map[string]interface{}{"max_concurrency": limit},
 	}
 }
 

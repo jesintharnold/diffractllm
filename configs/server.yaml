@@ -9,21 +9,22 @@ server:
 
 upstream:
   max_idle_conns: 1000
-  max_conns_per_host: 256
+  max_conns_per_host: 5000       # >= max_concurrency; on Linux set ulimit -n >= 65535 for busy HTTP/1.1 upstreams
   max_idle_conns_per_host: 256
   idle_conn_timeout: 90s
   dial_timeout: 5s
   keep_alive: 30s
   tls_handshake_timeout: 10s
-  response_header_timeout: 30s   # to first response header, safe for streams
-  request_timeout: 60s           # whole non-streaming call; not applied to streams
-  stream_idle_timeout: 60s       # max gap BETWEEN chunks, not total stream length
-  max_retries: 0                 # attempts beyond the first; a provider can override
-  retry_backoff: 250ms           # base delay, doubled per attempt
-  max_response_bytes: 32768      # KB -> 32MB, mirrors server.max_body_size
-  write_buffer_size: 65536   # keep: a body bigger than this falls back to a 32 KB temp buffer per request
-  read_buffer_size: 16384    # HTTP/1.1 upstreams only; 64 KB measured no faster
+  response_header_timeout: 30s  
+  request_timeout: 60s          
+  stream_idle_timeout: 60s   
+  max_retries: 0            
+  retry_backoff: 250ms     
+  max_response_bytes: 32768 
+  write_buffer_size: 65536   
+  read_buffer_size: 16384  
   disable_compression: true
+  max_concurrency: 5000
 
 observability:
   log_level: "info"      # debug | info | warn | error

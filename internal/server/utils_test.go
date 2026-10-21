@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"diffractllm/internal/core"
+	"diffractllm/internal/providers"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -32,4 +33,14 @@ func TestWriteJSONMarshalsEverythingElse(t *testing.T) {
 	writeJSON(rctx, http.StatusOK, map[string]int{"n": 1})
 
 	assert.JSONEq(t, `{"n":1}`, rec.Body.String())
+}
+
+func TestWriteErrSendsRetryAfter(t *testing.T) {
+	rec := httptest.NewRecorder()
+	rctx := core.NewDiffractLLMContextPool().Acquire(context.Background(), nil, rec)
+
+	writeErr(rctx, &providers.OpenAIDescriptors[0], core.NewProviderOverloaded("azure", 256))
+
+	assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
+	assert.Equal(t, "1", rec.Header().Get("Retry-After"))
 }

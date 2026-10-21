@@ -48,6 +48,8 @@ type UpstreamConfig struct {
 	WriteBufferSize    int  `mapstructure:"write_buffer_size"`
 	ReadBufferSize     int  `mapstructure:"read_buffer_size"`
 	DisableCompression bool `mapstructure:"disable_compression"`
+
+	MaxConcurrency int `mapstructure:"max_concurrency"` // per-provider lane: calls running at once (default 5000); 0 = off
 }
 
 func (u UpstreamConfig) MaxResponseBytes() int64 {
@@ -160,7 +162,7 @@ func read() (*GatewayConfig, error) {
 	viper.SetDefault("server.trusted_proxies", []string{}) // trust nobody by default
 
 	viper.SetDefault("upstream.max_idle_conns", 1000)
-	viper.SetDefault("upstream.max_conns_per_host", 256)
+	viper.SetDefault("upstream.max_conns_per_host", 5000) // >= max_concurrency; HTTP/2 opens extra conns only when streams run out
 	viper.SetDefault("upstream.max_idle_conns_per_host", 256)
 	viper.SetDefault("upstream.idle_conn_timeout", "90s")
 	viper.SetDefault("upstream.dial_timeout", "5s")
@@ -175,6 +177,7 @@ func read() (*GatewayConfig, error) {
 	viper.SetDefault("upstream.write_buffer_size", 64<<10)
 	viper.SetDefault("upstream.read_buffer_size", 16<<10) // large reads bypass bufio; bigger only costs memory
 	viper.SetDefault("upstream.disable_compression", true)
+	viper.SetDefault("upstream.max_concurrency", 5000) // per-provider lane; 0 turns it off
 
 	viper.SetDefault("observability.log_level", "info")
 	viper.SetDefault("observability.log_format", "console")
@@ -334,6 +337,14 @@ func (u UpstreamConfig) Validate() error {
 		if f.value <= 0 {
 			return fmt.Errorf("%s must be positive, got %s", f.name, f.value)
 		}
+	}
+
+	if u.MaxConcurrency < 0 || u.MaxConcurrency > 100_000 {
+		return fmt.Errorf("max_concurrency must be 0 (off) to 100000, got %d", u.MaxConcurrency)
+	}
+	if u.MaxConcurrency > u.MaxConnsPerHost {
+		return fmt.Errorf("max_concurrency (%d) exceeds max_conns_per_host (%d); raise max_conns_per_host too (on HTTP/1.1 extra calls would wait for a connection, past the lane)",
+			u.MaxConcurrency, u.MaxConnsPerHost)
 	}
 	return nil
 }

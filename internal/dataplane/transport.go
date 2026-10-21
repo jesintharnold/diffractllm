@@ -1,12 +1,12 @@
 package dataplane
 
 import (
-	"diffractllm/internal/observability/logging"
 	"bytes"
 	"context"
 	"crypto/tls"
 	config "diffractllm/configs"
 	"diffractllm/internal/core"
+	"diffractllm/internal/observability/logging"
 	"errors"
 	"fmt"
 	"io"
@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -211,12 +212,14 @@ type streamTimeoutBody struct {
 	timer    *time.Timer
 	closed   sync.Once
 	closeErr error
+	lane     *lane // place in the provider's lane; released once in Close
 }
 
-func newStreamTimeoutBody(rc io.ReadCloser, timeout time.Duration) *streamTimeoutBody {
+func newStreamTimeoutBody(rc io.ReadCloser, timeout time.Duration, ln *lane) *streamTimeoutBody {
 	b := &streamTimeoutBody{
 		rc:      rc,
 		timeout: timeout,
+		lane:    ln,
 	}
 	b.timer = time.AfterFunc(timeout, func() {
 		b.stalled.Store(true)
@@ -252,6 +255,7 @@ func (b *streamTimeoutBody) Close() error {
 	b.closed.Do(func() {
 		b.timer.Stop()
 		b.closeErr = b.rc.Close()
+		b.lane.release()
 	})
 	return b.closeErr
 }
@@ -260,10 +264,12 @@ type limitedBody struct {
 	rc        io.ReadCloser
 	remaining int64
 	cancel    context.CancelFunc // request timeout; released on Close
+	lane      *lane              // place in the provider's lane; released on Close
+	closed    atomic.Bool        // first Close wins: a second release would undercount
 }
 
-func newLimitedBody(rc io.ReadCloser, limit int64, cancel context.CancelFunc) *limitedBody {
-	return &limitedBody{rc: rc, remaining: limit + 1, cancel: cancel}
+func newLimitedBody(rc io.ReadCloser, limit int64, cancel context.CancelFunc, ln *lane) *limitedBody {
+	return &limitedBody{rc: rc, remaining: limit + 1, cancel: cancel, lane: ln}
 }
 
 func (b *limitedBody) Read(p []byte) (int, error) {
@@ -282,16 +288,21 @@ func (b *limitedBody) Read(p []byte) (int, error) {
 	return n, err
 }
 func (b *limitedBody) Close() error {
+	if !b.closed.CompareAndSwap(false, true) {
+		return nil
+	}
 	err := b.rc.Close()
 	if b.cancel != nil {
 		b.cancel()
 	}
+	b.lane.release()
 	return err
 }
 
 type providerTransport struct {
-	client   *http.Client
-	upstream *core.Upstream
+	client         *http.Client
+	upstream       *core.Upstream
+	TrafficControl *lane // nil when max_concurrency is 0 (off)
 }
 
 type providerClientMap map[core.Provider]*providerTransport
@@ -329,15 +340,32 @@ func NewTransport(defaultConfig config.UpstreamConfig, upstreamProviderConfig ma
 	return &t
 }
 
+// buildProvider builds one provider's client; prev's lane is carried over so calls already running stay counted.
+func buildProvider(defaultConfig config.UpstreamConfig, provider core.Provider, upstream *core.Upstream, prev *providerTransport, logger *zap.Logger) (*providerTransport, error) {
+	client, err := newClient(defaultConfig, upstream)
+	if err != nil {
+		return nil, err
+	}
+	var prevLane *lane
+	if prev != nil {
+		prevLane = prev.TrafficControl
+	}
+	return &providerTransport{
+		client:         client,
+		upstream:       upstream,
+		TrafficControl: laneFor(laneLimit(defaultConfig, upstream.Network, provider, logger), prevLane),
+	}, nil
+}
+
 func buildProviders(defaultConfig config.UpstreamConfig, upstreamProviderConfig map[core.Provider]*core.Upstream, logger *zap.Logger) *providerClientMap {
 	providerClientMaps := make(providerClientMap, len(upstreamProviderConfig))
 	for provider, upstream := range upstreamProviderConfig {
-		client, err := newClient(defaultConfig, upstream)
+		pt, err := buildProvider(defaultConfig, provider, upstream, nil, logger)
 		if err != nil {
 			logger.Error("building client", zap.String("provider", string(provider)), zap.Error(err))
 			continue
 		}
-		providerClientMaps[provider] = &providerTransport{client: client, upstream: upstream}
+		providerClientMaps[provider] = pt
 	}
 	return &providerClientMaps
 }
@@ -351,6 +379,8 @@ func (t *DiffractLLMTransport) EffectiveNetwork(stored core.NetworkConfig) core.
 	effective.RequestTimeout = &requestTimeout
 	effective.StreamIdleTimeout = &streamIdle
 	effective.MaxConnsPerHost = &maxConns
+	concurrency := compareConfig(t.defaultConfig.MaxConcurrency, stored.MaxConcurrency)
+	effective.MaxConcurrency = &concurrency
 
 	if effective.MaxResponseBytes == 0 {
 		effective.MaxResponseBytes = t.defaultConfig.MaxResponseBytes()
@@ -373,23 +403,32 @@ func (t *DiffractLLMTransport) EffectiveNetwork(stored core.NetworkConfig) core.
 	return effective
 }
 
+// Replace rebuilds only providers whose config changed; the rest keep their client, idle pool and lane.
 func (t *DiffractLLMTransport) Replace(upstreamProviderConfig map[core.Provider]*core.Upstream) []core.Provider {
-	next := *buildProviders(t.defaultConfig, upstreamProviderConfig, t.logger)
-	var failed []core.Provider
 	old := t.providers.Load()
-	for provider := range upstreamProviderConfig {
-		if _, built := next[provider]; built {
+	next := make(providerClientMap, len(upstreamProviderConfig))
+	var failed []core.Provider
+	for provider, upstream := range upstreamProviderConfig {
+		var prev *providerTransport
+		if old != nil {
+			prev = (*old)[provider]
+		}
+		if prev != nil && reflect.DeepEqual(prev.upstream, upstream) {
+			next[provider] = prev
 			continue
 		}
-		failed = append(failed, provider)
-		if old == nil {
+		pt, err := buildProvider(t.defaultConfig, provider, upstream, prev, t.logger)
+		if err != nil {
+			t.logger.Error("building client", zap.String("provider", string(provider)), zap.Error(err))
+			failed = append(failed, provider)
+			if prev != nil {
+				t.logger.Warn("keeping previous client, new config failed to build",
+					zap.String("provider", string(provider)))
+				next[provider] = prev
+			}
 			continue
 		}
-		if existing, ok := (*old)[provider]; ok {
-			t.logger.Warn("keeping previous client, new config failed to build",
-				zap.String("provider", string(provider)))
-			next[provider] = existing
-		}
+		next[provider] = pt
 	}
 	t.providers.Store(&next)
 	t.closeDropped(old, next)
@@ -410,7 +449,7 @@ func (t *DiffractLLMTransport) closeDropped(old *providerClientMap, next provide
 	}
 }
 
-// ServeHTTP returns a body the caller must Close; for non-stream calls Close releases the request timeout.
+// ServeHTTP returns a body the caller must Close; Close releases the request timeout and the lane place.
 func (t *DiffractLLMTransport) ServeHTTP(rctx *core.DiffractLLMContext, req *DiffractLLMTransportRequest) (*DiffractLLMTransportResult, *core.DiffractLLMError) {
 	provider := rctx.Modelkey.Provider
 	pt := t.providers.Load()
@@ -434,15 +473,24 @@ func (t *DiffractLLMTransport) ServeHTTP(rctx *core.DiffractLLMContext, req *Dif
 			ctx, cancel = context.WithTimeout(ctx, d)
 		}
 	}
-	// On success the body owns cancel; every other return releases it here.
-	handedOff := false
-	if cancel != nil {
-		defer func() {
-			if !handedOff {
-				cancel()
-			}
-		}()
+	ln := providerTransport.TrafficControl
+	if err := ln.acquire(); err != nil {
+		if cancel != nil {
+			cancel()
+		}
+		return nil, core.NewProviderOverloaded(string(provider), ln.concurrency())
 	}
+	// On success the body owns cancel and the lane place; every other return releases both here.
+	handedOff := false
+	defer func() {
+		if handedOff {
+			return
+		}
+		if cancel != nil {
+			cancel()
+		}
+		ln.release()
+	}()
 
 	maxAttempts := 1 + t.defaultConfig.MaxRetries
 	if upstream.Network.MaxRetries != nil && *upstream.Network.MaxRetries > 0 {
@@ -518,12 +566,12 @@ func (t *DiffractLLMTransport) ServeHTTP(rctx *core.DiffractLLMContext, req *Dif
 
 		if req.IsStreaming {
 			idle := compareConfig(t.defaultConfig.StreamIdleTimeout, upstream.Network.StreamIdleTimeout)
-			body = newStreamTimeoutBody(body, idle)
+			body = newStreamTimeoutBody(body, idle, ln)
 		} else {
 			maxBytes := compareConfig(t.defaultConfig.MaxResponseBytes(), &upstream.Network.MaxResponseBytes)
-			body = newLimitedBody(body, maxBytes, cancel)
-			handedOff = true
+			body = newLimitedBody(body, maxBytes, cancel, ln)
 		}
+		handedOff = true
 
 		return &DiffractLLMTransportResult{
 			Status:   resp.StatusCode,
@@ -556,13 +604,19 @@ func retryable(status int, allowAmbiguous bool) bool {
 	return retrySafe(status) || (allowAmbiguous && retryAmbiguous(status))
 }
 
+// maxRetryWait caps one retry sleep: the call keeps its lane place while it sleeps, and streams have no request timeout.
+const maxRetryWait = 30 * time.Second
+
 func retryAfter(h http.Header, base time.Duration, attempt int) time.Duration {
 	if v := h.Get("Retry-After"); v != "" {
 		if secs, err := strconv.Atoi(v); err == nil && secs > 0 {
+			if secs >= int(maxRetryWait/time.Second) {
+				return maxRetryWait
+			}
 			return time.Duration(secs) * time.Second
 		}
 	}
-	return base * time.Duration(1<<(attempt-1))
+	return min(base*time.Duration(1<<(attempt-1)), maxRetryWait)
 }
 
 func sleepBackoff(ctx context.Context, d time.Duration) bool {
