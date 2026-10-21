@@ -173,7 +173,7 @@ func read() (*GatewayConfig, error) {
 	viper.SetDefault("upstream.retry_backoff", "250ms")
 	viper.SetDefault("upstream.max_response_bytes", 32768) // KB -> 32MB
 	viper.SetDefault("upstream.write_buffer_size", 64<<10)
-	viper.SetDefault("upstream.read_buffer_size", 64<<10)
+	viper.SetDefault("upstream.read_buffer_size", 16<<10) // large reads bypass bufio; bigger only costs memory
 	viper.SetDefault("upstream.disable_compression", true)
 
 	viper.SetDefault("observability.log_level", "info")
