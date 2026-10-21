@@ -7,6 +7,7 @@ import (
 	"diffractllm/internal/providers"
 	"io"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/bytedance/sonic"
@@ -78,33 +79,59 @@ func (ds *DiffractLLMServer) logRequest(rctx *core.DiffractLLMContext) {
 	ce.Write(fields...)
 }
 
-func (ds *DiffractLLMServer) readBody(rctx *core.DiffractLLMContext) ([]byte, *core.DiffractLLMError) {
+const (
+	maxPreallocBody = 1 << 20             // trust Content-Length this far; bigger bodies grow as bytes arrive
+	chunkedBodyHint = 16 << 10            // no Content-Length
+	maxPooledBody   = 2 * maxPreallocBody // headroom for MinRead and size-class rounding; bigger is dropped
+)
+
+var bodyPool = sync.Pool{New: func() any { return new(bytes.Buffer) }}
+
+func putBody(buf *bytes.Buffer) {
+	if buf == nil || buf.Cap() > maxPooledBody {
+		return
+	}
+	bodyPool.Put(buf)
+}
+
+func (ds *DiffractLLMServer) readBody(rctx *core.DiffractLLMContext) (*bytes.Buffer, *core.DiffractLLMError) {
 	maxBody := int64(ds.config.MaxBodySize) << 10
 	size := rctx.Request.ContentLength
 	if size > maxBody {
 		return nil, core.NewPayloadTooLarge(maxBody)
 	}
-	if size < 0 { // chunked; a declared 0 needs no buffer at all
-		size = 64 << 10
+	switch {
+	case size < 0:
+		size = chunkedBodyHint
+	case size > maxPreallocBody:
+		size = maxPreallocBody
 	}
-	buf := bytes.NewBuffer(make([]byte, 0, size))
+
+	buf := bodyPool.Get().(*bytes.Buffer)
+	buf.Reset()
+	buf.Grow(int(size) + bytes.MinRead) // MinRead spare stops ReadFrom doubling at EOF
 	if _, err := buf.ReadFrom(io.LimitReader(rctx.Request.Body, maxBody)); err != nil {
+		putBody(buf)
 		return nil, core.NewInvalidRequestBody("reading body", err)
 	}
 	if int64(buf.Len()) >= maxBody {
 		var probe [1]byte
 		if n, _ := rctx.Request.Body.Read(probe[:]); n > 0 {
+			putBody(buf)
 			return nil, core.NewPayloadTooLarge(maxBody)
 		}
 	}
-	return buf.Bytes(), nil
+	return buf, nil
 }
 
 func (ds *DiffractLLMServer) GenericRequestHandler(w http.ResponseWriter, r *http.Request, desc *providers.RouteDescriptor) {
 	rctx := ds.CtxPool.Acquire(r.Context(), r, w)
+	var body *bytes.Buffer
 	defer func() {
 		ds.HookEngine.RunPostCallHooks(rctx)
 		ds.logRequest(rctx)
+		rctx.BodyBytes = nil // never alias a buffer another request may own
+		putBody(body)        // after post-call hooks: metrics copies BodyBytes there
 		ds.CtxPool.Release(rctx)
 	}()
 
@@ -121,17 +148,18 @@ func (ds *DiffractLLMServer) GenericRequestHandler(w http.ResponseWriter, r *htt
 	rctx.Mark(core.StageAuth)
 
 	// Read the complete body
-	body, err := ds.readBody(rctx)
+	buf, err := ds.readBody(rctx)
 	if err != nil {
 		writeErr(rctx, desc, err)
 		return
 	}
-	rctx.BodyBytes = body
+	body = buf
+	rctx.BodyBytes = buf.Bytes()
 	rctx.Mark(core.StageReadBody)
 
 	// Now convert the json into struct
 	payloadStruct := desc.NewRequest()
-	if err := sonic.Unmarshal(body, payloadStruct); err != nil {
+	if err := sonic.Unmarshal(rctx.BodyBytes, payloadStruct); err != nil {
 		writeErr(rctx, desc, core.NewInvalidRequestBody("parsing request", err))
 		return
 	}

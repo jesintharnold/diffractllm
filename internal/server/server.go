@@ -55,6 +55,8 @@ type DiffractLLMServer struct {
 
 func (ds *DiffractLLMServer) SetSettings(r *settings.Registry) { ds.settings = r }
 
+const readTimeout = 60 * time.Second
+
 func NewDiffractLLMServer(config *config.ServerConfig, gov *governance.Governance, selectionEngine *dataplane.SelectionEngine, credentialPlane *providerplane.ProviderPlane, catalog *modelcatalog.ModelCatalog,
 	registry *providers.ProviderInstance, transport *dataplane.DiffractLLMTransport, store *dbstore.Store) *DiffractLLMServer {
 	hookEngine := core.NewHookEngine(logging.For("hooks"))
@@ -90,6 +92,7 @@ func (ds *DiffractLLMServer) Start() error {
 			Addr:              fmt.Sprintf(":%d", ds.config.Port),
 			Handler:           handler,
 			ReadHeaderTimeout: 10 * time.Second,
+			ReadTimeout:       readTimeout,
 			WriteTimeout:      0,
 			IdleTimeout:       60 * time.Second,
 			BaseContext:       func(net.Listener) context.Context { return ds.baseCtx },
