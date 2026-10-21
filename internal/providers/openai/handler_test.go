@@ -136,3 +136,27 @@ func TestStreamChunksKeepUpstreamBytes(t *testing.T) {
 	}
 	assert.Equal(t, []string{chunk}, got)
 }
+
+// The client hangs up while the non-stream body is arriving: a cancel, not a 502 from the provider.
+func TestNonStreamClientCancelDuringBodyIsACancel(t *testing.T) {
+	release := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, `{"id":"c1",`)
+		w.(http.Flusher).Flush()
+		<-release
+	}))
+	defer server.Close()
+	defer close(release)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	rc := core.NewDiffractLLMContextPool().Acquire(ctx, nil, nil)
+	rc.Modelkey = core.CatalogKey{Provider: core.ProviderOpenAI, ModelName: "gpt-4o"}
+	rc.SDKProvider = core.ProviderOpenAI
+	time.AfterFunc(50*time.Millisecond, cancel)
+
+	_, derr := HandleChatCompletion(rc, testTransport(t), chatConfig(server.URL))
+	require.NotNil(t, derr)
+	assert.Equal(t, core.CodeClientCancelled, derr.Code)
+	assert.Equal(t, core.StatusClientClosedRequest, derr.StatusCode)
+}

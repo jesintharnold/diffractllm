@@ -8,7 +8,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const statusClientClosed = 499
+const statusClientClosed = core.StatusClientClosedRequest
 
 func (ds *DiffractLLMServer) chatCompletion(
 	rctx *core.DiffractLLMContext, desc *providers.RouteDescriptor,

@@ -41,6 +41,9 @@ func HandleChatCompletion(rctx *core.DiffractLLMContext, transport *dataplane.Di
 	respBody, err := io.ReadAll(result.Body)
 	result.Body.Close()
 	if err != nil {
+		if errors.Is(rctx.Context().Err(), context.Canceled) {
+			return nil, core.NewClientCancelled("upstream response")
+		}
 		if errors.Is(err, context.DeadlineExceeded) {
 			return nil, core.NewUpstreamTimeout(string(cfg.Provider), safeURL, err)
 		}

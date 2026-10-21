@@ -98,7 +98,7 @@ func (e *Event) fill(rctx *core.DiffractLLMContext) {
 
 func classify(rctx *core.DiffractLLMContext) Result {
 	switch {
-	case rctx.StreamAborted:
+	case rctx.StreamAborted, rctx.Error != nil && rctx.Error.Code == core.CodeClientCancelled:
 		return ResultClientAbort
 	case rctx.Error == nil && rctx.RequestCompleted:
 		return ResultOK

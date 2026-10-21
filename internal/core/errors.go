@@ -33,6 +33,7 @@ const (
 	CodeUpstreamRateLimit   ErrorCode = "upstream_rate_limit"
 	CodeUpstreamUnavailable ErrorCode = "upstream_unavailable"
 	CodeProviderOverloaded  ErrorCode = "provider_overloaded"
+	CodeClientCancelled     ErrorCode = "client_cancelled"
 
 	CodeMissingParameter   ErrorCode = "missing_parameter"
 	CodeInvalidParameter   ErrorCode = "invalid_parameter"
@@ -253,6 +254,21 @@ func NewUpstreamRateLimit(provider, backendURL string, retryAfter int) *Diffract
 		RetryAfter:    retryAfter,
 	}
 }
+
+// NewClientCancelled is returned when the client disconnected; nothing is billed unless the provider already reported usage.
+func NewClientCancelled(stage string) *DiffractLLMError {
+	return &DiffractLLMError{
+		ErrorCategory: ErrorCategoryClient,
+		Code:          CodeClientCancelled,
+		Message:       "Request cancelled: client disconnected",
+		Type:          "request_cancelled",
+		StatusCode:    StatusClientClosedRequest,
+		Component:     stage,
+	}
+}
+
+// StatusClientClosedRequest is nginx's 499: the client closed the connection before the response finished.
+const StatusClientClosedRequest = 499
 
 // NewProviderOverloaded is returned when a provider's lane is full; the request never reached the provider.
 func NewProviderOverloaded(provider string, limit int) *DiffractLLMError {

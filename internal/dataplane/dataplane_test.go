@@ -1666,3 +1666,23 @@ func TestServeHTTPRecordsAttemptsAndLastStatusOnRctx(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "req_upstream_1", id)
 }
+
+// A client that hangs up while the provider is still working is a cancel (499), not an upstream timeout.
+func TestServeHTTPClientCancelIsNotATimeout(t *testing.T) {
+	release := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { <-release }))
+	defer server.Close()
+	defer close(release)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	rc := core.NewDiffractLLMContextPool().Acquire(ctx, nil, nil)
+	rc.Modelkey = chatKey(core.ProviderOpenAI, gpt4o)
+	time.AfterFunc(50*time.Millisecond, cancel)
+
+	_, derr := transportFor(t, core.NetworkConfig{}).ServeHTTP(rc,
+		&DiffractLLMTransportRequest{Method: http.MethodPost, URL: server.URL, IsStreaming: true})
+	require.NotNil(t, derr)
+	assert.Equal(t, core.CodeClientCancelled, derr.Code)
+	assert.Equal(t, core.StatusClientClosedRequest, derr.StatusCode)
+	assert.True(t, derr.IsClient())
+}

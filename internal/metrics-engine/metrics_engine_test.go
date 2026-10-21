@@ -513,3 +513,11 @@ func TestUpstreamAttemptsAndHeadersReachTheDetail(t *testing.T) {
 		"x-ratelimit-remaining-tokens": "1200",
 	}, d.Upstream.Headers)
 }
+
+func TestClientCancelIsRecordedAsCancelled(t *testing.T) {
+	rc := okContext()
+	rc.RequestCompleted = false
+	rc.ResponseStatus = core.StatusClientClosedRequest
+	rc.Error = core.NewClientCancelled("upstream")
+	assert.Equal(t, ResultClientAbort, classify(rc), "a cancel is cancelled, not rejected")
+}

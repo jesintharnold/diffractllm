@@ -530,6 +530,9 @@ func (t *DiffractLLMTransport) ServeHTTP(rctx *core.DiffractLLMContext, req *Dif
 		ttfb := time.Since(start)
 
 		if err != nil {
+			if clientGone(rctx) {
+				return nil, core.NewClientCancelled("upstream")
+			}
 			if ctx.Err() != nil {
 				return nil, core.NewUpstreamTimeout(string(provider), safeURL, err)
 			}
@@ -538,6 +541,9 @@ func (t *DiffractLLMTransport) ServeHTTP(rctx *core.DiffractLLMContext, req *Dif
 
 			if attempt < maxAttempts {
 				if !sleepBackoff(ctx, backoff) {
+					if clientGone(rctx) {
+						return nil, core.NewClientCancelled("retry backoff")
+					}
 					return nil, lastErr
 				}
 				continue
@@ -551,6 +557,9 @@ func (t *DiffractLLMTransport) ServeHTTP(rctx *core.DiffractLLMContext, req *Dif
 			io.Copy(io.Discard, io.LimitReader(resp.Body, 4<<10))
 			resp.Body.Close()
 			if !sleepBackoff(ctx, wait) {
+				if clientGone(rctx) {
+					return nil, core.NewClientCancelled("retry backoff")
+				}
 				return nil, core.NewUpstreamError(string(provider), safeURL, resp.StatusCode, "retry aborted", nil)
 			}
 			continue
@@ -582,6 +591,11 @@ func (t *DiffractLLMTransport) ServeHTTP(rctx *core.DiffractLLMContext, req *Dif
 		}, nil
 	}
 	return nil, lastErr
+}
+
+// clientGone reports a client disconnect; a request_timeout expiry is DeadlineExceeded, not Canceled.
+func clientGone(rctx *core.DiffractLLMContext) bool {
+	return errors.Is(rctx.Context().Err(), context.Canceled)
 }
 
 func retrySafe(status int) bool {
